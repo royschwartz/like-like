@@ -2,6 +2,8 @@
 
 A small ASCII roguelike, shaped for a phone. A first, simple build: goblins, a sword, stairs down.
 
+**Play it: [royschwartz.github.io/like-like](https://royschwartz.github.io/like-like/)**
+
 ```
 you have been asked to retrieve the amulet of yendor
 it is at the bottom of this dungeon, probably
@@ -9,7 +11,7 @@ it is at the bottom of this dungeon, probably
 
 ## Play
 
-It is plain files, with nothing to install or build. Serve the folder and open it:
+It is plain files, with nothing to install or build. To run it on your own machine, serve the folder and open it:
 
 ```bash
 python3 -m http.server 5173
