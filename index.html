@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#000000">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<title>LIKE LIKE</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main id="stage">
+  <div id="screen" data-look="paper">
+
+    <section id="log" aria-live="polite">
+      <div id="log-lines"></div>
+    </section>
+
+    <section id="map-wrap">
+      <div id="map" class="map"></div>
+    </section>
+
+    <section id="stats"></section>
+
+    <section id="controls">
+      <div id="buttons">
+        <button id="btn-context" class="btn" type="button" data-action="context"></button>
+        <button id="btn-psy" class="btn" type="button" data-menu="psy"></button>
+        <button id="btn-inv" class="btn" type="button" data-menu="inv"></button>
+        <button id="btn-act" class="btn" type="button" data-menu="act"></button>
+        <button id="btn-sys" class="btn" type="button" data-menu="sys"></button>
+      </div>
+
+      <div id="options">
+        <button class="btn opt" type="button" data-choose="0"></button>
+        <button class="btn opt" type="button" data-choose="1"></button>
+        <button class="btn opt" type="button" data-choose="2"></button>
+        <button class="btn opt" type="button" data-choose="3"></button>
+      </div>
+
+      <div id="dpad">
+        <button class="pad" type="button" data-dir="n" aria-label="north"></button>
+        <button class="pad" type="button" data-dir="w" aria-label="west"></button>
+        <div class="hub"></div>
+        <button class="pad" type="button" data-dir="e" aria-label="east"></button>
+        <button class="pad" type="button" data-dir="s" aria-label="south"></button>
+      </div>
+    </section>
+
+  </div>
+</main>
+<script type="module" src="src/main.js"></script>
+</body>
+</html>
