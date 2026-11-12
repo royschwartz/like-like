@@ -12,11 +12,18 @@ const LOOKS = {
     grass: { ch: '"', fg: [74, 122, 56], bg: [225, 231, 205], vary: 6, fgVary: 22 },
     wall: { ch: '#', fg: [96, 88, 75], bg: [44, 40, 35], vary: 7, fgVary: 12 },
     door: { ch: '+', fg: [92, 46, 14], bg: [205, 172, 120], vary: 4, fgVary: 0 },
+    // the golden door, locked; once open it is drawn as a door
+    golddoor: { ch: '+', fg: [255, 214, 72], bg: [96, 66, 12], vary: 3, fgVary: 0, bold: true },
+    opendoor: { ch: '+', fg: [92, 46, 14], bg: [205, 172, 120], vary: 4, fgVary: 0 },
+    // the bust of DEE: grey stone
+    statue: { ch: '&', fg: [58, 58, 62], bg: [182, 180, 174], vary: 3, fgVary: 0, bold: true },
     stairs: { ch: '>', fg: [24, 20, 14], bg: [240, 208, 96], vary: 3, fgVary: 0 },
     entrance: { ch: '<', fg: [118, 110, 95], bg: [229, 224, 208], vary: 4, fgVary: 0 },
     player: { ch: '@', fg: [0, 0, 0], bg: [252, 249, 240] },
     goblin: { ch: 'g', fg: [176, 48, 18] },
     goblinAsleep: { ch: 'g', fg: [176, 132, 112] },
+    toad: { ch: 'T', fg: [40, 112, 22] },
+    toadAsleep: { ch: 'T', fg: [78, 116, 52] },
     corpse: { ch: '%', fg: [130, 26, 26] },
     // Far cells go a little grey and cool; remembered cells fade like old ink.
     shade: [176, 178, 184],
@@ -31,11 +38,16 @@ const LOOKS = {
     grass: { ch: '"', fg: [84, 168, 70], bg: [9, 20, 13], vary: 3, fgVary: 26 },
     wall: { ch: '#', fg: [30, 26, 24], bg: [98, 86, 78], vary: 11, fgVary: 6 },
     door: { ch: '+', fg: [214, 122, 44], bg: [74, 30, 13], vary: 4, fgVary: 0 },
+    golddoor: { ch: '+', fg: [255, 216, 64], bg: [88, 64, 6], vary: 3, fgVary: 0, bold: true },
+    opendoor: { ch: '+', fg: [214, 122, 44], bg: [74, 30, 13], vary: 4, fgVary: 0 },
+    statue: { ch: '&', fg: [196, 196, 204], bg: [44, 44, 50], vary: 3, fgVary: 0, bold: true },
     stairs: { ch: '>', fg: [255, 236, 124], bg: [56, 50, 14], vary: 3, fgVary: 0 },
     entrance: { ch: '<', fg: [128, 128, 162], bg: [14, 14, 30], vary: 3, fgVary: 0 },
     player: { ch: '@', fg: [255, 255, 255], bg: [30, 28, 34] },
     goblin: { ch: 'g', fg: [226, 146, 58] },
     goblinAsleep: { ch: 'g', fg: [126, 92, 58] },
+    toad: { ch: 'T', fg: [128, 214, 72] },
+    toadAsleep: { ch: 'T', fg: [92, 156, 66] },
     corpse: { ch: '%', fg: [168, 44, 44] },
     shade: [0, 0, 8],
     shadeMax: 0.5,
@@ -77,7 +89,7 @@ export function paintCell(cell, x, y, env) {
   let ch = ground.ch;
   let bg = add(ground.bg, (noise(x, y, key) - 0.5) * 2 * ground.vary);
   let fg = add(ground.fg, (noise(y, x, key + 7) - 0.5) * 2 * ground.fgVary);
-  let bold = false;
+  let bold = !!ground.bold;
 
   const thing = cell.thing;
   if (thing) {
@@ -85,6 +97,12 @@ export function paintCell(cell, x, y, env) {
       ch = look.player.ch;
       fg = look.player.fg;
       bg = look.player.bg;
+      bold = true;
+    } else if (thing.kind === 'toad') {
+      // bold awake or asleep: it is large
+      const t = thing.asleep ? look.toadAsleep : look.toad;
+      ch = t.ch;
+      fg = t.fg;
       bold = true;
     } else if (thing.kind === 'goblin') {
       const g = thing.asleep ? look.goblinAsleep : look.goblin;

@@ -1,5 +1,6 @@
 // Making a level: rooms on a coarse grid, doors between neighbours,
-// obstacles, grass, the entrance, the stairs, the goblins.
+// obstacles, grass, the entrance, the stairs, the goblins. On level 1, the
+// toad's room: a small room in its far corner, behind a golden door, holds the stairs.
 
 import { CONFIG } from './config.js';
 import { int, chance, pick, weighted, shuffle } from './rng.js';
@@ -18,7 +19,8 @@ const PILLARS4 = [[3, 3], [7, 3], [3, 7], [7, 7]];
 
 export const idx = (x, y) => y * S + x;
 export const inside = (x, y) => x > 0 && y > 0 && x < S - 1 && y < S - 1;
-export const walkable = (t) => t !== 'wall';
+// Nothing walks onto a wall or the bust.
+export const walkable = (t) => t !== 'wall' && t !== 'statue';
 
 const isArrivalSpot = (x, y) => DIRS.some((d) => ARRIVAL[d][0] === x && ARRIVAL[d][1] === y);
 
@@ -33,8 +35,10 @@ export function isArrival(room, x, y) {
 
 // ---- the grid of rooms -------------------------------------------------
 
-function placeRooms(rng) {
-  const count = weighted(rng, CONFIG.roomCounts);
+const ROOM_MAX = Math.max(...CONFIG.roomCounts.map(([n]) => n));
+
+function placeRooms(rng, extra = 0) {
+  const count = Math.min(weighted(rng, CONFIG.roomCounts) + extra, ROOM_MAX);
   const spots = [[0, 0]];
   const taken = new Set(['0,0']);
   while (spots.length < count) {
@@ -86,25 +90,30 @@ function addObstacles(rng, t) {
 function addGrass(rng, t) {
   const patches = int(rng, CONFIG.grassPatches[0], CONFIG.grassPatches[1]);
   for (let p = 0; p < patches; p++) {
-    const size = int(rng, CONFIG.grassSize[0], CONFIG.grassSize[1]);
     const start = pick(rng, interiorCells(t, (c) => c === 'floor'));
     if (!start) return;
-    const patch = [start];
-    t[idx(...start)] = 'grass';
-    while (patch.length < size) {
-      const edge = [];
-      for (const [x, y] of patch) {
-        for (const d of DIRS) {
-          const nx = x + STEP[d][0];
-          const ny = y + STEP[d][1];
-          if (inside(nx, ny) && t[idx(nx, ny)] === 'floor') edge.push([nx, ny]);
-        }
+    growGrass(rng, t, start);
+  }
+}
+
+// One patch of grass, grown over floor from start.
+function growGrass(rng, t, start) {
+  const size = int(rng, CONFIG.grassSize[0], CONFIG.grassSize[1]);
+  const patch = [start];
+  t[idx(...start)] = 'grass';
+  while (patch.length < size) {
+    const edge = [];
+    for (const [x, y] of patch) {
+      for (const d of DIRS) {
+        const nx = x + STEP[d][0];
+        const ny = y + STEP[d][1];
+        if (inside(nx, ny) && t[idx(nx, ny)] === 'floor') edge.push([nx, ny]);
       }
-      if (edge.length === 0) break;
-      const next = pick(rng, edge);
-      t[idx(...next)] = 'grass';
-      patch.push(next);
     }
+    if (edge.length === 0) break;
+    const next = pick(rng, edge);
+    t[idx(...next)] = 'grass';
+    patch.push(next);
   }
 }
 
@@ -148,9 +157,10 @@ function makeRoom(rng, nb) {
 // ---- the level as a whole ----------------------------------------------
 
 // Steps from the entrance to every cell of every room, walking as the player
-// does: stepping onto a door puts you on the arrival cell next door.
+// does: stepping onto a door puts you on the arrival cell next door. The golden
+// door is walked through (as with the key) unless locked is true.
 // Returns an array of rooms, each an array of 121 distances (-1: unreachable).
-export function levelDistances(level, from = level.entrance) {
+export function levelDistances(level, from = level.entrance, { locked = false } = {}) {
   const dist = level.rooms.map(() => new Array(S * S).fill(-1));
   dist[from.room][idx(from.x, from.y)] = 0;
   const queue = [[from.room, from.x, from.y]];
@@ -164,7 +174,7 @@ export function levelDistances(level, from = level.entrance) {
       let ny = y + STEP[d][1];
       if (nx < 0 || ny < 0 || nx >= S || ny >= S) continue;
       const c = room.t[idx(nx, ny)];
-      if (c === 'wall') continue;
+      if (!walkable(c) || (locked && c === 'golddoor')) continue;
       if (c === 'door') {
         nr = room.nb[d];
         [nx, ny] = ARRIVAL[OPP[d]];
@@ -198,11 +208,34 @@ function roomHops(rooms) {
 // A cell where the entrance, the stairs or a goblin may go.
 const openSpot = (c, x, y) => (c === 'floor' || c === 'grass') && !isArrivalSpot(x, y);
 
+// Where the entrance goes, and what it stands in: [x, y, 'grass' | 'dirt'].
+function placeEntrance(rng, t) {
+  const grassNear = (x, y) => DIRS.some((d) => t[idx(x + STEP[d][0], y + STEP[d][1])] === 'grass');
+  if (chance(rng, CONFIG.entranceInGrass)) {
+    // On grass with grass beside it; else anywhere, with a patch grown around it.
+    const spots = interiorCells(t, (c, x, y) => c === 'grass' && openSpot(c, x, y) && grassNear(x, y));
+    if (spots.length) return [...pick(rng, spots), 'grass'];
+    let open = interiorCells(t, (c, x, y) => c === 'floor' && openSpot(c, x, y));
+    if (open.length === 0) open = interiorCells(t, openSpot);
+    const at = pick(rng, open);
+    growGrass(rng, t, at);
+    return [...at, 'grass'];
+  }
+  let spots = interiorCells(t, (c, x, y) => c === 'floor' && openSpot(c, x, y));
+  if (spots.length === 0) spots = interiorCells(t, openSpot);
+  const [x, y] = pick(rng, spots);
+  return [x, y, t[idx(x, y)] === 'grass' ? 'grass' : 'dirt'];
+}
+
 function placeGoblins(rng, level, depth) {
   const want = depth + int(rng, 0, CONFIG.goblinsExtraMax);
-  const dist = levelDistances(level);
+  // Never behind the golden door, never on the toad.
+  const dist = levelDistances(level, level.entrance, { locked: true });
   const free = level.rooms.map((room, r) =>
-    interiorCells(room.t, openSpot).filter(([x, y]) => dist[r][idx(x, y)] >= CONFIG.goblin.awayFromEntrance),
+    interiorCells(room.t, openSpot).filter(
+      ([x, y]) =>
+        dist[r][idx(x, y)] >= CONFIG.goblin.awayFromEntrance && !(room.toad && room.toad.x === x && room.toad.y === y),
+    ),
   );
   let id = 1;
   for (let k = 0; k < want; k++) {
@@ -224,7 +257,8 @@ function placeGoblins(rng, level, depth) {
 }
 
 export function makeLevel(rng, depth) {
-  const spots = placeRooms(rng);
+  const toadLevel = depth === CONFIG.toadLevel;
+  const spots = placeRooms(rng, toadLevel ? CONFIG.toadExtraRoom : 0);
   const salt = int(rng, 1, 1 << 20);
   const at = new Map(spots.map(([gx, gy], i) => [`${gx},${gy}`, i]));
   const rooms = spots.map(([gx, gy], i) => {
@@ -242,21 +276,28 @@ export function makeLevel(rng, depth) {
       t: makeRoom(rng, nb),
       goblins: [],
       corpses: [],
+      toad: null,
+      statue: null,
       seen: new Array(S * S).fill(false),
       memCorpse: new Array(S * S).fill(false),
     };
   });
 
-  // The entrance, in the first room.
+  // The entrance, in the first room, in grass or on dirt.
   const first = rooms[0];
-  const [ex, ey] = pick(rng, interiorCells(first.t, openSpot));
+  const [ex, ey, ground] = placeEntrance(rng, first.t);
   first.t[idx(ex, ey)] = 'entrance';
-  const level = { depth, rooms, entrance: { room: 0, x: ex, y: ey }, stairs: null };
+  const level = { depth, rooms, entrance: { room: 0, x: ex, y: ey, ground }, stairs: null, toadRoom: null };
 
   // The stairs, in the room farthest from the first.
   const hops = roomHops(rooms);
   const far = Math.max(...hops);
   const room = pick(rng, rooms.filter((r) => hops[r.id] === far));
+  if (toadLevel && room.id !== 0) {
+    makeToadRoom(rng, room, level);
+    placeGoblins(rng, level, depth);
+    return level;
+  }
   let stairSpots = interiorCells(room.t, openSpot);
   if (rooms.length === 1) {
     const dist = roomDistances(room.t, ex, ey);
@@ -269,4 +310,113 @@ export function makeLevel(rng, depth) {
 
   placeGoblins(rng, level, depth);
   return level;
+}
+
+// ---- the toad's room -----------------------------------------------------
+
+const CORNERS = [[1, 1], [S - 2, 1], [1, S - 2], [S - 2, S - 2]];
+
+// The small room n cells across in the corner (cx, cy): its inside, the wall
+// that closes it off, and where the golden door may go (the middle of either
+// side), each with the cell inside and the cell outside it.
+export function closetShape(cx, cy, n) {
+  const sx = cx === 1 ? 1 : -1; // from the corner into the room
+  const sy = cy === 1 ? 1 : -1;
+  const px = cx + sx * n; // the closing wall's column
+  const py = cy + sy * n; // and row
+  const inner = [];
+  for (let a = 0; a < n; a++) for (let b = 0; b < n; b++) inner.push([cx + sx * a, cy + sy * b]);
+  const wall = [];
+  for (let k = 0; k <= n; k++) wall.push([px, cy + sy * k]);
+  for (let k = 0; k < n; k++) wall.push([cx + sx * k, py]);
+  const m = n >> 1;
+  const doors = [
+    { at: [px, cy + sy * m], inside: [px - sx, cy + sy * m], outside: [px + sx, cy + sy * m] },
+    { at: [cx + sx * m, py], inside: [cx + sx * m, py - sy], outside: [cx + sx * m, py + sy] },
+  ];
+  return { inner, wall, doors, corner: [cx, cy] };
+}
+
+const manhattan = (a, b) => Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]);
+
+// Is every walkable cell outside the small room reachable from `from` without
+// the golden door and without stepping on `block`?
+function mainConnected(t, inner, from, block) {
+  const isInner = new Set(inner.map(([x, y]) => idx(x, y)));
+  const b = block ? idx(block[0], block[1]) : -1;
+  const pass = (c, x, y) => walkable(c) && c !== 'golddoor' && idx(x, y) !== b;
+  const dist = roomDistances(t, from[0], from[1], pass);
+  for (let i = 0; i < S * S; i++) {
+    if (isInner.has(i) || i === b || !walkable(t[i]) || t[i] === 'golddoor') continue;
+    if (dist[i] < 0) return false;
+  }
+  return true;
+}
+
+// Where the bust of DEE stands: open ground outside the small room, not by the
+// golden door, not by the toad, with open ground beside it, and the room still
+// whole around it and the toad. Null if nowhere will do.
+function placeStatue(rng, t, shape, door, toad, from) {
+  const isInner = new Set(shape.inner.map(([x, y]) => idx(x, y)));
+  const away = CONFIG.statueAway;
+  const spots = interiorCells(t, openSpot).filter(([x, y]) => {
+    if (isInner.has(idx(x, y))) return false;
+    if (Math.max(Math.abs(x - door.at[0]), Math.abs(y - door.at[1])) < away.door) return false;
+    if (manhattan([x, y], toad) < away.toad) return false;
+    return DIRS.some((d) => ['floor', 'grass'].includes(t[idx(x + STEP[d][0], y + STEP[d][1])]));
+  });
+  for (const [x, y] of shuffle(rng, spots)) {
+    const u = t.slice();
+    u[idx(x, y)] = 'statue';
+    if (mainConnected(u, shape.inner, from, toad)) return [x, y];
+  }
+  return null;
+}
+
+// The toad's room: the small room in the corner farthest from where you come in,
+// its golden door, the stairs in it, the toad asleep near the door, and the bust of DEE.
+function makeToadRoom(rng, room, level) {
+  const n = Math.max(1, Math.min(3, CONFIG.closetSize));
+  const ins = arrivalCells(room);
+  const far = (c) => Math.min(...ins.map((a) => manhattan(a, c)));
+  const best = Math.max(...CORNERS.map(far));
+  const shape = closetShape(...pick(rng, CORNERS.filter((c) => far(c) === best)), n);
+  const [near, farthest] = CONFIG.toadNearDoor;
+  for (;;) {
+    const t = room.t.slice();
+    for (const [x, y] of shape.inner) t[idx(x, y)] = 'floor';
+    for (const [x, y] of shape.wall) t[idx(x, y)] = 'wall';
+    const door = pick(rng, shape.doors);
+    t[idx(...door.at)] = 'golddoor';
+    if (t[idx(...door.outside)] === 'wall') t[idx(...door.outside)] = 'floor';
+    t[idx(...shape.corner)] = 'stairs';
+    if (mainConnected(t, shape.inner, ins[0], null)) {
+      // Where the toad sleeps: near the door if it can, never on the step before it.
+      const isInner = new Set(shape.inner.map(([x, y]) => idx(x, y)));
+      const fromDoor = roomDistances(t, ...door.outside, (c) => c !== 'wall' && c !== 'golddoor');
+      const open = interiorCells(t, openSpot).filter(
+        ([x, y]) => !isInner.has(idx(x, y)) && !(x === door.outside[0] && y === door.outside[1]),
+      );
+      const nearDoor = open.filter(([x, y]) => {
+        const d = fromDoor[idx(x, y)];
+        return d >= near && d <= farthest;
+      });
+      const spot = [...shuffle(rng, nearDoor), ...shuffle(rng, open)].find((c) =>
+        mainConnected(t, shape.inner, ins[0], c),
+      );
+      const statue = spot ? placeStatue(rng, t, shape, door, spot, ins[0]) : null;
+      if (spot && statue) {
+        t[idx(...statue)] = 'statue';
+        room.t = t;
+        room.statue = { x: statue[0], y: statue[1], spoke: false };
+        const [x, y] = spot;
+        room.toad = { x, y, home: { x, y }, hp: CONFIG.toad.hp, asleep: true, stirred: false, key: true, lastSeen: null };
+        level.toadRoom = room.id;
+        level.stairs = { room: room.id, x: shape.corner[0], y: shape.corner[1] };
+        level.golddoor = { room: room.id, x: door.at[0], y: door.at[1] };
+        return;
+      }
+    }
+    room.t = makeRoom(rng, room.nb); // this room will not do: make it again
+  }
 }

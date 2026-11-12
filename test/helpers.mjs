@@ -12,8 +12,21 @@ export function randomAction(r) {
   if (roll < 0.73) return { type: 'menu', id: pick(r, ['inv', 'act', 'psy', 'sys']) };
   if (roll < 0.81) return { type: 'choose', index: int(r, 0, 3) };
   if (roll < 0.86) return { type: 'back' };
-  if (roll < 0.97) return { type: 'wait' };
-  return pick(r, [null, {}, { type: 'move', dir: 'x' }, { type: 'menu', id: 'nope' }, { type: 'choose', index: 9 }, { type: 'dance' }]);
+  if (roll < 0.93) return { type: 'wait' };
+  if (roll < 0.96) return { type: 'observe', x: int(r, 0, S - 1), y: int(r, 0, S - 1) };
+  if (roll < 0.975) return { type: 'use' };
+  if (roll < 0.985) return { type: 'pick', index: int(r, 0, 3) };
+  return pick(r, [
+    null,
+    {},
+    { type: 'move', dir: 'x' },
+    { type: 'menu', id: 'nope' },
+    { type: 'choose', index: 9 },
+    { type: 'dance' },
+    { type: 'observe', x: -1, y: 3 },
+    { type: 'observe', x: 2.5, y: 3 },
+    { type: 'pick', index: 99 },
+  ]);
 }
 
 export function randomActions(seed, n) {

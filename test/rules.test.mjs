@@ -1,12 +1,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { CONFIG } from '../src/config.js';
-import { TEXT } from '../src/text.js';
+import { TEXT, isSlot } from '../src/text.js';
 import { ARRIVAL, OPP, DOOR } from '../src/gen.js';
 import { newGame, act, view, currentRoom, playerDamage } from '../src/game.js';
 import { clearGoblins, makeGoblin, findSpot, plainFloor, isLegalGoblinCell, STEP, DIRS, S, idx } from './helpers.mjs';
 
-const last = (g, n = 1) => view(g).log.slice(-n);
+// The last lines said.
+const said = (g, n = 1) => g.log.slice(-n);
+const descendLine = (g) => TEXT.log.descend[g.level.entrance.ground];
 const BACK = { label: TEXT.menu.back, kind: 'back', disabled: false };
 const things = (v, kind) => v.cells.filter((c) => c.thing && c.thing.kind === kind);
 
@@ -74,7 +76,7 @@ test('fighting a goblin to death leaves a corpse; the wide button then says corp
   assert.equal(room.goblins.length, 0);
   let v = view(g);
   assert.deepEqual(v.cells[idx(x + 1, y)].thing, { kind: 'corpse' });
-  assert.ok(v.log.some((l) => l.text === TEXT.log.goblinDies && l.kind === 'good'));
+  assert.ok(g.log.some((l) => l.text === TEXT.log.goblinDies && l.kind === 'good'));
   act(g, { type: 'move', dir: 'e' });
   v = view(g);
   assert.deepEqual([v.player.x, v.player.y], [x + 1, y]);
@@ -89,7 +91,7 @@ test('fighting a goblin to death leaves a corpse; the wide button then says corp
   assert.equal(v.menu.title, TEXT.context.corpse);
   assert.deepEqual(v.menu.options, [{ label: TEXT.menu.nothing, kind: 'info', disabled: true }, null, null, BACK]);
   assert.equal(v.menu.cursor, 3);
-  assert.equal(last(g)[0].text, TEXT.log.corpseEmpty);
+  assert.equal(said(g)[0].text, TEXT.log.corpseEmpty);
 
   // Taking something from a corpse.
   act(g, { type: 'back' });
@@ -98,7 +100,7 @@ test('fighting a goblin to death leaves a corpse; the wide button then says corp
   v = view(g);
   assert.deepEqual(v.menu.options[0], { label: TEXT.thing.sword, kind: 'item', disabled: false });
   act(g, { type: 'choose', index: 0 });
-  assert.equal(last(g)[0].text, TEXT.log.take(TEXT.thing.sword));
+  assert.equal(said(g)[0].text, TEXT.log.take(TEXT.thing.sword));
   assert.equal(g.items.length, 2);
   assert.deepEqual(view(g).menu.options[0], { label: TEXT.menu.nothing, kind: 'info', disabled: true });
 });
@@ -116,7 +118,10 @@ test('the stairs take you down a level', () => {
   assert.equal(v.room.id, g.level.entrance.room);
   assert.deepEqual([v.player.x, v.player.y], [g.level.entrance.x, g.level.entrance.y]);
   assert.equal(v.cells[idx(v.player.x, v.player.y)].t, 'entrance');
-  assert.deepEqual(last(g)[0].text, TEXT.log.level(2));
+  assert.deepEqual(v.log.slice(-2).map((l) => [l.text, l.kind]), [
+    [TEXT.log.level(2), 'plain'],
+    [descendLine(g), isSlot(descendLine(g)) ? 'slot' : 'story'],
+  ]);
 });
 
 test('dying puts you back on the entrance with full hp, the level otherwise as it was', () => {
@@ -143,7 +148,8 @@ test('dying puts you back on the entrance with full hp, the level otherwise as i
   assert.equal(v.room.id, g.level.entrance.room);
   assert.deepEqual([v.player.x, v.player.y], [g.level.entrance.x, g.level.entrance.y]);
   assert.equal(v.depth, 1);
-  assert.ok(v.log.some((l) => l.text === TEXT.log.youDie && l.kind === 'bad'));
+  assert.deepEqual(said(g).map((l) => [l.text, l.kind]), [[TEXT.log.youDie, 'bad']]);
+  assert.ok(!v.log.some((l) => l.text === descendLine(g) && l.turn > 0), 'no descend line on death');
   assert.equal(currentRoom(g).goblins.length, 1, 'the goblin is still there');
 });
 
@@ -251,49 +257,12 @@ test('goblins never stand on doors or arrival cells, even when you wait on one',
   }
 });
 
-test('the inv menu and the sword', () => {
-  const g = newGame({ seed: 9 });
-  let v;
-  act(g, { type: 'menu', id: 'inv' });
-  v = view(g);
-  assert.deepEqual(v.menu, {
-    id: 'inv',
-    title: TEXT.button.inv,
-    options: [{ label: TEXT.thing.sword, kind: 'item', disabled: false }, null, null, BACK],
-    cursor: 0,
-  });
-  assert.equal(playerDamage(g), Math.max(1, Math.round(CONFIG.player.str * CONFIG.swordDamagePerStr)));
-  act(g, { type: 'context' }); // the cursor is on the sword
-  v = view(g);
-  assert.equal(v.menu.id, 'item');
-  assert.equal(v.menu.title, TEXT.thing.sword);
-  assert.deepEqual(v.menu.options, [{ label: TEXT.menu.putAway, kind: 'action', disabled: false }, null, null, BACK]);
-  assert.deepEqual(last(g, 2).map((l) => [l.text, l.kind]), [
-    [TEXT.log.inHand(TEXT.thing.sword), 'plain'],
-    [TEXT.slot.sword, 'slot'],
-  ]);
-  const turn = g.turn;
-  act(g, { type: 'choose', index: 0 });
-  v = view(g);
-  assert.equal(v.turn, turn, 'menus take no time');
-  assert.equal(v.menu.options[0].label, TEXT.menu.hold);
-  assert.equal(last(g)[0].text, TEXT.log.putAway(TEXT.thing.sword));
-  assert.equal(playerDamage(g), Math.max(1, Math.round(CONFIG.player.str * CONFIG.fistDamagePerStr)));
-  act(g, { type: 'choose', index: 0 });
-  assert.equal(view(g).menu.options[0].label, TEXT.menu.putAway);
-  assert.equal(last(g)[0].text, TEXT.log.inHand(TEXT.thing.sword));
-  act(g, { type: 'back' });
-  assert.equal(view(g).menu.id, 'inv');
-  act(g, { type: 'back' });
-  assert.equal(view(g).menu, null);
-});
-
 test('menus: toggling, switching, paging, and nothing passes time', () => {
   const g = newGame({ seed: 10 });
-  act(g, { type: 'menu', id: 'inv' });
-  act(g, { type: 'menu', id: 'inv' });
+  act(g, { type: 'menu', id: 'psy' });
+  act(g, { type: 'menu', id: 'psy' });
   assert.equal(view(g).menu, null);
-  act(g, { type: 'menu', id: 'inv' });
+  act(g, { type: 'menu', id: 'psy' });
   act(g, { type: 'menu', id: 'act' });
   assert.equal(view(g).menu.id, 'act');
   const turn = g.turn;
@@ -301,9 +270,12 @@ test('menus: toggling, switching, paging, and nothing passes time', () => {
   assert.equal(g.turn, turn, 'wait does nothing with a menu open');
   act(g, { type: 'menu', id: 'act' });
 
-  // Six items: two a page, then more; the last page holds up to three.
-  for (let k = 0; k < 5; k++) g.items.push({ key: 'sword', inHand: false });
-  act(g, { type: 'menu', id: 'inv' });
+  // A corpse with six swords: two a page, then more; the last page holds up to three.
+  clearGoblins(g);
+  const room = currentRoom(g);
+  room.corpses.push({ x: g.x, y: g.y, items: Array.from({ length: 6 }, () => ({ key: 'sword' })) });
+  act(g, { type: 'context' });
+  assert.equal(view(g).menu.id, 'corpse');
   const sword = { label: TEXT.thing.sword, kind: 'item', disabled: false };
   const more = { label: TEXT.menu.more, kind: 'more', disabled: false };
   assert.deepEqual(view(g).menu.options, [sword, sword, more, BACK]);
@@ -316,38 +288,37 @@ test('menus: toggling, switching, paging, and nothing passes time', () => {
   act(g, { type: 'back' });
   act(g, { type: 'back' });
   assert.equal(view(g).menu, null);
+  assert.equal(g.turn, turn);
 });
 
-test('the act menu: cursor movement, wait', () => {
+test('the act menu holds only rest; cursor movement', () => {
   const g = newGame({ seed: 11 });
   tough(g);
   act(g, { type: 'menu', id: 'act' });
-  let v = view(g);
+  const v = view(g);
   assert.equal(v.menu.title, TEXT.button.act);
-  assert.deepEqual(v.menu.options, [
-    { label: TEXT.menu.wait, kind: 'action', disabled: false },
-    { label: TEXT.menu.rest, kind: 'action', disabled: false },
-    null,
-    BACK,
-  ]);
+  assert.deepEqual(v.menu.options, [{ label: TEXT.menu.rest, kind: 'action', disabled: false }, null, null, BACK]);
   const cursor = (dir) => {
     act(g, { type: 'move', dir });
     return view(g).menu.cursor;
   };
   assert.equal(view(g).menu.cursor, 0);
-  assert.equal(cursor('e'), 1);
-  assert.equal(cursor('s'), 3);
-  assert.equal(cursor('w'), 3, 'slot 2 is empty');
-  assert.equal(cursor('n'), 1);
-  assert.equal(cursor('w'), 0);
+  assert.equal(cursor('e'), 0, 'slot 1 is empty');
   assert.equal(cursor('s'), 3, 'empty slot 2: the other one in that row');
-  assert.equal(cursor('n'), 1);
-  assert.equal(cursor('w'), 0);
+  assert.equal(cursor('w'), 3, 'slot 2 is empty');
+  assert.equal(cursor('n'), 0);
+});
+
+test('the wait action: one turn, with no menu open', () => {
+  const g = newGame({ seed: 11 });
+  tough(g);
+  clearGoblins(g);
   const turn = g.turn;
-  act(g, { type: 'context' }); // wait
-  v = view(g);
-  assert.equal(v.menu, null);
-  assert.equal(v.turn, turn + 1);
+  assert.deepEqual(act(g, { type: 'wait' }), []);
+  assert.equal(g.turn, turn + 1);
+  act(g, { type: 'menu', id: 'act' });
+  act(g, { type: 'wait' });
+  assert.equal(g.turn, turn + 1, 'not with a menu open');
 });
 
 test('rest heals after quiet turns, and stops for an awake goblin in sight', () => {
@@ -356,11 +327,11 @@ test('rest heals after quiet turns, and stops for an awake goblin in sight', () 
   g.hp = 1;
   const turn = g.turn;
   act(g, { type: 'menu', id: 'act' });
-  act(g, { type: 'choose', index: 1 });
+  act(g, { type: 'choose', index: 0 });
   assert.equal(g.turn, turn + CONFIG.restTurns);
   assert.equal(g.hp, Math.min(g.maxHp, 1 + CONFIG.restHeal));
   assert.equal(view(g).menu, null);
-  assert.deepEqual(last(g).map((l) => [l.text, l.kind]), [[TEXT.log.restBetter, 'good']]);
+  assert.deepEqual(said(g).map((l) => [l.text, l.kind]), [[TEXT.log.restBetter, 'good']]);
   assert.ok(g.log.some((l) => l.text === TEXT.log.youRest));
 
   // An awake goblin in sight: rest stops at once.
@@ -371,20 +342,20 @@ test('rest heals after quiet turns, and stops for an awake goblin in sight', () 
   const t2 = g.turn;
   const hp = g.hp;
   act(g, { type: 'menu', id: 'act' });
-  act(g, { type: 'choose', index: 1 });
+  act(g, { type: 'choose', index: 0 });
   assert.equal(g.turn, t2);
   assert.equal(g.hp, hp);
-  assert.deepEqual(last(g, 2).map((l) => l.text), [TEXT.log.youRest, TEXT.log.restStopped]);
+  assert.deepEqual(said(g, 2).map((l) => l.text), [TEXT.log.youRest, TEXT.log.restStopped]);
 
   // An asleep goblin next to you: it may wake, and then rest stops.
   room.goblins = [makeGoblin(at[0] + 1, at[1], true)];
   for (let k = 0; k < 20; k++) {
     act(g, { type: 'menu', id: 'act' });
-    act(g, { type: 'choose', index: 1 });
+    act(g, { type: 'choose', index: 0 });
     if (!room.goblins[0].asleep) break;
   }
   assert.equal(room.goblins[0].asleep, false);
-  assert.equal(last(g)[0].text, TEXT.log.restStopped);
+  assert.equal(said(g)[0].text, TEXT.log.restStopped);
 });
 
 test('the psy menu shows will and love as you perceive them', () => {
@@ -445,7 +416,8 @@ test('the sys menu: look switch and restart', () => {
   assert.equal(v.depth, 1);
   assert.equal(v.menu, null);
   assert.equal(v.stats.hp, CONFIG.player.hp);
-  assert.deepEqual(v.log.map((l) => [l.text, l.kind]), TEXT.opening.map((t) => [t, 'story']));
+  assert.deepEqual(v.log.map((l) => l.text), [...TEXT.opening, descendLine(g)]);
+  assert.equal(v.fresh, v.log[0].id);
   assert.ok(v.log[0].id > lastId, 'log ids keep going up');
   // The same seed restarts the same way.
   const h = newGame({ seed: 14 });
@@ -454,9 +426,16 @@ test('the sys menu: look switch and restart', () => {
   assert.deepEqual(view(h).cells, v.cells);
 });
 
-test('a new game logs the opening', () => {
-  const v = view(newGame({ seed: 15 }));
-  assert.deepEqual(v.log.map((l) => [l.text, l.kind, l.turn]), TEXT.opening.map((t) => [t, 'story', 0]));
+test('a new game: the opening, then the descend line', () => {
+  const g = newGame({ seed: 15 });
+  const v = view(g);
+  assert.equal(TEXT.opening.length, 1);
+  const text = descendLine(g);
+  assert.deepEqual(v.log.map((l) => [l.text, l.kind, l.turn]), [
+    [TEXT.opening[0], 'story', 0],
+    [text, isSlot(text) ? 'slot' : 'story', 0],
+  ]);
+  assert.equal(v.fresh, v.log[0].id);
   assert.equal(things(v, 'player').length, 1);
   assert.equal(v.cells[idx(v.player.x, v.player.y)].t, 'entrance');
 });

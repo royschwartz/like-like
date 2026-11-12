@@ -13,6 +13,11 @@ export const CONFIG = {
   grassSize: [3, 8], //    cells in one patch
   // In a level of one room, the stairs are at least this many steps from the entrance.
   stairsAway: 5,
+  // Chance a level's entrance is in grass; otherwise it is on dirt (plain floor).
+  entranceInGrass: 0.5,
+
+  // Observe says more about a thing this many steps from you, or nearer.
+  observeClose: 2,
 
   player: { hp: 3, str: 10, love: 10, will: 10 },
 
@@ -37,6 +42,32 @@ export const CONFIG = {
 
   // Goblins on a level: its depth, plus 0 or 1.
   goblinsExtraMax: 1,
+
+  // The toad: level 1 only. It sleeps in the room farthest from the entrance, near a
+  // golden door; the stairs are in a small room behind that door.
+  toad: { hp: 8, damage: 2, hits: 0.6 },
+  toadLevel: 1,
+  toadExtraRoom: 1, //   level 1 has this many rooms more than it would (never more than 4)
+  closetSize: 3, //      the small room behind the golden door is this many cells across, inside (1 to 3)
+  toadNearDoor: [2, 4], // the toad sleeps this many steps from the golden door, if it can
+
+  // The bust of DEE, in the toad's room: never this close to the golden door or the toad
+  // (steps, counting diagonals for the door).
+  statueAway: { door: 2, toad: 2 },
+  // Putting an item in the bust's opening. The sword: this much more damage; twice
+  // as much if the item held a memory.
+  enchant: { swordDamage: 1 },
+  // Noise (the bust speaking or enchanting): the chance each sleeping toad or goblin
+  // in the room wakes.
+  noiseWakes: 0.5,
+
+  // Going for the toad's key: the chance it works, while it sleeps soundly and once it has stirred.
+  keyChance: { calm: 2 / 3, stirred: 1 / 3 },
+
+  // Digging for worms takes this many turns.
+  digTurns: 3,
+  // A memory comes back this many turns after what wakes it.
+  memoryDelay: 5,
 
   // Resting: this many quiet turns, then this much hp back.
   restTurns: 10,

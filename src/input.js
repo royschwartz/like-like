@@ -1,10 +1,13 @@
 // Keys, touches and clicks become contract Actions. Acts at once; never waits on animations.
 
+import { CONFIG } from './config.js';
+
+const S = CONFIG.roomSize;
 const REPEAT_FIRST_MS = 260;
 const REPEAT_EVERY_MS = 110;
 
 const KEY_DIRS = { ArrowUp: 'n', ArrowRight: 'e', ArrowDown: 's', ArrowLeft: 'w' };
-const KEY_MENUS = { i: 'inv', a: 'act', p: 'psy', s: 'sys' };
+const KEY_MENUS = { i: 'inv', a: 'act', p: 'psy', m: 'sys' };
 
 export function bindInput(root, dispatch) {
   const doc = root.ownerDocument || root;
@@ -20,11 +23,15 @@ export function bindInput(root, dispatch) {
 
   function onPointerDown(e) {
     if (e.button != null && e.button !== 0) return;
-    const el = e.target && e.target.closest ? e.target.closest('.btn, .pad') : null;
+    const el = e.target && e.target.closest ? e.target.closest('.btn, .pad, [data-cell], [data-pick]') : null;
     if (!el || !root.contains(el)) return;
     const action = elementAction(el);
     if (!action) return;
     e.preventDefault(); // no focus, no emulated mouse events
+    if (action.type === 'observe' || action.type === 'pick') {
+      dispatch(action); // a map cell or an inventory row: not a button, nothing to hold
+      return;
+    }
     release(e.pointerId);
     // Touch pointers are captured to the first element; free them so a thumb can slide.
     try {
@@ -115,6 +122,7 @@ function keyAction(key) {
   if (key === 'Enter' || key === ' ' || key === 'Spacebar') return { type: 'context' };
   if (key === 'Escape' || key === 'Backspace') return { type: 'back' };
   if (key === '.' || key === 'z' || key === 'Z') return { type: 'wait' };
+  if (key === 'u' || key === 'U') return { type: 'use' };
   if (key && key.length === 1) {
     const k = key.toLowerCase();
     if (KEY_MENUS[k]) return { type: 'menu', id: KEY_MENUS[k] };
@@ -127,6 +135,13 @@ function elementAction(el) {
   const d = el.dataset || {};
   if (d.dir) return { type: 'move', dir: d.dir };
   if (d.action === 'context') return { type: 'context' };
+  if (d.action === 'wait') return { type: 'wait' };
+  if (d.action === 'use') return { type: 'use' };
+  if (d.cell != null && d.cell !== '') {
+    const i = Number(d.cell);
+    return { type: 'observe', x: i % S, y: Math.floor(i / S) };
+  }
+  if (d.pick != null && d.pick !== '') return { type: 'pick', index: Number(d.pick) };
   if (d.choose != null && d.choose !== '') return { type: 'choose', index: Number(d.choose) };
   if (d.menu) return { type: 'menu', id: d.menu };
   return null;

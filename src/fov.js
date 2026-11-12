@@ -1,5 +1,5 @@
-// Line of sight inside one room. Only walls block it; a wall cell itself is
-// seen when sight reaches it. No range limit.
+// Line of sight inside one room. Walls, the bust and the locked golden door block
+// it; a wall cell itself is seen when sight reaches it. No range limit.
 //
 // los(a, b) is true when a straight line either way is clear, so it is
 // symmetric: if you see a goblin, it sees you.
@@ -7,6 +7,10 @@
 import { CONFIG } from './config.js';
 
 const S = CONFIG.roomSize;
+
+const blocksSight = (c) => c === 'wall' || c === 'golddoor' || c === 'statue';
+// Drawn with the walls: shown when a walkable cell beside it is in sight.
+const solid = (c) => c === 'wall' || c === 'door' || c === 'golddoor' || c === 'statue';
 
 // Is every cell strictly between a and b free of wall? (Bresenham, a to b.)
 function clearLine(t, ax, ay, bx, by) {
@@ -29,7 +33,7 @@ function clearLine(t, ax, ay, bx, by) {
       y += sy;
     }
     if (x === bx && y === by) return true;
-    if (t[y * S + x] === 'wall') return false;
+    if (blocksSight(t[y * S + x])) return false;
   }
 }
 
@@ -46,14 +50,14 @@ export function frame(t, seen) {
   for (let y = 0; y < S; y++) {
     for (let x = 0; x < S; x++) {
       const i = y * S + x;
-      if (out[i] || (t[i] !== 'wall' && t[i] !== 'door')) continue;
+      if (out[i] || !solid(t[i])) continue;
       for (let dy = -1; dy <= 1 && !out[i]; dy++) {
         for (let dx = -1; dx <= 1; dx++) {
           const nx = x + dx;
           const ny = y + dy;
           if (nx < 0 || ny < 0 || nx >= S || ny >= S) continue;
           const j = ny * S + nx;
-          if (seen[j] && t[j] !== 'wall' && t[j] !== 'door') {
+          if (seen[j] && !solid(t[j])) {
             out[i] = true;
             break;
           }

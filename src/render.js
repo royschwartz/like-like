@@ -12,6 +12,7 @@ const SCREEN_SAFETY_MS = 1300; // longer: fx-death runs 1000 ms
 const SLIDE_SAFETY_MS = 400; // same, for the room slide
 const DIRS = ['n', 'e', 's', 'w'];
 const SCREEN_FX = ['fx-hurt', 'fx-death', 'fx-descend', 'fx-sense'];
+const PASSAGE_STAGGER_MS = 650; // passages that come together come in one after another
 
 export function createRenderer(root = document) {
   const $ = (id) => root.querySelector('#' + id);
@@ -19,15 +20,25 @@ export function createRenderer(root = document) {
   const mapWrap = $('map-wrap');
   const map = $('map');
   const logLines = $('log-lines');
+  const invEl = $('inv');
+  const invTitle = $('inv-title');
+  const invRows = $('inv-rows');
+  const eventEl = $('event');
+  const eventLines = $('event-lines');
   const controls = $('controls');
   const btnContext = $('btn-context');
   const menuButtons = { inv: $('btn-inv'), psy: $('btn-psy'), act: $('btn-act'), sys: $('btn-sys') };
+  const btnWait = $('btn-wait');
+  const btnUse = $('btn-use');
   const optButtons = [0, 1, 2, 3].map((i) => root.querySelector(`#options [data-choose="${i}"]`));
 
   const cells = buildMap(map);
   const lastPaint = new Array(SIZE * SIZE).fill(null);
   const stats = buildStats($('stats'));
   const logEls = new Map(); // Line.id -> { el, text, turn }
+  let invKey = null; // what the inventory screen last showed
+  let eventKey = null; // what the event panel last showed
+  let eventDrawn = { sig: null, texts: [] }; // the open event, and the text of each passage drawn
   const fx = createFx();
   let slide = null; // { ghost, dirClass, timer }
 
@@ -40,10 +51,14 @@ export function createRenderer(root = document) {
 
     drawLook(view);
     drawMap(view);
-    drawLog(view.log);
+    drawLog(view.log, view.fresh);
+    drawScreenMode(view);
+    drawInv(view.inv);
+    drawEvent(view.event);
     drawStats(view.stats);
     drawButtons(view);
-    drawOptions(view.menu);
+    // In an event, its options are the menu at the bottom.
+    drawOptions(view.event ? { id: 'event', options: view.event.options, cursor: view.event.cursor } : view.menu);
 
     for (const e of events) cellEffect(e);
     for (const e of events) screenEffect(e, view);
@@ -119,11 +134,12 @@ export function createRenderer(root = document) {
     const el = cells[e.y * SIZE + e.x];
     if (e.type === 'attack') fx.play(el, e.hit ? 'fx-hit' : 'fx-miss');
     else if (e.type === 'kill') fx.play(el, 'fx-kill');
+    else if (e.type === 'observe') fx.play(el, 'fx-observe');
   }
 
   function screenEffect(e, view) {
     if (!e) return;
-    if (e.type === 'attack' && e.by === 'goblin' && e.hit) fx.play(screen, 'fx-hurt', SCREEN_FX);
+    if (e.type === 'attack' && e.by !== 'player' && e.hit) fx.play(screen, 'fx-hurt', SCREEN_FX);
     else if (e.type === 'death') fx.play(screen, 'fx-death', SCREEN_FX);
     else if (e.type === 'descend' || e.type === 'restart') fx.play(screen, 'fx-descend', SCREEN_FX);
     else if (e.type === 'sense') {
@@ -134,11 +150,11 @@ export function createRenderer(root = document) {
     }
   }
 
-  // --- log ---
+  // --- log: one list. The lines the latest action said are bright; older ones dim. ---
 
-  function drawLog(log) {
+  function drawLog(log, fresh) {
     const lines = Array.isArray(log) ? log.filter(Boolean).slice(-LOG_KEEP) : [];
-    const newestTurn = lines.length ? lines[lines.length - 1].turn : null;
+    const freshFrom = Number.isInteger(fresh) ? fresh : lines.length ? lines[lines.length - 1].id : 0;
     const keep = new Set();
 
     lines.forEach((line, i) => {
@@ -162,7 +178,7 @@ export function createRenderer(root = document) {
         rec.el.classList.add(`k-${line.kind}`);
         rec.kind = line.kind;
       }
-      const now = line.turn === newestTurn;
+      const now = line.id >= freshFrom;
       rec.el.classList.toggle('now', now);
       rec.el.classList.toggle('old', !now);
       if (logLines.children[i] !== rec.el) logLines.insertBefore(rec.el, logLines.children[i] || null);
@@ -175,6 +191,90 @@ export function createRenderer(root = document) {
         logEls.delete(id);
       }
     }
+  }
+
+  // --- the inventory: a list in place of the map ---
+
+  // What takes the slab: an event, the inventory, or the game.
+  function drawScreenMode(view) {
+    const mode = view.event ? 'event' : view.inv ? 'inv' : null;
+    if (mode) setAttr(screen, 'data-screen', mode);
+    else screen.removeAttribute('data-screen');
+  }
+
+  function drawInv(inv) {
+    const open = !!inv;
+    if (!invEl) return;
+    invEl.hidden = !open;
+    const items = open && Array.isArray(inv.items) ? inv.items : [];
+    const key = open ? JSON.stringify([inv.title, inv.cursor, items]) : '';
+    if (key === invKey) return;
+    invKey = key;
+    setText(invTitle, open && inv.title != null ? String(inv.title) : '');
+    while (invRows.firstChild) invRows.removeChild(invRows.firstChild);
+    items.forEach((it, i) => {
+      const doc = invRows.ownerDocument;
+      const row = doc.createElement('div');
+      row.className = i === inv.cursor ? 'row cursor' : 'row';
+      row.dataset.pick = String(i);
+      const name = doc.createElement('span');
+      name.className = 'name';
+      name.textContent = it && it.name != null ? String(it.name) : '';
+      const state = doc.createElement('span');
+      state.className = 'state';
+      state.textContent = it && it.state != null ? String(it.state) : '';
+      row.appendChild(name);
+      row.appendChild(state);
+      invRows.appendChild(row);
+    });
+  }
+
+  // --- an event: the whole slab but the options. Passages stack up; older ones dim. ---
+
+  function drawEvent(event) {
+    if (!eventEl) return;
+    if (!event) {
+      eventEl.hidden = true;
+      eventKey = null;
+      eventDrawn = { sig: null, texts: [] };
+      return;
+    }
+    const lines = Array.isArray(event.lines) ? event.lines.filter(Boolean) : [];
+    const key = JSON.stringify([event.id, event.now, lines]);
+    if (key === eventKey) return;
+    eventKey = key;
+    const groups = [];
+    for (const l of lines) {
+      const n = Number.isInteger(l.passage) && l.passage >= 0 ? l.passage : 0;
+      (groups[n] = groups[n] || []).push(l);
+    }
+    // The same event keeps the passages it already shows still, and brings in only
+    // the ones that are new or changed.
+    const sig = `${event.id}|${lines.length ? lines[0].text : ''}`;
+    const texts = groups.map((group) => JSON.stringify(group || []));
+    let from = 0;
+    if (!eventEl.hidden && eventDrawn.sig === sig) {
+      while (from < texts.length && texts[from] === eventDrawn.texts[from]) from++;
+    }
+    if (eventEl.hidden) {
+      eventEl.hidden = false;
+      fx.play(eventEl, 'opening');
+    }
+    const doc = eventLines.ownerDocument;
+    while (eventLines.firstChild) eventLines.removeChild(eventLines.firstChild);
+    groups.forEach((group, n) => {
+      const box = doc.createElement('div');
+      box.className = 'passage ' + (n >= event.now ? 'now' : 'old') + (n >= from ? ' enter' : '');
+      if (n > from) box.style.animationDelay = `${(n - from) * PASSAGE_STAGGER_MS}ms`;
+      for (const l of group || []) {
+        const el = doc.createElement('div');
+        el.className = l.song ? 'ev-line song' : 'ev-line';
+        el.textContent = l.text == null ? '' : String(l.text);
+        box.appendChild(el);
+      }
+      eventLines.appendChild(box);
+    });
+    eventDrawn = { sig, texts };
   }
 
   // --- stats ---
@@ -192,7 +292,11 @@ export function createRenderer(root = document) {
   // --- buttons ---
 
   function drawButtons(view) {
-    for (const id of Object.keys(menuButtons)) setText(menuButtons[id], TEXT.button[id]);
+    for (const id of Object.keys(menuButtons)) setText(menuButtons[id], TEXT.button[id] ?? '');
+    // On the inventory screen the inv button is the way back.
+    if (view.inv) setText(menuButtons.inv, TEXT.menu.back ?? '');
+    setText(btnWait, TEXT.button.wait ?? '');
+    setText(btnUse, TEXT.button.use ?? '');
     const ctx = view.context || {};
     setText(btnContext, ctx.label == null ? '' : ctx.label);
     if (ctx.id) setAttr(btnContext, 'data-context', ctx.id);
@@ -228,6 +332,7 @@ function buildMap(map) {
   for (let i = 0; i < SIZE * SIZE; i++) {
     const c = doc.createElement('span');
     c.className = 'c';
+    c.dataset.cell = String(i);
     map.appendChild(c);
     cells.push(c);
   }

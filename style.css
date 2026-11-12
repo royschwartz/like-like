@@ -1,6 +1,6 @@
 /* LIKE LIKE — the look.
-   A black slab, upright, 9.5 wide and 20 tall. From the top: the log, the square map,
-   the stat line, the buttons. Every size is a multiple of --u, one hundredth of the
+   A black slab, upright, 9.5 wide and 20 tall. From the top: the log, the square map (or
+   the inventory in its place), the stat line, the buttons, and a quiet menu strip. Every size is a multiple of --u, one hundredth of the
    slab's width, so the whole screen scales as one piece. */
 
 :root {
@@ -55,13 +55,17 @@ body {
   --btn-down: #b4ae9d;
   --btn-edge: transparent;
   --quiet: #6f6a5f;
+  --inv-bg: #ece7d8;
+  --inv-ink: #0b0a09;
+  --inv-quiet: #8b8576;
+  --look-ring: rgba(11, 10, 9, 0.8);
   --sense-ring: rgba(40, 98, 128, 0.55);
 
   position: relative;
   width: var(--w);
   height: calc(var(--w) * 20 / 9.5);
   display: grid;
-  grid-template-rows: calc(var(--u) * 41) calc(var(--u) * 100) calc(var(--u) * 9.5) 1fr;
+  grid-template-rows: calc(var(--u) * 43) calc(var(--u) * 100) calc(var(--u) * 9.5) 1fr;
   overflow: hidden;
   background: var(--slab);
   color: var(--paper);
@@ -78,10 +82,14 @@ body {
   --btn-ink: #e6e1d2;
   --btn-down: #2c2a33;
   --btn-edge: #8d8878;
+  --inv-bg: #000;
+  --inv-ink: #e6e1d2;
+  --inv-quiet: #7c776a;
+  --look-ring: rgba(230, 225, 210, 0.9);
   --sense-ring: rgba(150, 205, 235, 0.5);
 }
 
-/* ---------- the log: newest at the bottom, older lines climb and dim ---------- */
+/* ---------- the log: one list. The newest lines are bright; older ones climb and dim ---------- */
 
 #log {
   position: relative;
@@ -89,9 +97,9 @@ body {
   flex-direction: column;
   justify-content: flex-end;
   overflow: hidden;
-  padding: 0 calc(var(--u) * 4) calc(var(--u) * 2.2);
-  -webkit-mask-image: linear-gradient(to bottom, transparent 2%, #000 46%);
-  mask-image: linear-gradient(to bottom, transparent 2%, #000 46%);
+  padding: 0 calc(var(--u) * 4) calc(var(--u) * 2.6);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 34%);
+  mask-image: linear-gradient(to bottom, transparent 0%, #000 34%);
 }
 
 #log-lines {
@@ -99,9 +107,11 @@ body {
   flex-direction: column;
 }
 
+/* events are spaced out a little: the gap is padding, so it grows in with the line */
 .line {
   flex: none;
   overflow: hidden;
+  padding-top: calc(var(--u) * 1.9);
   font-size: calc(var(--u) * 3.7);
   line-height: 1.34;
   color: var(--log-now);
@@ -122,23 +132,29 @@ body {
 .line.k-sense {
   color: #93bfd4;
 }
+/* an empty slot is quieter than writing, but still readable while it is the newest line */
 .line.k-slot {
+  color: #c4beae;
+}
+.line.k-slot.old {
   color: var(--quiet);
+  opacity: 0.85;
 }
 .line.k-story.old {
   opacity: 0.85;
 }
 
 .line.enter {
-  animation: line-in 170ms ease-out;
+  animation: line-in 190ms ease-out;
 }
 @keyframes line-in {
   from {
     max-height: 0;
+    padding-top: 0;
     opacity: 0;
   }
   to {
-    max-height: 4em;
+    max-height: 7em;
     opacity: 1;
   }
 }
@@ -175,6 +191,26 @@ body {
 /* Monaco has no bold. A thin stroke in the same ink does the job. */
 .c.b {
   -webkit-text-stroke: 0.045em currentColor;
+}
+
+/* observing: a ring on the cell you looked at */
+.map .c {
+  cursor: pointer;
+}
+.c.fx-observe {
+  z-index: 2;
+  animation: fx-observe 460ms ease-out;
+}
+@keyframes fx-observe {
+  0% {
+    box-shadow: inset 0 0 0 0.1em var(--look-ring);
+  }
+  60% {
+    box-shadow: inset 0 0 0 0.1em var(--look-ring);
+  }
+  100% {
+    box-shadow: inset 0 0 0 0.1em transparent;
+  }
 }
 
 .c.fx-hit {
@@ -434,6 +470,137 @@ body {
   }
 }
 
+/* ---------- the inventory: a list where the map was, on the map's eleven rows ---------- */
+
+#inv {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  display: grid;
+  grid-template-rows: 1fr 10fr;
+  background: var(--inv-bg);
+  color: var(--inv-ink);
+}
+#inv[hidden] {
+  display: none;
+}
+#inv-title {
+  display: flex;
+  align-items: flex-end;
+  padding: 0 calc(var(--u) * 5) calc(var(--u) * 1.2);
+  font-size: calc(var(--u) * 3.7);
+  color: var(--inv-quiet);
+}
+#inv-rows {
+  display: grid;
+  grid-template-rows: repeat(10, 1fr);
+}
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: calc(var(--u) * 3);
+  min-width: 0;
+  padding: 0 calc(var(--u) * 5);
+  font-size: calc(var(--u) * 4.6);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.row .state {
+  font-size: calc(var(--u) * 3.7);
+  color: var(--inv-quiet);
+}
+/* the item you are on */
+.row.cursor {
+  background: var(--inv-ink);
+  color: var(--inv-bg);
+}
+.row.cursor .state {
+  color: var(--inv-bg);
+  opacity: 0.7;
+}
+
+/* ---------- an event: the log, the map and the stat line go; its text is all there is.
+   The newest passage sits just above the options; older ones climb and dim. ---------- */
+
+#event {
+  --ev-size: calc(var(--u) * 4.2);
+  --ev-gap: calc(var(--u) * 6.5); /* between passages */
+  --ev-para: calc(var(--u) * 3); /* between a line of prose and the next */
+  --ev-indent: calc(var(--u) * 6); /* a song's lines */
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: calc(var(--u) * 152.5); /* the log, the map and the stat line */
+  z-index: 8;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: calc(var(--u) * 10) calc(var(--u) * 7) calc(var(--u) * 7);
+  background: var(--slab);
+  color: var(--log-now);
+}
+#event[hidden] {
+  display: none;
+}
+#event.opening {
+  animation: ev-open 320ms ease-out;
+}
+@keyframes ev-open {
+  from {
+    opacity: 0;
+  }
+}
+/* the text column fills the panel; what climbs past its top fades out */
+#event-lines {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 26%);
+  mask-image: linear-gradient(to bottom, transparent 0%, #000 26%);
+}
+.passage {
+  flex: none;
+  padding-top: var(--ev-gap);
+}
+.passage.old {
+  color: var(--log-old);
+  opacity: 0.5;
+}
+.passage.enter {
+  animation: ev-passage 420ms ease-out both;
+}
+@keyframes ev-passage {
+  from {
+    opacity: 0;
+    transform: translateY(calc(var(--u) * 2));
+  }
+}
+.ev-line {
+  font-size: var(--ev-size);
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.ev-line + .ev-line {
+  margin-top: var(--ev-para);
+}
+.ev-line.song {
+  padding-left: var(--ev-indent);
+}
+/* a song's lines run together */
+.ev-line.song + .ev-line.song {
+  margin-top: 0;
+}
+
+/* in an event the quiet menu strip goes too; the options and the d-pad stay */
+#screen[data-screen="event"] #btn-sys {
+  visibility: hidden;
+}
+
 /* ---------- the stat line ---------- */
 
 #stats {
@@ -465,9 +632,9 @@ body {
 #controls {
   display: grid;
   grid-template-columns: 1fr calc(var(--u) * 40);
+  grid-template-rows: auto 1fr;
   column-gap: calc(var(--u) * 4);
-  align-content: start;
-  padding: calc(var(--u) * 2.5) calc(var(--u) * 4) 0;
+  padding: calc(var(--u) * 2.5) calc(var(--u) * 4) calc(var(--u) * 3.5);
 }
 
 #buttons,
@@ -479,7 +646,7 @@ body {
   gap: calc(var(--u) * 3);
 }
 
-/* the wide one spans INV and *, PSY sits over SE: as drawn */
+/* the wide one spans inv and *, psy sits over wait: as drawn */
 #buttons {
   display: grid;
   grid-template-columns: 1.45fr 1fr 1fr;
@@ -497,8 +664,30 @@ body {
 #btn-act {
   grid-area: 2 / 2;
 }
-#btn-sys {
+#btn-wait {
   grid-area: 2 / 3;
+}
+
+/* on the inventory screen: inspect, back, and a wide use. No psy, no *, no wait. */
+#btn-use {
+  display: none;
+  grid-area: 2 / 2 / 3 / 4;
+}
+#screen[data-screen="inv"] #btn-use {
+  display: flex;
+}
+#screen[data-screen="inv"] #btn-psy,
+#screen[data-screen="inv"] #btn-act,
+#screen[data-screen="inv"] #btn-wait {
+  display: none;
+}
+#screen[data-screen="inv"] #btn-inv {
+  background: transparent;
+  color: var(--paper);
+  box-shadow: inset 0 0 0 calc(var(--u) * 0.45) var(--quiet);
+}
+#screen[data-screen="inv"] #btn-inv.down {
+  background: #2a2824;
 }
 
 /* a menu: four options, two by two, in place of the buttons */
@@ -538,6 +727,25 @@ body {
 .btn.down,
 .pad.down {
   background: var(--btn-down);
+}
+
+/* a quiet strip along the bottom: restart and the look are under it */
+#btn-sys {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  align-self: end;
+  height: calc(var(--u) * 7.5);
+  background: transparent;
+  color: var(--log-old);
+  box-shadow: inset 0 0 0 calc(var(--u) * 0.3) var(--quiet);
+  font-size: calc(var(--u) * 3.7);
+}
+#btn-sys.down {
+  background: #2a2824;
+}
+#controls[data-menu="sys"] #btn-sys {
+  color: var(--paper);
+  box-shadow: inset 0 0 0 calc(var(--u) * 0.3) var(--paper);
 }
 
 /* the wide button takes the colour of what you are standing on */
