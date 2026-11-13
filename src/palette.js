@@ -1,58 +1,78 @@
 // The look of a cell: which character, which ink, which ground.
 // Two looks. "paper" follows the drawing: a pale map inside a black slab.
-// "dark" follows Brogue: coloured characters on dark, tinted ground.
+// "dark" follows Ultima V: pure black ground and a few flat inks from the EGA's sixteen.
+//
+// Tiles are flat: a kind of cell is one colour wherever it is. The numbers that used to
+// vary it (vary, fgVary, shadeMax) are still here, at nothing, and can be turned back up.
 //
 // paintCell() is the only thing the renderer needs from here.
+
+// The EGA inks the dark look draws with.
+const EGA = {
+  black: [0, 0, 0],
+  green: [0, 170, 0],
+  red: [170, 0, 0],
+  brown: [170, 85, 0],
+  grey: [170, 170, 170],
+  darkGrey: [85, 85, 85],
+  brightGreen: [85, 255, 85],
+  brightRed: [255, 85, 85],
+  yellow: [255, 255, 85],
+  white: [255, 255, 255],
+};
 
 const LOOKS = {
   paper: {
     unknown: [14, 13, 12],
-    // ground tint, ink, how much the ground varies cell to cell
-    floor: { ch: '.', fg: [128, 120, 104], bg: [236, 231, 216], vary: 5, fgVary: 34 },
-    grass: { ch: '"', fg: [74, 122, 56], bg: [225, 231, 205], vary: 6, fgVary: 22 },
-    wall: { ch: '#', fg: [96, 88, 75], bg: [44, 40, 35], vary: 7, fgVary: 12 },
-    door: { ch: '+', fg: [92, 46, 14], bg: [205, 172, 120], vary: 4, fgVary: 0 },
+    // ground tint, ink, how much the ground and the ink vary cell to cell (0: flat)
+    floor: { ch: '.', fg: [128, 120, 104], bg: [236, 231, 216], vary: 0, fgVary: 0 },
+    grass: { ch: '"', fg: [74, 122, 56], bg: [225, 231, 205], vary: 0, fgVary: 0 },
+    wall: { ch: '#', fg: [96, 88, 75], bg: [44, 40, 35], vary: 0, fgVary: 0 },
+    door: { ch: '+', fg: [92, 46, 14], bg: [205, 172, 120], vary: 0, fgVary: 0 },
     // the golden door, locked; once open it is drawn as a door
-    golddoor: { ch: '+', fg: [255, 214, 72], bg: [96, 66, 12], vary: 3, fgVary: 0, bold: true },
-    opendoor: { ch: '+', fg: [92, 46, 14], bg: [205, 172, 120], vary: 4, fgVary: 0 },
+    golddoor: { ch: '+', fg: [255, 214, 72], bg: [96, 66, 12], vary: 0, fgVary: 0, bold: true },
+    opendoor: { ch: '+', fg: [92, 46, 14], bg: [205, 172, 120], vary: 0, fgVary: 0 },
     // the bust of DEE: grey stone
-    statue: { ch: '&', fg: [58, 58, 62], bg: [182, 180, 174], vary: 3, fgVary: 0, bold: true },
-    stairs: { ch: '>', fg: [24, 20, 14], bg: [240, 208, 96], vary: 3, fgVary: 0 },
-    entrance: { ch: '<', fg: [118, 110, 95], bg: [229, 224, 208], vary: 4, fgVary: 0 },
+    statue: { ch: '&', fg: [58, 58, 62], bg: [182, 180, 174], vary: 0, fgVary: 0, bold: true },
+    stairs: { ch: '>', fg: [24, 20, 14], bg: [240, 208, 96], vary: 0, fgVary: 0 },
+    entrance: { ch: '<', fg: [118, 110, 95], bg: [229, 224, 208], vary: 0, fgVary: 0 },
     player: { ch: '@', fg: [0, 0, 0], bg: [252, 249, 240] },
-    goblin: { ch: 'g', fg: [176, 48, 18] },
-    goblinAsleep: { ch: 'g', fg: [176, 132, 112] },
     toad: { ch: 'T', fg: [40, 112, 22] },
     toadAsleep: { ch: 'T', fg: [78, 116, 52] },
     corpse: { ch: '%', fg: [130, 26, 26] },
-    // Far cells go a little grey and cool; remembered cells fade like old ink.
+    // Light with distance from you: how far toward `shade` the far end goes (0: no falloff),
+    // in how many flat steps (0: smooth).
     shade: [176, 178, 184],
-    shadeMax: 0.2,
+    shadeMax: 0,
+    shadeSteps: 2,
+    // Remembered cells: one flat treatment, like old ink.
     memoryTo: [150, 146, 138],
     memoryFg: 0.5,
     memoryBg: 0.26,
   },
   dark: {
-    unknown: [0, 0, 0],
-    floor: { ch: '.', fg: [112, 112, 146], bg: [11, 11, 24], vary: 3, fgVary: 20 },
-    grass: { ch: '"', fg: [84, 168, 70], bg: [9, 20, 13], vary: 3, fgVary: 26 },
-    wall: { ch: '#', fg: [30, 26, 24], bg: [98, 86, 78], vary: 11, fgVary: 6 },
-    door: { ch: '+', fg: [214, 122, 44], bg: [74, 30, 13], vary: 4, fgVary: 0 },
-    golddoor: { ch: '+', fg: [255, 216, 64], bg: [88, 64, 6], vary: 3, fgVary: 0, bold: true },
-    opendoor: { ch: '+', fg: [214, 122, 44], bg: [74, 30, 13], vary: 4, fgVary: 0 },
-    statue: { ch: '&', fg: [196, 196, 204], bg: [44, 44, 50], vary: 3, fgVary: 0, bold: true },
-    stairs: { ch: '>', fg: [255, 236, 124], bg: [56, 50, 14], vary: 3, fgVary: 0 },
-    entrance: { ch: '<', fg: [128, 128, 162], bg: [14, 14, 30], vary: 3, fgVary: 0 },
-    player: { ch: '@', fg: [255, 255, 255], bg: [30, 28, 34] },
-    goblin: { ch: 'g', fg: [226, 146, 58] },
-    goblinAsleep: { ch: 'g', fg: [126, 92, 58] },
-    toad: { ch: 'T', fg: [128, 214, 72] },
-    toadAsleep: { ch: 'T', fg: [92, 156, 66] },
-    corpse: { ch: '%', fg: [168, 44, 44] },
-    shade: [0, 0, 8],
-    shadeMax: 0.5,
-    memoryTo: [6, 8, 22],
-    memoryFg: 0.6,
+    unknown: EGA.black,
+    // the ground is black, with the ink saying what it is
+    floor: { ch: '.', fg: EGA.brown, bg: EGA.black, vary: 0, fgVary: 0 },
+    grass: { ch: '"', fg: EGA.green, bg: EGA.black, vary: 0, fgVary: 0 },
+    entrance: { ch: '<', fg: EGA.grey, bg: EGA.black, vary: 0, fgVary: 0 },
+    stairs: { ch: '>', fg: EGA.yellow, bg: EGA.black, vary: 0, fgVary: 0, bold: true },
+    // what stands in your way is a solid tile
+    wall: { ch: '#', fg: EGA.grey, bg: EGA.darkGrey, vary: 0, fgVary: 0 },
+    door: { ch: '+', fg: EGA.black, bg: EGA.brown, vary: 0, fgVary: 0 },
+    golddoor: { ch: '+', fg: EGA.black, bg: EGA.yellow, vary: 0, fgVary: 0, bold: true },
+    opendoor: { ch: '+', fg: EGA.black, bg: EGA.brown, vary: 0, fgVary: 0 },
+    statue: { ch: '&', fg: EGA.black, bg: EGA.grey, vary: 0, fgVary: 0, bold: true },
+    player: { ch: '@', fg: EGA.white, bg: EGA.black },
+    toad: { ch: 'T', fg: EGA.brightGreen },
+    toadAsleep: { ch: 'T', fg: EGA.green },
+    corpse: { ch: '%', fg: EGA.brightRed },
+    shade: EGA.black,
+    shadeMax: 0,
+    shadeSteps: 2,
+    // Remembered cells: the same inks, flatly dimmer.
+    memoryTo: EGA.black,
+    memoryFg: 0.55,
     memoryBg: 0.55,
   },
 };
@@ -87,10 +107,11 @@ export function paintCell(cell, x, y, env) {
   const key = env.key | 0;
   const ground = look[cell.t] || look.floor;
   let ch = ground.ch;
-  let bg = add(ground.bg, (noise(x, y, key) - 0.5) * 2 * ground.vary);
-  let fg = add(ground.fg, (noise(y, x, key + 7) - 0.5) * 2 * ground.fgVary);
+  let bg = ground.vary ? add(ground.bg, (noise(x, y, key) - 0.5) * 2 * ground.vary) : ground.bg;
+  let fg = ground.fgVary ? add(ground.fg, (noise(y, x, key + 7) - 0.5) * 2 * ground.fgVary) : ground.fg;
   let bold = !!ground.bold;
 
+  // What stands on the cell: you, the toad, or a corpse.
   const thing = cell.thing;
   if (thing) {
     if (thing.kind === 'player') {
@@ -104,11 +125,6 @@ export function paintCell(cell, x, y, env) {
       ch = t.ch;
       fg = t.fg;
       bold = true;
-    } else if (thing.kind === 'goblin') {
-      const g = thing.asleep ? look.goblinAsleep : look.goblin;
-      ch = g.ch;
-      fg = g.fg;
-      bold = !thing.asleep;
     } else if (thing.kind === 'corpse') {
       ch = look.corpse.ch;
       fg = look.corpse.fg;
@@ -119,10 +135,12 @@ export function paintCell(cell, x, y, env) {
     fg = mix(fg, look.memoryTo, look.memoryFg);
     bg = mix(bg, look.memoryTo, look.memoryBg);
     bold = false;
-  } else if (!(thing && thing.kind === 'player')) {
-    // Light falls off with distance from you.
+  } else if (look.shadeMax > 0 && !(thing && thing.kind === 'player')) {
+    // Light falls off with distance from you, smoothly or in flat steps.
     const d = Math.hypot(x - env.px, y - env.py);
-    const t = Math.min(1, Math.max(0, (d - 1.5) / 9)) * look.shadeMax;
+    let far = Math.min(1, Math.max(0, (d - 1.5) / 9));
+    if (look.shadeSteps > 0) far = Math.ceil(far * look.shadeSteps) / look.shadeSteps;
+    const t = far * look.shadeMax;
     bg = mix(bg, look.shade, t);
     fg = mix(fg, look.shade, t * 0.6);
   }

@@ -25,27 +25,19 @@ export const CONFIG = {
   swordDamagePerStr: 0.2, // sword in hand: 10 str -> 2
   fistDamagePerStr: 0.1, //  bare hands:    10 str -> 1
 
-  // Chance that a swing lands.
+  // Chance that your swing lands.
   playerHits: 0.85,
-  goblinHits: 0.5,
 
-  goblin: {
-    hp: 3,
-    damage: 1,
-    asleepChance: 0.4, // chance a goblin starts the level asleep
-    wakeRange: 2, //      a sleeping goblin may wake when you are this many steps away
-    wakeChance: 0.5, //   and this is the chance, each turn you are that close
-    wanderChance: 0.5, // chance an awake goblin that can't see you takes a step
-    perRoom: 5, //        never more than this many in one room
-    awayFromEntrance: 4, // none start closer than this to where you arrive
-  },
-
-  // Goblins on a level: its depth, plus 0 or 1.
-  goblinsExtraMax: 1,
+  // The log is this many characters wide. A status may run to two lines of it, no more.
+  // (A look number the rules need: the log's width over the width of one character.)
+  logWidth: 41,
+  // An action says this many wrapped lines in all, across its statuses.
+  saysAtMost: 2,
 
   // The toad: level 1 only. It sleeps in the room farthest from the entrance, near a
   // golden door; the stairs are in a small room behind that door.
-  toad: { hp: 8, damage: 2, hits: 0.6 },
+  // wander: the chance, each turn, that it takes a step when awake and it can't see you.
+  toad: { hp: 8, damage: 2, hits: 0.6, wander: 0.5 },
   toadLevel: 1,
   toadExtraRoom: 1, //   level 1 has this many rooms more than it would (never more than 4)
   closetSize: 3, //      the small room behind the golden door is this many cells across, inside (1 to 3)
@@ -57,8 +49,7 @@ export const CONFIG = {
   // Putting an item in the bust's opening. The sword: this much more damage; twice
   // as much if the item held a memory.
   enchant: { swordDamage: 1 },
-  // Noise (the bust speaking or enchanting): the chance each sleeping toad or goblin
-  // in the room wakes.
+  // Noise (the bust speaking or enchanting): the chance a sleeping animal in the room wakes.
   noiseWakes: 0.5,
 
   // Going for the toad's key: the chance it works, while it sleeps soundly and once it has stirred.

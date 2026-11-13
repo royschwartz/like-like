@@ -18,7 +18,7 @@ test('the inventory screen: toggle, its view, inspect, use, back', () => {
     items: [{ key: 'sword', name: TEXT.thing.sword, state: TEXT.menu.inHand }],
     cursor: 0,
   });
-  assert.deepEqual(v.context, { id: 'inspect', label: TEXT.context.inspect });
+  assert.deepEqual(v.context, { id: 'inspect', label: TEXT.context.inspect, more: false });
 
   // Inspect: the description.
   let from = g.nextLogId;

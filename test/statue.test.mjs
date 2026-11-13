@@ -4,7 +4,7 @@ import { CONFIG } from '../src/config.js';
 import { TEXT } from '../src/text.js';
 import { los } from '../src/fov.js';
 import { newGame, act, view, currentRoom, playerDamage } from '../src/game.js';
-import { clearGoblins, makeGoblin, DIRS, STEP, S, idx } from './helpers.mjs';
+import { DIRS, STEP, S, idx, logLines } from './helpers.mjs';
 
 const texts = (g, from) => g.log.filter((l) => l.id >= from).map((l) => l.text);
 const open = (c) => c === 'floor' || c === 'grass';
@@ -28,7 +28,6 @@ function withNoise(p, fn) {
 
 function inToadRoom(seed) {
   const g = newGame({ seed });
-  clearGoblins(g);
   g.hp = g.maxHp = 100000;
   g.room = g.level.toadRoom;
   const room = currentRoom(g);
@@ -60,6 +59,7 @@ function intoBust(g, s) {
 }
 
 const DEE = [
+  [DESCRIPTION],
   ['suddenly the empty eyes begin to glow and the statue speaks'],
   ['"long time no see, compadre."'],
   ['you: "do we know each other?"'],
@@ -73,7 +73,7 @@ function passages(v) {
   for (const l of v.event.lines) (out[l.passage] = out[l.passage] || []).push(l.text);
   return out;
 }
-const labels = (v) => v.event.options.map((o) => (o ? o.label : null));
+const labels = (v) => v.event.options.map((o) => o.label);
 
 // A game beside the bust that has already spoken, with no noise.
 function spokenBust(seed = 1) {
@@ -100,10 +100,11 @@ test('moving into the bust: no turn, never onto it; the first time it speaks', (
     assert.equal(s.spoke, true);
     const v = view(g);
     assert.equal(v.cells[idx(s.x, s.y)].t, 'statue');
-    assert.deepEqual(passages(v), DEE);
+    assert.deepEqual(passages(v), DEE, 'what you see as you walk into it, then what it says');
     assert.equal(v.event.now, 0, 'all of it is new');
-    assert.deepEqual(labels(v), [null, null, null, 'back']);
-    assert.equal(v.event.cursor, 3);
+    assert.ok(v.event.lines.every((l) => l.song === false && l.slot === false));
+    assert.deepEqual(v.event.options, [{ label: 'back', kind: 'back', slot: false }]);
+    assert.equal(v.event.cursor, 0);
     act(g, { type: 'context' });
     assert.equal(view(g).event, null);
 
@@ -112,51 +113,51 @@ test('moving into the bust: no turn, never onto it; the first time it speaks', (
     assert.deepEqual(ev2, [{ type: 'event', id: 'bust' }], 'no noise for opening it');
     const v2 = view(g);
     assert.deepEqual(passages(v2), [[LIFELESS]]);
-    assert.deepEqual(labels(v2), ['sword', null, null, 'back']);
+    assert.deepEqual(labels(v2), ['sword', 'back']);
     assert.equal(v2.event.cursor, 0);
     assert.equal(g.turn, turn);
     act(g, { type: 'back' });
     assert.equal(view(g).event, null);
-    assert.equal(g.log.filter((l) => l.text.startsWith('suddenly')).length, 0, 'the event is not the log');
+    assert.equal(g.log.filter((l) => l.text.startsWith('suddenly') || l.text === DESCRIPTION).length, 0, 'the event is not the log');
   });
 });
 
-test('observing the bust never opens its event: the description, then lifeless', () => {
+test('observing the bust never opens its event: a short line, then lifeless; it blinks while one is new', () => {
   withNoise(0, () => {
+    assert.ok(logLines(TEXT.observe.statue) <= 2 && logLines(LIFELESS) <= 2, 'the statue description is short');
     for (const dist of [1, CONFIG.observeClose, CONFIG.observeClose + 1]) {
       const { g, s } = atBust(dist);
+      assert.equal(view(g).cells[idx(s.x, s.y)].more, true);
       const r = observeBust(g, s);
-      assert.deepEqual(r.said, [DESCRIPTION], `dist ${dist}`);
+      assert.deepEqual(r.said, ['[bust]'], `dist ${dist}`);
       assert.deepEqual(r.ev, [{ type: 'observe', x: s.x, y: s.y }]);
       assert.equal(s.spoke, false);
       assert.equal(view(g).event, null);
+      assert.equal(view(g).cells[idx(s.x, s.y)].more, false);
     }
     const { g, s } = atBust(1);
     intoBust(g, s);
     act(g, { type: 'back' });
+    assert.equal(view(g).cells[idx(s.x, s.y)].more, true, 'it has spoken: something new to see');
     for (let k = 0; k < 2; k++) {
       const r = observeBust(g, s);
       assert.deepEqual(r.said, [LIFELESS]);
       assert.equal(view(g).event, null);
+      assert.equal(view(g).cells[idx(s.x, s.y)].more, false);
     }
   });
 });
 
-test('noise: the bust speaking wakes sleeping things in the room by CONFIG.noiseWakes, from the seeded chance', () => {
+test('noise: the bust speaking wakes the sleeping toad by CONFIG.noiseWakes, from the seeded chance', () => {
   for (const [p, wake] of [[1, true], [0, false]]) {
     withNoise(p, () => {
-      const { g, room, s, t } = atBust(1);
-      const spots = room.t
-        .map((c, i) => [c, i % S, Math.floor(i / S)])
-        .filter(([c, x, y]) => open(c) && !(x === t.x && y === t.y) && !(x === g.x && y === g.y) && x > 0)
-        .slice(0, 3);
-      room.goblins = spots.map(([, x, y], k) => makeGoblin(x, y, true, 700 + k));
-      const other = g.level.rooms.find((r) => r.id !== room.id);
-      other.goblins = [makeGoblin(5, 5, true, 799)];
+      const { g, s, t } = atBust(1);
+      const from = g.nextLogId;
       intoBust(g, s);
       assert.equal(t.asleep, !wake, `toad, noise ${p}`);
-      assert.ok(room.goblins.every((b) => b.asleep === !wake), `goblins, noise ${p}`);
-      assert.equal(other.goblins[0].asleep, true, 'another room hears nothing');
+      const said = texts(g, from);
+      assert.ok(said.length <= 1, 'the exchange is the event, not the log');
+      if (said.length) assert.deepEqual(said, ['[the toad wakes]']);
     });
   }
   const seen = new Set();
@@ -172,21 +173,24 @@ test('noise: the bust speaking wakes sleeping things in the room by CONFIG.noise
   assert.deepEqual([...seen].sort(), [false, true]);
 });
 
-test('the opening: what you carry as options, two a page with more, back last', () => {
+test('the opening: everything you carry as links, in order, back last', () => {
   const { g, s } = spokenBust();
   g.items.push({ key: 'key', inHand: false }, { key: 'worms', inHand: false }, { key: 'sword', inHand: false }, { key: 'key', inHand: false });
   g.memories.push('worms'); // nothing to give up here
   intoBust(g, s);
-  let v = view(g);
-  assert.deepEqual(labels(v), ['sword', '[golden key]', 'more', 'back']);
-  assert.equal(v.event.options[0].kind, 'item');
-  act(g, { type: 'choose', index: 2 });
-  v = view(g);
-  assert.deepEqual(labels(v), ['[worms]', 'sword', '[golden key]', 'back']);
+  const v = view(g);
+  assert.deepEqual(v.event.options, [
+    { label: 'sword', kind: 'item', slot: false },
+    { label: '[golden key]', kind: 'item', slot: true },
+    { label: '[worms]', kind: 'item', slot: true },
+    { label: 'sword', kind: 'item', slot: false },
+    { label: '[golden key]', kind: 'item', slot: true },
+    { label: 'back', kind: 'back', slot: false },
+  ]);
   assert.equal(v.event.cursor, 0);
-  act(g, { type: 'back' }); // back a page
-  assert.deepEqual(labels(view(g)), ['sword', '[golden key]', 'more', 'back']);
-  act(g, { type: 'back' });
+  for (let k = 0; k < 9; k++) act(g, { type: 'move', dir: 's' });
+  assert.equal(view(g).event.cursor, 5, 'the keys stop at the last link');
+  act(g, { type: 'context' });
   assert.equal(view(g).event, null);
 });
 
@@ -199,11 +203,12 @@ test('enchanting through the opening: once each item, the line under the text, t
     let from = g.nextLogId;
     const ev = act(g, { type: 'context' }); // the cursor is on the sword
     assert.deepEqual(ev, [{ type: 'enchant', key: 'sword' }, { type: 'noise' }]);
-    assert.deepEqual(texts(g, from), ['[the statue enchants it]']);
+    assert.deepEqual(texts(g, from), [], 'what it says is in the event, not the log');
     let v = view(g);
     assert.deepEqual(passages(v), [[LIFELESS], ['[the statue enchants it]']]);
-    assert.equal(v.event.now, 1);
-    assert.deepEqual(labels(v), ['sword', null, null, 'back'], 'another item can go in');
+    assert.deepEqual(v.event.lines.map((l) => l.slot), [false, true]);
+    assert.equal(v.event.now, 1, 'only what it says is new');
+    assert.deepEqual(labels(v), ['sword', 'back'], 'another item can go in');
     assert.equal(v.event.cursor, 0);
     assert.equal(g.items[0].enchanted, true);
     assert.equal(g.items[0].inHand, true);
@@ -212,7 +217,7 @@ test('enchanting through the opening: once each item, the line under the text, t
     from = g.nextLogId;
     const ev2 = act(g, { type: 'choose', index: 0 });
     assert.deepEqual(ev2, []);
-    assert.deepEqual(texts(g, from), ['[nothing more happens]']);
+    assert.deepEqual(texts(g, from), []);
     v = view(g);
     assert.deepEqual(passages(v), [[LIFELESS], ['[nothing more happens]']]);
     assert.equal(playerDamage(g), before + CONFIG.enchant.swordDamage);
@@ -246,12 +251,12 @@ test('the worms in the opening: their memory at once, back closes everything, an
     intoBust(g, s);
     const from = g.nextLogId;
     const ev = act(g, { type: 'choose', index: 1 });
-    assert.deepEqual(texts(g, from), ['[the statue enchants it]', 'you have a memory']);
+    assert.deepEqual(texts(g, from), ['you have a memory']);
     assert.ok(ev.some((e) => e.type === 'event' && e.id === 'memory'));
     let v = view(g);
     assert.equal(v.event.id, 'memory');
     assert.ok(v.event.lines[0].text.startsWith('memory! you are standing amongst people'));
-    assert.deepEqual(labels(v), [null, null, null, 'back']);
+    assert.deepEqual(labels(v), ['back']);
     assert.deepEqual(g.memories, ['worms']);
     assert.equal(g.recall, null);
     assert.equal(g.items[1].enchanted, true);
@@ -269,17 +274,39 @@ test('the worms in the opening: their memory at once, back closes everything, an
     assert.equal(g.log.filter((l) => l.text === 'you have a memory').length, 1);
     // They hold no memory now: in again, nothing more.
     intoBust(g, s);
-    const f2 = g.nextLogId;
     act(g, { type: 'choose', index: 1 });
-    assert.deepEqual(texts(g, f2), ['[nothing more happens]']);
     assert.equal(view(g).event.id, 'bust');
+    assert.deepEqual(passages(view(g)), [[LIFELESS], ['[nothing more happens]']]);
   });
+});
+
+test('the loudest case says two lines: the worms go in, the toad wakes in sight, the memory comes', () => {
+  let woke = 0;
+  for (let seed = 1; seed <= 40; seed++) {
+    withNoise(1, () => {
+      const { g, s, t } = spokenBust(seed);
+      g.items.push({ key: 'worms', inHand: false });
+      intoBust(g, s);
+      const from = g.nextLogId;
+      act(g, { type: 'choose', index: 1 });
+      const said = texts(g, from);
+      assert.equal(t.asleep, false);
+      assert.ok(said.length <= CONFIG.saysAtMost, said.join(' | '));
+      assert.equal(said[said.length - 1], 'you have a memory');
+      if (said.length === 2) {
+        woke++;
+        assert.equal(said[0], '[the toad wakes]');
+      }
+      assert.equal(view(g).event.id, 'memory');
+    });
+  }
+  assert.ok(woke > 0, 'in some seed you can see the toad from beside the bust');
 });
 
 test('beside the bust the wide button is what it would be anyway, and the inventory has no give mode', () => {
   const { g, room } = atBust(1);
   assert.equal(TEXT.context.statue, undefined);
-  assert.deepEqual(view(g).context, { id: 'sense', label: TEXT.context.sense });
+  assert.deepEqual(view(g).context, { id: 'sense', label: TEXT.context.sense, more: true });
   room.corpses.push({ x: g.x, y: g.y, items: [] });
   assert.equal(view(g).context.id, 'corpse');
   room.corpses = [];

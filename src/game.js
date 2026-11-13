@@ -31,20 +31,25 @@ function makeState(seed, look, nextLogId) {
     will: CONFIG.player.will,
     items: [{ key: 'sword', inHand: true }],
     selfUntil: -1, //  you perceive your own numbers while turn < selfUntil
-    sensedTurn: -1, // every goblin is drawn while turn === sensedTurn ...
+    sensedTurn: -1, // what pillars hide is drawn while turn === sensedTurn ...
     sensedRoom: -1, // ... in this room
     menu: null, // an option menu, or null
     inv: null, //  the inventory screen: { cursor }, or null
     event: null, // an event over the whole screen, or null (see "events" below)
-    knowsWorms: false, // sense in the toad's room tells you; then * offers digging
+    observed: {}, // the observations you have had, by id (see "observe" below)
+    sensed: {}, //   the things you have sensed, by id
+    knowsWorms: false, // the last thing sensed in the toad's room tells you; then * offers digging
     memories: [], //   the memories you have, by id, in the order they came back
     recall: null, //   a memory on its way back: { id, turn }, or null
     heardSounds: false, // the bust's sounds were heard on this approach to it
     log: [], //    everything said, in order
     nextLogId,
     fresh: nextLogId, // the first line said by the latest action that said anything
+    said: 0, //    how many wrapped lines the action under way has said
+    busy: false, // resting or digging: a memory waits until it is done
   };
   for (const line of TEXT.opening) say(g, line, 'story');
+  g.said = 0; // the opening is already behind you: what you arrive in is the status
   sayDescend(g);
   see(g);
   return g;
@@ -61,25 +66,9 @@ export function currentRoom(g) {
   return g.level.rooms[g.room];
 }
 
-export function goblinAt(room, x, y) {
-  return room.goblins.find((b) => b.x === x && b.y === y) || null;
-}
-
 export function toadAt(room, x, y) {
   const t = room.toad;
   return t && t.x === x && t.y === y ? t : null;
-}
-
-// Whatever lives on a cell: the toad or a goblin.
-function creatureAt(room, x, y) {
-  return toadAt(room, x, y) || goblinAt(room, x, y);
-}
-
-const kindOf = (room, c) => (c === room.toad ? 'toad' : 'goblin');
-
-// The goblins, then the toad.
-function creatures(room) {
-  return room.toad ? [...room.goblins, room.toad] : room.goblins.slice();
 }
 
 function hasItem(g, key) {
@@ -95,9 +84,38 @@ function corpseAt(room, x, y) {
   return null;
 }
 
-function say(g, text, kind) {
-  g.log.push({ id: g.nextLogId++, turn: g.turn, text, kind: isSlot(text) ? 'slot' : kind });
+// The log is monospaced and wraps at spaces. Count the actual lines a status uses
+// so a two-line observation leaves no room for a second status in the same action.
+function statusLines(text) {
+  let lines = 1;
+  let used = 0;
+  for (const word of text.split(' ')) {
+    let width = word.length;
+    if (used > 0 && used + 1 + width <= CONFIG.logWidth) {
+      used += 1 + width;
+      continue;
+    }
+    if (used > 0) lines++;
+    while (width > CONFIG.logWidth) {
+      lines++;
+      width -= CONFIG.logWidth;
+    }
+    used = width;
+  }
+  return lines;
 }
+
+// At most two wrapped lines per action ("2 lines at a time"). The opening is
+// historical text; the first status an action says is `fresh`.
+function say(g, text, kind) {
+  const id = g.nextLogId++;
+  if (g.said === 0) g.fresh = id;
+  g.said += statusLines(text);
+  g.log.push({ id, turn: g.turn, text, kind: isSlot(text) ? 'slot' : kind });
+}
+
+// Has the action under way room for another line? For lines that can wait or go unsaid.
+const canSay = (g, text) => g.said + statusLines(text) <= CONFIG.saysAtMost;
 
 function sayDescend(g) {
   say(g, TEXT.log.descend[g.level.entrance.ground], 'story');
@@ -116,27 +134,27 @@ function see(g) {
 
 const manhattan = (ax, ay, bx, by) => Math.abs(ax - bx) + Math.abs(ay - by);
 
-// Cells a goblin or the toad may never stand on: walls, doors, the golden door
-// (locked or open), arrival cells. The only terrain that changes after a level is
-// made is the golden door opening, and both are blocked, so this is worked out once per room.
-const goblinBlockCache = new WeakMap();
+// Cells the toad may never stand on: walls, doors, the golden door (locked or open),
+// the bust, arrival cells. The only terrain that changes after a level is made is the
+// golden door opening, and both are blocked, so this is worked out once per room.
+const blockCache = new WeakMap();
 const CREATURE_BLOCKED = new Set(['wall', 'door', 'golddoor', 'opendoor', 'statue']);
-function goblinBlocked(room) {
-  let b = goblinBlockCache.get(room);
+function creatureBlocked(room) {
+  let b = blockCache.get(room);
   if (!b) {
     b = room.t.map((c) => CREATURE_BLOCKED.has(c));
     for (const [x, y] of arrivalCells(room)) b[idx(x, y)] = true;
-    goblinBlockCache.set(room, b);
+    blockCache.set(room, b);
   }
   return b;
 }
 
-// Could this goblin (or the toad) stand here? (Not on you, not on another creature.)
-export function goblinMayStand(g, room, x, y, self = null) {
+// Could the toad stand here? (Not on you.)
+export function mayStand(g, room, x, y, self = null) {
   if (x < 0 || y < 0 || x >= S || y >= S) return false;
-  if (goblinBlocked(room)[idx(x, y)]) return false;
+  if (creatureBlocked(room)[idx(x, y)]) return false;
   if (room === currentRoom(g) && x === g.x && y === g.y) return false;
-  const other = creatureAt(room, x, y);
+  const other = toadAt(room, x, y);
   return !other || other === self;
 }
 
@@ -145,7 +163,7 @@ function nearestFree(g, room, x, y, self) {
   const dist = roomDistances(room.t, x, y);
   let best = null;
   for (let i = 0; i < S * S; i++) {
-    if (dist[i] < 0 || !goblinMayStand(g, room, i % S, Math.floor(i / S), self)) continue;
+    if (dist[i] < 0 || !mayStand(g, room, i % S, Math.floor(i / S), self)) continue;
     if (!best || dist[i] < dist[idx(best[0], best[1])]) best = [i % S, Math.floor(i / S)];
   }
   return best;
@@ -166,111 +184,77 @@ export function playerDamage(g) {
 
 // ---- the turn ----------------------------------------------------------
 
-// After your action: the goblins and the toad here act, the turn goes up, you
-// look around, and a memory on its way may come back.
-function endTurn(g, ev) {
-  const r = creaturesAct(g, ev);
+// After your action: the toad acts if it is here, the turn goes up, you look
+// around, and a memory on its way may come back.
+function endTurn(g, ev, recallAfter = true) {
+  const r = toadActs(g, ev);
   g.turn++;
   see(g);
-  recallDue(g, ev);
+  if (recallAfter) recallDue(g, ev);
   return r;
 }
 
-function creaturesAct(g, ev) {
+function toadActs(g, ev) {
   const room = currentRoom(g);
-  let hit = false;
-  for (const c of creatures(room)) {
-    if (creatureTurn(g, room, c, ev)) hit = true;
-    if (g.hp <= 0) {
-      die(g, ev);
-      return { hit, died: true };
-    }
+  const toad = room.toad;
+  if (!toad) return { hit: false, died: false };
+  const hit = toadTurn(g, room, toad, ev);
+  if (g.hp <= 0) {
+    die(g, ev);
+    return { hit, died: true };
   }
   return { hit, died: false };
 }
 
-// One goblin's or the toad's turn. Returns true if it hit you.
-function creatureTurn(g, room, gob, ev) {
-  const kind = kindOf(room, gob);
-  const dist = manhattan(gob.x, gob.y, g.x, g.y);
-  if (gob.asleep) {
-    if (kind === 'toad') return false; // only its event or a blow wakes the toad
-    if (dist <= CONFIG.goblin.wakeRange && chance(g.rng, CONFIG.goblin.wakeChance)) {
-      gob.asleep = false;
-      if (los(room.t, g.x, g.y, gob.x, gob.y)) say(g, TEXT.log.goblinWakes, 'plain');
-    }
+// The toad's turn. Asleep, it does nothing: only its event, a blow or noise wakes it.
+// Returns true if it hit you.
+function toadTurn(g, room, toad, ev) {
+  if (toad.asleep) return false;
+  if (los(room.t, toad.x, toad.y, g.x, g.y)) {
+    toad.lastSeen = { x: g.x, y: g.y };
+    if (manhattan(toad.x, toad.y, g.x, g.y) === 1) return toadAttacks(g, ev);
+    stepToward(g, room, toad, g.x, g.y);
     return false;
   }
-  if (los(room.t, gob.x, gob.y, g.x, g.y)) {
-    gob.lastSeen = { x: g.x, y: g.y };
-    if (dist === 1) return creatureAttacks(g, kind, ev);
-    stepToward(g, room, gob, g.x, g.y);
+  if (toad.lastSeen) {
+    const moved = stepToward(g, room, toad, toad.lastSeen.x, toad.lastSeen.y);
+    if (!moved || (toad.x === toad.lastSeen.x && toad.y === toad.lastSeen.y)) toad.lastSeen = null;
     return false;
   }
-  if (gob.lastSeen) {
-    const moved = stepToward(g, room, gob, gob.lastSeen.x, gob.lastSeen.y);
-    if (!moved || (gob.x === gob.lastSeen.x && gob.y === gob.lastSeen.y)) gob.lastSeen = null;
-    return false;
-  }
-  if (chance(g.rng, CONFIG.goblin.wanderChance)) {
-    const options = DIRS.map((d) => [gob.x + STEP[d][0], gob.y + STEP[d][1]]).filter(([x, y]) =>
-      goblinMayStand(g, room, x, y, gob),
+  if (chance(g.rng, CONFIG.toad.wander)) {
+    const options = DIRS.map((d) => [toad.x + STEP[d][0], toad.y + STEP[d][1]]).filter(([x, y]) =>
+      mayStand(g, room, x, y, toad),
     );
-    if (options.length) [gob.x, gob.y] = pick(g.rng, options);
+    if (options.length) [toad.x, toad.y] = pick(g.rng, options);
   }
   return false;
 }
 
-// What each kind hits with, and the lines its fights say.
-function fighter(kind) {
-  if (kind === 'toad') {
-    return {
-      hits: CONFIG.toad.hits,
-      damage: CONFIG.toad.damage,
-      youHit: TEXT.log.youHitToad,
-      youMiss: TEXT.log.youMissToad,
-      hitsYou: TEXT.log.toadHits,
-      missesYou: TEXT.log.toadMisses,
-      dies: TEXT.log.toadDies,
-    };
+function toadAttacks(g, ev) {
+  const hit = chance(g.rng, CONFIG.toad.hits);
+  const dmg = hit ? CONFIG.toad.damage : 0;
+  ev.push({ type: 'attack', by: 'toad', x: g.x, y: g.y, hit, dmg });
+  if (!hit) {
+    say(g, TEXT.log.toadMisses, 'plain');
+    return false;
   }
-  return {
-    hits: CONFIG.goblinHits,
-    damage: CONFIG.goblin.damage,
-    youHit: TEXT.log.youHit,
-    youMiss: TEXT.log.youMiss,
-    hitsYou: TEXT.log.goblinHits,
-    missesYou: TEXT.log.goblinMisses,
-    dies: TEXT.log.goblinDies,
-  };
+  g.hp -= dmg;
+  // The blow that kills you says only that you die (see die): two statuses at most.
+  if (g.hp > 0) say(g, TEXT.log.toadHits(dmg), 'bad');
+  return true;
 }
 
-function creatureAttacks(g, kind, ev) {
-  const f = fighter(kind);
-  const hit = chance(g.rng, f.hits);
-  const dmg = hit ? f.damage : 0;
-  ev.push({ type: 'attack', by: kind, x: g.x, y: g.y, hit, dmg });
-  if (hit) {
-    g.hp -= dmg;
-    say(g, f.hitsYou(dmg), 'bad');
-  } else {
-    say(g, f.missesYou, 'plain');
-  }
-  return hit;
-}
-
-// One step along the shortest path to (tx, ty). Other goblins don't bend the
-// path; they only stop a step onto their cell. Returns whether it moved.
-function stepToward(g, room, gob, tx, ty) {
-  const blocked = goblinBlocked(room);
+// One step along the shortest path to (tx, ty). Returns whether it moved.
+function stepToward(g, room, toad, tx, ty) {
+  const blocked = creatureBlocked(room);
   const dist = roomDistances(room.t, tx, ty, (c, x, y) => !blocked[idx(x, y)]);
   let best = null;
-  let bestD = dist[idx(gob.x, gob.y)];
+  let bestD = dist[idx(toad.x, toad.y)];
   if (bestD < 0) bestD = Infinity;
   for (const d of DIRS) {
-    const x = gob.x + STEP[d][0];
-    const y = gob.y + STEP[d][1];
-    if (!goblinMayStand(g, room, x, y, gob)) continue;
+    const x = toad.x + STEP[d][0];
+    const y = toad.y + STEP[d][1];
+    if (!mayStand(g, room, x, y, toad)) continue;
     const dd = dist[idx(x, y)];
     if (dd >= 0 && dd < bestD) {
       best = [x, y];
@@ -278,10 +262,12 @@ function stepToward(g, room, gob, tx, ty) {
     }
   }
   if (!best) return false;
-  [gob.x, gob.y] = best;
+  [toad.x, toad.y] = best;
   return true;
 }
 
+// You die: back to the level's entrance, whole. The toad never leaves its room, and
+// its room is never the entrance's, so nothing can be standing there.
 function die(g, ev) {
   say(g, TEXT.log.youDie, 'bad');
   ev.push({ type: 'death' });
@@ -292,13 +278,6 @@ function die(g, ev) {
   g.y = e.y;
   g.menu = null;
   g.inv = null;
-  const room = currentRoom(g);
-  const squatter = goblinAt(room, e.x, e.y);
-  if (squatter) {
-    // Move it to the nearest free cell.
-    const best = nearestFree(g, room, e.x, e.y, squatter);
-    if (best) [squatter.x, squatter.y] = best;
-  }
   // The toad goes back to sleep where it slept.
   const tr = g.level.toadRoom;
   if (tr !== null && tr !== undefined && g.level.rooms[tr].toad) toadSleeps(g, g.level.rooms[tr]);
@@ -310,7 +289,7 @@ function toadSleeps(g, room) {
   t.stirred = false;
   t.lastSeen = null;
   if (t.x === t.home.x && t.y === t.home.y) return;
-  const best = goblinMayStand(g, room, t.home.x, t.home.y, t) ? [t.home.x, t.home.y] : nearestFree(g, room, t.home.x, t.home.y, t);
+  const best = mayStand(g, room, t.home.x, t.home.y, t) ? [t.home.x, t.home.y] : nearestFree(g, room, t.home.x, t.home.y, t);
   if (best) [t.x, t.y] = best;
 }
 
@@ -325,9 +304,9 @@ function move(g, dir, ev) {
   if (c === 'wall') return; // no turn, nothing
   if (c === 'statue') return openBust(g, ev); // into the bust, never onto it: its event, no turn
   if (c === 'golddoor') return goldDoor(g, room, x, y, ev);
-  const gob = creatureAt(room, x, y);
-  if (gob) {
-    attack(g, room, gob, ev);
+  const toad = toadAt(room, x, y);
+  if (toad) {
+    attack(g, room, toad, ev);
   } else if (c === 'door') {
     g.room = room.nb[dir];
     [g.x, g.y] = ARRIVAL[OPP[dir]];
@@ -354,30 +333,24 @@ function goldDoor(g, room, x, y, ev) {
   endTurn(g, ev);
 }
 
-function attack(g, room, gob, ev) {
-  const kind = kindOf(room, gob);
-  const f = fighter(kind);
-  const hit = gob.asleep || chance(g.rng, CONFIG.playerHits);
-  gob.asleep = false;
+// You strike the toad. Asleep, it is always hit, and wakes.
+function attack(g, room, toad, ev) {
+  const hit = toad.asleep || chance(g.rng, CONFIG.playerHits);
+  toad.asleep = false;
   const dmg = hit ? playerDamage(g) : 0;
-  ev.push({ type: 'attack', by: 'player', x: gob.x, y: gob.y, hit, dmg });
+  ev.push({ type: 'attack', by: 'player', x: toad.x, y: toad.y, hit, dmg });
   if (!hit) {
-    say(g, f.youMiss, 'plain');
+    say(g, TEXT.log.youMissToad, 'plain');
     return;
   }
-  say(g, f.youHit(dmg), 'plain');
-  gob.hp -= dmg;
-  if (gob.hp <= 0) {
-    const items = [];
-    if (kind === 'toad') {
-      room.toad = null;
-      if (!hasItem(g, 'key')) items.push({ key: 'key' }); // its key, on its corpse
-    } else {
-      room.goblins.splice(room.goblins.indexOf(gob), 1);
-    }
-    room.corpses.push({ x: gob.x, y: gob.y, items });
-    say(g, f.dies, 'good');
-    ev.push({ type: 'kill', x: gob.x, y: gob.y });
+  say(g, TEXT.log.youHitToad(dmg), 'plain');
+  toad.hp -= dmg;
+  if (toad.hp <= 0) {
+    room.toad = null;
+    // its key, on its corpse
+    room.corpses.push({ x: toad.x, y: toad.y, items: hasItem(g, 'key') ? [] : [{ key: 'key' }] });
+    say(g, TEXT.log.toadDies, 'good');
+    ev.push({ type: 'kill', x: toad.x, y: toad.y });
   }
 }
 
@@ -421,34 +394,30 @@ function hearSounds(g) {
   say(g, TEXT.log.sounds, 'sense');
 }
 
-// Noise: every sleeping toad or goblin in the room may wake. Anything noisy calls this.
+// Noise: a sleeping animal in the room may wake. Anything noisy calls this.
 function makeNoise(g, ev) {
   const room = currentRoom(g);
-  for (const c of creatures(room)) {
-    if (!c.asleep || !chance(g.rng, CONFIG.noiseWakes)) continue;
-    c.asleep = false;
-    if (!los(room.t, g.x, g.y, c.x, c.y)) continue;
-    say(g, kindOf(room, c) === 'toad' ? TEXT.log.toadWakes : TEXT.log.goblinWakes, 'plain');
+  const toad = room.toad;
+  if (toad && toad.asleep && chance(g.rng, CONFIG.noiseWakes)) {
+    toad.asleep = false;
+    if (los(room.t, g.x, g.y, toad.x, toad.y)) say(g, TEXT.log.toadWakes, 'plain');
   }
   ev.push({ type: 'noise' });
 }
 
 // Putting item i in the opening: it is enchanted, once, and is noise. A memory in it
-// comes back at once (its event takes the bust's place). Returns the line said.
+// comes back at once (its event takes the bust's place). Returns the line the event shows;
+// nothing of it goes in the log.
 function enchant(g, i, ev) {
   const it = g.items[i];
-  if (it.enchanted) {
-    say(g, TEXT.log.nothingMore, 'plain');
-    return TEXT.log.nothingMore;
-  }
+  if (it.enchanted) return TEXT.dee.nothingMore;
   const memory = holdsMemory(g, it) ? MEMORY_OF[it.key] : null;
   it.enchanted = true;
   if (memory) it.strong = true;
-  say(g, TEXT.log.enchants, 'good');
   ev.push({ type: 'enchant', key: it.key });
   makeNoise(g, ev);
   if (memory) recall(g, memory, ev);
-  return TEXT.log.enchants;
+  return TEXT.dee.enchants;
 }
 
 function descend(g, ev) {
@@ -460,67 +429,99 @@ function descend(g, ev) {
   g.y = e.y;
   g.menu = null;
   g.inv = null;
-  say(g, TEXT.log.level(g.depth), 'plain');
   sayDescend(g);
   ev.push({ type: 'descend' });
-  g.turn++; // no goblin acts this turn
+  g.turn++; // nothing acts this turn
   see(g);
   recallDue(g, ev);
 }
 
+// What there is to sense where you are, in order: [{ id, text, worms }].
+// Only the toad's room has anything yet.
+function senseLines(g) {
+  if (g.room !== g.level.toadRoom) return [];
+  const last = TEXT.senseToad.length - 1;
+  return TEXT.senseToad.map((text, k) => ({ id: `toad.${k}`, text, worms: k === last }));
+}
+
+// Is there something here you have not sensed? (The wide button blinks.)
+function senseMore(g) {
+  return senseLines(g).some((l) => !g.sensed[l.id]);
+}
+
+// One sensing, one line: the next thing you have not sensed here, or, when there
+// is nothing new, the last thing again. The last line of the toad's room is the worms.
 function sense(g, ev) {
   const room = currentRoom(g);
-  const asleep = room.goblins.filter((b) => b.asleep).length;
-  say(g, TEXT.log.senseHere(room.goblins.length, asleep), 'sense');
-  for (const d of DIRS) {
-    const n = room.nb[d];
-    if (n === null) continue;
-    const there = g.level.rooms[n];
-    say(g, TEXT.log.senseDoor(TEXT.dir[d], there.goblins.length, g.level.stairs.room === n), 'sense');
-  }
-  if (g.room === g.level.toadRoom) {
-    for (const line of TEXT.senseToad) say(g, line, 'sense');
-    g.knowsWorms = true;
-  }
+  const lines = senseLines(g);
+  const line = lines.find((l) => !g.sensed[l.id]) ?? lines[lines.length - 1];
   for (let i = 0; i < S * S; i++) {
     room.seen[i] = true;
     room.memCorpse[i] = !!corpseAt(room, i % S, Math.floor(i / S));
   }
   ev.push({ type: 'sense' });
   const here = g.room;
-  endTurn(g, ev);
-  g.selfUntil = g.turn + CONFIG.senseSelfTurns;
-  g.sensedTurn = g.turn;
-  g.sensedRoom = here;
+  // A blow or a death has priority over a discovery. An unsaid discovery stays
+  // available (and blinking) for the next sense; a memory waits for spare room.
+  const outcome = endTurn(g, ev, false);
+  if (!outcome.died) {
+    const text = line?.text ?? TEXT.log.senseNothing;
+    if (canSay(g, text)) {
+      say(g, text, 'sense');
+      if (line) {
+        g.sensed[line.id] = true;
+        if (line.worms) g.knowsWorms = true;
+      }
+    }
+    g.selfUntil = g.turn + CONFIG.senseSelfTurns;
+    g.sensedTurn = g.turn;
+    g.sensedRoom = here;
+  }
+  recallDue(g, ev);
 }
 
-function awakeGoblinInSight(g) {
+function awakeInSight(g) {
   const room = currentRoom(g);
-  return creatures(room).some((b) => !b.asleep && los(room.t, g.x, g.y, b.x, b.y));
+  const t = room.toad;
+  return !!t && !t.asleep && los(room.t, g.x, g.y, t.x, t.y);
+}
+
+// Resting and digging take several turns, and stop as soon as something awake is in
+// sight. So nothing can strike you while you do either: it has to come into sight first.
+// A memory waits until they are done. Returns true if every turn passed quietly.
+// `stopped` is said if there is room for it.
+function quietTurns(g, n, stopped, ev) {
+  if (awakeInSight(g)) {
+    say(g, stopped, 'plain');
+    return false;
+  }
+  g.busy = true;
+  let quiet = true;
+  for (let k = 0; k < n && quiet; k++) {
+    const r = endTurn(g, ev);
+    if (r.died) quiet = false;
+    else if (r.hit || awakeInSight(g)) {
+      if (canSay(g, stopped)) say(g, stopped, 'plain');
+      quiet = false;
+    }
+  }
+  g.busy = false;
+  return quiet;
 }
 
 function rest(g, ev) {
   say(g, TEXT.log.youRest, 'plain');
-  if (awakeGoblinInSight(g)) {
-    say(g, TEXT.log.restStopped, 'plain');
-    return;
-  }
-  for (let k = 0; k < CONFIG.restTurns; k++) {
-    const r = endTurn(g, ev);
-    if (r.died || g.event) return;
-    if (r.hit || awakeGoblinInSight(g)) {
-      say(g, TEXT.log.restStopped, 'plain');
-      return;
+  if (quietTurns(g, CONFIG.restTurns, TEXT.log.restStopped, ev)) {
+    const gain = Math.min(CONFIG.restHeal, g.maxHp - g.hp);
+    if (gain > 0) {
+      g.hp += gain;
+      say(g, TEXT.log.restBetter, 'good');
     }
   }
-  const gain = Math.min(CONFIG.restHeal, g.maxHp - g.hp);
-  if (gain > 0) {
-    g.hp += gain;
-    say(g, TEXT.log.restBetter, 'good');
-  }
+  recallDue(g, ev);
 }
 
-// Digging for worms: a few turns on grass or dirt. A blow stops it.
+// Digging for worms: a few turns on grass or dirt.
 function canDig(g) {
   const c = currentRoom(g).t[idx(g.x, g.y)];
   return c === 'grass' || c === 'floor';
@@ -528,17 +529,12 @@ function canDig(g) {
 
 function dig(g, ev) {
   say(g, TEXT.log.dig, 'plain');
-  for (let k = 0; k < CONFIG.digTurns; k++) {
-    const r = endTurn(g, ev);
-    if (r.died || g.event) return;
-    if (r.hit) {
-      say(g, TEXT.log.digStopped, 'plain');
-      return;
-    }
+  if (quietTurns(g, CONFIG.digTurns, TEXT.log.digStopped, ev)) {
+    g.items.push({ key: 'worms', inHand: false });
+    say(g, TEXT.log.digFound, 'good');
+    ev.push({ type: 'dig', x: g.x, y: g.y });
   }
-  g.items.push({ key: 'worms', inHand: false });
-  say(g, TEXT.log.digFound, 'good');
-  ev.push({ type: 'dig', x: g.x, y: g.y });
+  recallDue(g, ev);
 }
 
 function restart(g, ev) {
@@ -702,9 +698,13 @@ function use(g) {
 }
 
 // ---- observe -------------------------------------------------------------
+// One click, one observation ("in single instances, not many stacked"). A thing can
+// have several: each click says the next one you have not had, and when there is
+// nothing new it says the last one again. Coming close can add more. A unit with
+// one you have not had blinks (view: cell.more).
 
 // What is drawn on a cell, by the same sight rules as view():
-// 'player', 'toad', 'goblin', 'corpse', or null; undefined for a cell never seen.
+// 'player', 'toad', 'corpse', or null; undefined for a cell never seen.
 function thingAt(g, room, i, vis, shown, sensed) {
   const x = i % S;
   const y = Math.floor(i / S);
@@ -712,8 +712,6 @@ function thingAt(g, room, i, vis, shown, sensed) {
   if (!shown[i] && !room.seen[i]) return undefined;
   const toad = toadAt(room, x, y);
   if (toad && (vis[i] || sensed)) return { kind: 'toad', asleep: toad.asleep };
-  const gob = goblinAt(room, x, y);
-  if (gob && (vis[i] || sensed)) return { kind: 'goblin', id: gob.id, asleep: gob.asleep };
   if (vis[i] ? corpseAt(room, x, y) : room.memCorpse[i]) return { kind: 'corpse' };
   return null;
 }
@@ -729,9 +727,39 @@ const TERRAIN_NAME = {
   entrance: 'entrance',
 };
 
+// The name, in TEXT.observe, of what a click on cell i observes.
+function nameAt(room, i, thing) {
+  if (thing) {
+    if (thing.kind === 'player') return 'you';
+    if (thing.kind === 'toad') return thing.asleep ? 'toadAsleep' : 'toad';
+    return 'corpse';
+  }
+  if (room.t[i] === 'statue') return room.statue && room.statue.spoke ? 'statueLifeless' : 'statue';
+  return TERRAIN_NAME[room.t[i]];
+}
+
+// What a thing has to observe now, in order: [{ id, text, event }]. `near`: you are close.
+// Close to the sleeping toad the last is its song, which is also its event (his "O,E").
+function observations(room, name, near) {
+  const list = [].concat(TEXT.observe[name]).map((text, k) => ({ id: `${name}.${k}`, text }));
+  if (!near) return list;
+  if (name === 'toadAsleep') {
+    if (room.toad.key) list.push({ id: 'toadAsleep.chain', text: TEXT.observeClose.toadAsleep });
+    list.push({ id: 'toadAsleep.sings', text: TEXT.toad.singing, event: 'toad' });
+  } else {
+    [].concat(TEXT.observeClose[name] ?? []).forEach((text, k) => list.push({ id: `${name}.close.${k}`, text }));
+  }
+  return list;
+}
+
+const isNear = (g, x, y) => manhattan(x, y, g.x, g.y) <= CONFIG.observeClose;
+
+// The units: what blinks when it has something new to observe.
+const UNITS = new Set(['toad', 'toadAsleep', 'statue', 'statueLifeless']);
+
 function sight(g) {
   const room = currentRoom(g);
-  const vis = fov(room.t, g.x, g.y); //  true sight: goblins and corpses
+  const vis = fov(room.t, g.x, g.y); //  true sight: the toad and corpses
   const shown = frame(room.t, vis); // sight plus the walls around it: cell state
   const sensed = g.sensedTurn === g.turn && g.sensedRoom === g.room;
   return { room, vis, shown, sensed };
@@ -742,28 +770,20 @@ function observe(g, x, y, ev) {
   const i = idx(x, y);
   const thing = thingAt(g, room, i, vis, shown, sensed);
   if (thing === undefined) return;
-  let name;
-  if (!thing && room.t[i] === 'statue') name = room.statue && room.statue.spoke ? 'statueLifeless' : 'statue';
-  else if (!thing) name = TERRAIN_NAME[room.t[i]];
-  else if (thing.kind === 'player') name = 'you';
-  else if (thing.kind === 'toad') name = thing.asleep ? 'toadAsleep' : 'toad';
-  else if (thing.kind === 'goblin') name = thing.asleep ? 'goblinAsleep' : 'goblin';
-  else name = 'corpse';
-  for (const line of [].concat(TEXT.observe[name])) say(g, line, 'observe');
-  const near = manhattan(x, y, g.x, g.y) <= CONFIG.observeClose;
-  let close = TEXT.observeClose[name];
-  if (name === 'toadAsleep' && !room.toad.key) close = undefined; // the key is gone from its chain
-  if (close !== undefined && near) say(g, close, 'observe');
+  const list = observations(room, nameAt(room, i, thing), isNear(g, x, y));
+  const o = list.find((it) => !g.observed[it.id]) ?? list[list.length - 1];
+  g.observed[o.id] = true;
+  say(g, o.text, 'observe');
   ev.push({ type: 'observe', x, y });
-  // Close to the sleeping toad, you hear it sing: its event.
-  if (name === 'toadAsleep' && near) openToad(g, ev);
+  if (o.event === 'toad') openToad(g, ev);
 }
 
 // ---- events ----------------------------------------------------------------
-// An event takes the whole screen but its options. Nothing in it takes time.
+// An event is a screen of its own: text, and choices as links. Nothing in it takes time.
 // g.event: { id: 'toad' | 'dee' | 'bust' | 'memory', passages: [[{ text, song }]], now, over,
-//            page, cursor, heard (toad: verses heard), memory (memory: its id) }
-// `now` is the first passage the latest step brought; those from it on are new.
+//            cursor, heard (toad: verses heard), memory (memory: its id) }
+// A passage is a paragraph. A choice puts new passages in place of the old ones, as a
+// page of a Twine story does; `now` is the first passage the latest choice brought.
 
 const prose = (text) => ({ text, song: false });
 const sung = (text) => ({ text, song: true });
@@ -771,14 +791,13 @@ const sung = (text) => ({ text, song: true });
 function openEvent(g, e, ev, keepMenu = false) {
   if (!keepMenu) g.menu = null;
   g.inv = null;
-  g.event = { now: 0, page: 0, ...e, cursor: 0 };
-  g.event.cursor = firstChoosable(eventSlots(g));
+  g.event = { now: 0, ...e, cursor: 0 };
   ev.push({ type: 'event', id: e.id });
 }
 
 function openToad(g, ev) {
-  const first = [prose(TEXT.toad.singing), ...TEXT.toad.verses[0].map(sung)];
-  openEvent(g, { id: 'toad', passages: [first], heard: 1, over: false }, ev);
+  const passages = [[prose(TEXT.toad.singing)], TEXT.toad.verses[0].map(sung)];
+  openEvent(g, { id: 'toad', passages, heard: 1, over: false }, ev);
 }
 
 // Moving into the bust: the first time it speaks; after that, its opening, with what you carry.
@@ -790,19 +809,21 @@ function openBust(g, ev) {
 
 function openDee(g, ev) {
   const t = TEXT.dee;
-  const passages = [[prose(t.speaks)], ...t.lines.map((l) => [prose(l)]), [prose(t.lifeless)]];
+  const passages = [t.bust, t.speaks, ...t.lines, t.lifeless].map((l) => [prose(l)]);
   currentRoom(g).statue.spoke = true;
   openEvent(g, { id: 'dee', passages, over: true }, ev);
   makeNoise(g, ev);
 }
 
 function openMemory(g, id, ev, keepMenu = false) {
-  openEvent(g, { id: 'memory', memory: id, passages: [TEXT.memories[id].map(prose)], over: true }, ev, keepMenu);
+  const passages = TEXT.memories[id].map((l) => [prose(l)]);
+  openEvent(g, { id: 'memory', memory: id, passages, over: true }, ev, keepMenu);
 }
 
-// A memory on its way back comes back once its turn is reached.
+// A memory on its way back comes back once its turn is reached, when the action
+// under way has room to say so and you are not resting or digging.
 function recallDue(g, ev) {
-  if (!g.recall || g.turn < g.recall.turn) return;
+  if (!g.recall || g.busy || g.turn < g.recall.turn || !canSay(g, TEXT.log.memory)) return;
   recall(g, g.recall.id, ev);
 }
 
@@ -815,49 +836,40 @@ function recall(g, id, ev) {
   openMemory(g, id, ev);
 }
 
-function eventEntries(g) {
+// The choices of the open event, in order: a plain list, the way back last.
+function eventOptions(g) {
   const e = g.event;
-  if (e.over) return [];
-  // The bust's opening: what you carry, by name.
-  if (e.id === 'bust') {
-    return g.items.map((it, i) => ({ label: TEXT.thing[it.key], kind: 'item', disabled: false, run: 'give', arg: i }));
+  const list = [];
+  if (!e.over && e.id === 'bust') {
+    // The bust's opening: what you carry, by name.
+    g.items.forEach((it, i) => list.push({ label: TEXT.thing[it.key], kind: 'item', run: 'give', arg: i }));
   }
-  if (e.id !== 'toad') return [];
-  const toad = currentRoom(g).toad;
-  const o = TEXT.toad.options;
-  const list = [{ label: o.listen, kind: 'action', disabled: false, run: 'listen' }];
-  if (toad && toad.key) list.push({ label: o.key, kind: 'action', disabled: false, run: 'key' });
-  list.push({ label: o.attack, kind: 'action', disabled: false, run: 'attack' });
+  if (!e.over && e.id === 'toad') {
+    const toad = currentRoom(g).toad;
+    const o = TEXT.toad.options;
+    list.push({ label: o.listen, kind: 'action', run: 'listen' });
+    if (toad && toad.key) list.push({ label: o.key, kind: 'action', run: 'key' });
+    list.push({ label: o.attack, kind: 'action', run: 'attack' });
+  }
+  const label = { toad: TEXT.toad.options.back, dee: TEXT.dee.back, bust: TEXT.dee.back }[e.id] ?? TEXT.menu.back;
+  list.push({ label, kind: 'back', run: 'back' });
   return list;
 }
 
-// Four options as a menu has them: paged with more, back last.
-function eventSlots(g) {
-  const all = pages(eventEntries(g));
-  const page = all[Math.min(g.event.page, all.length - 1)];
-  const label = { toad: TEXT.toad.options.back, dee: TEXT.dee.back, bust: TEXT.dee.back }[g.event.id] ?? TEXT.menu.back;
-  const back = { label, kind: 'back', disabled: false, run: 'back' };
-  return [page[0] ?? null, page[1] ?? null, page[2] ?? null, back];
-}
-
 function eventChoose(g, i, ev) {
-  const slot = eventSlots(g)[i];
-  if (!choosable(slot)) return;
+  const before = eventOptions(g);
+  const o = before[i];
+  if (!o) return;
   const e = g.event;
   const room = currentRoom(g);
   const toad = room.toad;
-  switch (slot.run) {
+  switch (o.run) {
     case 'back':
-      if (e.page > 0) e.page--; // back a page, as a menu does
-      else g.event = null;
-      break;
-    case 'more':
-      e.page++;
-      e.cursor = firstChoosable(eventSlots(g));
+      g.event = null;
       break;
     case 'give': {
-      // The line it says goes under the bust's text, in place of the last one.
-      const line = enchant(g, slot.arg, ev);
+      // What it says goes under the bust's text, in place of what it said before.
+      const line = enchant(g, o.arg, ev);
       if (g.event === e) {
         e.passages = [e.passages[0], [prose(line)]];
         e.now = 1;
@@ -865,34 +877,33 @@ function eventChoose(g, i, ev) {
       break;
     }
     case 'listen': {
-      e.now = e.passages.length;
       e.heard++;
+      e.now = 0;
       const verses = TEXT.toad.verses;
       if (e.heard <= verses.length) {
-        const p = verses[e.heard - 1].map(sung);
+        e.passages = [verses[e.heard - 1].map(sung)];
         if (e.heard === 2) {
-          p.push(prose(TEXT.toad.stirs));
+          e.passages.push([prose(TEXT.toad.stirs)]);
           toad.stirred = true;
         }
-        e.passages.push(p);
       } else {
-        e.passages.push([prose(TEXT.toad.wakes)]);
+        e.passages = [[prose(TEXT.toad.wakes)]];
         toad.asleep = false;
         e.over = true;
       }
       break;
     }
     case 'key': {
-      e.now = e.passages.length;
+      e.now = 0;
       const p = toad.stirred ? CONFIG.keyChance.stirred : CONFIG.keyChance.calm;
       if (chance(g.rng, p)) {
         toad.key = false;
         g.items.push({ key: 'key', inHand: false });
-        e.passages.push([prose(TEXT.toad.success)]);
+        e.passages = [[prose(TEXT.toad.success)]];
         ev.push({ type: 'key' });
       } else {
         toad.asleep = false;
-        e.passages.push([prose(TEXT.toad.failure)]);
+        e.passages = [[prose(TEXT.toad.failure)]];
       }
       e.over = true;
       break;
@@ -904,28 +915,77 @@ function eventChoose(g, i, ev) {
       endTurn(g, ev);
       break;
   }
-  if (g.event) {
-    const s = eventSlots(g);
-    if (!choosable(s[g.event.cursor])) g.event.cursor = firstChoosable(s);
+  // The same event with other choices: the keys start from the top again.
+  if (g.event === e) {
+    const after = eventOptions(g);
+    if (after.length !== before.length) e.cursor = 0;
   }
+}
+
+// The bottom system menu can cover an event without ending it. A memory opened
+// from psy keeps that menu underneath, including its cursor, when sys closes.
+function closeEventMenu(g) {
+  g.menu = g.event.menuBeforeSys ?? null;
+  delete g.event.menuBeforeSys;
+}
+
+function chooseEventMenu(g, i, ev) {
+  const slot = slots(g, g.menu)[i];
+  if (!choosable(slot)) return;
+  if (slot.run === 'back') closeEventMenu(g);
+  else chooseSlot(g, i, ev);
 }
 
 // What an action does while an event is open. False: ignored.
 function eventAct(g, a, ev) {
+  if (a.type === 'menu' && a.id === 'sys') {
+    if (g.menu?.id === 'sys') closeEventMenu(g);
+    else {
+      g.event.menuBeforeSys = g.menu;
+      openMenu(g, 'sys');
+    }
+    return true;
+  }
+  if (g.menu?.id === 'sys') {
+    switch (a.type) {
+      case 'move': {
+        if (!DIRS.includes(a.dir)) return false;
+        const choices = slots(g, g.menu).map((s, i) => choosable(s) ? i : -1).filter((i) => i >= 0);
+        const step = a.dir === 'n' || a.dir === 'w' ? -1 : 1;
+        const next = Math.max(0, Math.min(choices.length - 1, choices.indexOf(g.menu.cursor) + step));
+        g.menu.cursor = choices[next];
+        return true;
+      }
+      case 'context':
+        chooseEventMenu(g, g.menu.cursor, ev);
+        return true;
+      case 'choose':
+        if (![0, 1, 2, 3].includes(a.index)) return false;
+        chooseEventMenu(g, a.index, ev);
+        return true;
+      case 'back':
+        closeEventMenu(g);
+        return true;
+      default:
+        return false;
+    }
+  }
+  const n = eventOptions(g).length;
   switch (a.type) {
     case 'move':
       if (!DIRS.includes(a.dir)) return false;
-      moveCursorOn(g.event, eventSlots(g), a.dir);
+      // up the list or down it
+      g.event.cursor = Math.max(0, Math.min(n - 1, g.event.cursor + (a.dir === 'n' || a.dir === 'w' ? -1 : 1)));
       return true;
     case 'context':
       eventChoose(g, g.event.cursor, ev);
       return true;
     case 'choose':
-      if (![0, 1, 2, 3].includes(a.index)) return false;
+      if (!Number.isInteger(a.index) || a.index < 0 || a.index >= n) return false;
       eventChoose(g, a.index, ev);
       return true;
     case 'back':
-      eventChoose(g, 3, ev);
+      eventChoose(g, n - 1, ev);
       return true;
   }
   return false;
@@ -978,12 +1038,8 @@ const inRoom = (n) => Number.isInteger(n) && n >= 0 && n < S;
 export function act(g, a) {
   if (!a || typeof a !== 'object') return [];
   const ev = [];
-  const firstId = g.nextLogId;
-  if (g.event) {
-    if (!eventAct(g, a, ev)) return [];
-    if (g.nextLogId > firstId) g.fresh = firstId;
-    return ev;
-  }
+  g.said = 0;
+  if (g.event) return eventAct(g, a, ev) ? ev : [];
   switch (a.type) {
     case 'move':
       if (!DIRS.includes(a.dir)) return [];
@@ -1024,7 +1080,6 @@ export function act(g, a) {
     default:
       return [];
   }
-  if (g.nextLogId > firstId) g.fresh = firstId;
   return ev;
 }
 
@@ -1034,7 +1089,15 @@ export function view(g) {
   for (let i = 0; i < S * S; i++) {
     const state = shown[i] ? 'visible' : room.seen[i] ? 'remembered' : 'unknown';
     const thing = thingAt(g, room, i, vis, shown, sensed) ?? null;
-    cells.push({ t: room.t[i], state, thing });
+    // A unit in sight with something you have not observed blinks.
+    let more = false;
+    if (state === 'visible') {
+      const name = nameAt(room, i, thing);
+      if (UNITS.has(name)) {
+        more = observations(room, name, isNear(g, i % S, Math.floor(i / S))).some((o) => !g.observed[o.id]);
+      }
+    }
+    cells.push({ t: room.t[i], state, thing, more });
   }
   const ctx = contextId(g);
   let menu = null;
@@ -1051,9 +1114,9 @@ export function view(g) {
     const e = g.event;
     event = {
       id: e.id,
-      lines: e.passages.flatMap((p, n) => p.map((l) => ({ text: l.text, song: l.song, passage: n }))),
+      lines: e.passages.flatMap((p, n) => p.map((l) => ({ text: l.text, song: l.song, slot: isSlot(l.text), passage: n }))),
       now: e.now,
-      options: eventSlots(g).map((s) => (s ? { label: s.label, kind: s.kind, disabled: s.disabled } : null)),
+      options: eventOptions(g).map((o) => ({ label: o.label, kind: o.kind, slot: isSlot(o.label) })),
       cursor: e.cursor,
     };
   }
@@ -1084,7 +1147,8 @@ export function view(g) {
       hp: g.hp,
       maxHp: g.maxHp,
     },
-    context: { id: ctx, label: TEXT.context[ctx] },
+    // more: there is something here you have not sensed; the wide button blinks
+    context: { id: ctx, label: TEXT.context[ctx], more: ctx === 'sense' && senseMore(g) },
     menu,
     inv,
     event,

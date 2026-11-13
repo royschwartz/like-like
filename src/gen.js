@@ -1,5 +1,5 @@
 // Making a level: rooms on a coarse grid, doors between neighbours,
-// obstacles, grass, the entrance, the stairs, the goblins. On level 1, the
+// obstacles, grass, the entrance, the stairs. On level 1, the
 // toad's room: a small room in its far corner, behind a golden door, holds the stairs.
 
 import { CONFIG } from './config.js';
@@ -205,7 +205,7 @@ function roomHops(rooms) {
   return hops;
 }
 
-// A cell where the entrance, the stairs or a goblin may go.
+// A cell where the entrance, the stairs, the toad or the bust may go.
 const openSpot = (c, x, y) => (c === 'floor' || c === 'grass') && !isArrivalSpot(x, y);
 
 // Where the entrance goes, and what it stands in: [x, y, 'grass' | 'dirt'].
@@ -227,35 +227,6 @@ function placeEntrance(rng, t) {
   return [x, y, t[idx(x, y)] === 'grass' ? 'grass' : 'dirt'];
 }
 
-function placeGoblins(rng, level, depth) {
-  const want = depth + int(rng, 0, CONFIG.goblinsExtraMax);
-  // Never behind the golden door, never on the toad.
-  const dist = levelDistances(level, level.entrance, { locked: true });
-  const free = level.rooms.map((room, r) =>
-    interiorCells(room.t, openSpot).filter(
-      ([x, y]) =>
-        dist[r][idx(x, y)] >= CONFIG.goblin.awayFromEntrance && !(room.toad && room.toad.x === x && room.toad.y === y),
-    ),
-  );
-  let id = 1;
-  for (let k = 0; k < want; k++) {
-    const rooms = level.rooms.filter((room, r) => room.goblins.length < CONFIG.goblin.perRoom && free[r].length > 0);
-    if (rooms.length === 0) break; // the level is full
-    const room = pick(rng, rooms);
-    const cells = free[room.id];
-    const at = int(rng, 0, cells.length - 1);
-    const [x, y] = cells.splice(at, 1)[0];
-    room.goblins.push({
-      id: id++,
-      x,
-      y,
-      hp: CONFIG.goblin.hp,
-      asleep: chance(rng, CONFIG.goblin.asleepChance),
-      lastSeen: null,
-    });
-  }
-}
-
 export function makeLevel(rng, depth) {
   const toadLevel = depth === CONFIG.toadLevel;
   const spots = placeRooms(rng, toadLevel ? CONFIG.toadExtraRoom : 0);
@@ -274,7 +245,6 @@ export function makeLevel(rng, depth) {
       key: salt * 8 + i,
       nb,
       t: makeRoom(rng, nb),
-      goblins: [],
       corpses: [],
       toad: null,
       statue: null,
@@ -295,7 +265,6 @@ export function makeLevel(rng, depth) {
   const room = pick(rng, rooms.filter((r) => hops[r.id] === far));
   if (toadLevel && room.id !== 0) {
     makeToadRoom(rng, room, level);
-    placeGoblins(rng, level, depth);
     return level;
   }
   let stairSpots = interiorCells(room.t, openSpot);
@@ -307,8 +276,6 @@ export function makeLevel(rng, depth) {
   const [sx, sy] = pick(rng, stairSpots);
   room.t[idx(sx, sy)] = 'stairs';
   level.stairs = { room: room.id, x: sx, y: sy };
-
-  placeGoblins(rng, level, depth);
   return level;
 }
 

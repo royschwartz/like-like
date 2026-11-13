@@ -1,7 +1,13 @@
 /* LIKE LIKE — the look.
    A black slab, upright, 9.5 wide and 20 tall. From the top: the log, the square map (or
-   the inventory in its place), the stat line, the buttons, and a quiet menu strip. Every size is a multiple of --u, one hundredth of the
-   slab's width, so the whole screen scales as one piece. */
+   the inventory in its place), the stat line, the buttons, and a quiet menu strip. An event
+   takes the whole slab for itself. Every size is a multiple of --u, one hundredth of the
+   slab's width, so the whole screen scales as one piece.
+
+   Nothing here moves smoothly. Every effect is a few hard frames, each --f long: a tile
+   flashes, the screen jumps, a box blinks. No easing, no fades, no glows, no soft shadows.
+   A keyframe holds for its frames and then jumps to the next (steps(1, end)). An effect's
+   keyframes are named after its class (render.js takes the class off when they end). */
 
 :root {
   --mono: Monaco, Menlo, "DejaVu Sans Mono", Consolas, "Liberation Mono", monospace;
@@ -44,22 +50,53 @@ body {
   --w: min(100vw, calc(100dvh * 9.5 / 20));
   --u: calc(var(--w) / 100);
 
+  /* time. One frame; everything that happens is a whole number of these. */
+  --f: 70ms;
+  --blink-on: 2; /*     frames a blink stays white (render.js reads these two) */
+  --blink-every: 28; /* frames from one blink to the next: about two seconds */
+  --slide-step: calc(var(--f) / 2); /* changing rooms: the map moves a tile each this long */
+  --ev-every: 4; /*     an event's new paragraphs come this many frames apart */
+
   /* paper look: the drawing. A pale map, pale buttons, black everything else. */
   --slab: #0b0a09;
   --paper: #ece7d8;
   --unknown: rgb(14, 13, 12);
   --log-now: #f3eee0;
-  --log-old: #a39d8f;
+  --log-old: #9a9486;
+  --quiet: #6f6a5f;
+  --ink-bad: #ee7460;
+  --ink-warn: #f0b060;
+  --ink-good: #e2cb6c;
+  --ink-sense: #93bfd4;
+  --ink-slot: #c4beae;
   --btn: #ece7d8;
   --btn-ink: #0b0a09;
-  --btn-down: #b4ae9d;
   --btn-edge: transparent;
-  --quiet: #6f6a5f;
+  --btn-down: #0b0a09;
+  --btn-down-ink: #ece7d8;
+  --btn-down-edge: #ece7d8;
   --inv-bg: #ece7d8;
   --inv-ink: #0b0a09;
   --inv-quiet: #8b8576;
-  --look-ring: rgba(11, 10, 9, 0.8);
-  --sense-ring: rgba(40, 98, 128, 0.55);
+  --stairs: #f0d060;
+  --stairs-ink: #17130b;
+  --corpse: #7d1a1a;
+  --corpse-ink: #f3eee0;
+  /* tile effects: a solid tile and the ink on it */
+  --blink: #ffffff;
+  --blink-ink: #0b0a09;
+  --blink-box: #0b0a09;
+  --hit: #c8281a;
+  --hit-ink: #ffffff;
+  --sense: #2b6a8c;
+  --sense-ink: #ffffff;
+  --gold: #f0c020;
+  --gold-ink: #17130b;
+  --dig: #6e4a22;
+  --dig-ink: #ece7d8;
+  --box: #0b0a09; /*    the look cursor: two hard rings, so it reads on any tile */
+  --box-in: #ffffff;
+  --blood: #a01212;
 
   position: relative;
   width: var(--w);
@@ -71,46 +108,72 @@ body {
   color: var(--paper);
   font-family: var(--mono);
   font-variant-ligatures: none;
-  box-shadow: 0 0 0 1px #000, 0 calc(var(--u) * 3) calc(var(--u) * 12) rgba(0, 0, 0, 0.5);
 }
 
-/* dark look: Brogue. Coloured characters on dark ground, outlined buttons. */
+/* dark look: Ultima V. Pure black, and a few flat inks from the EGA's sixteen. */
 #screen[data-look="dark"] {
   --slab: #000;
+  --paper: #fff;
   --unknown: #000;
+  --log-now: #fff;
+  --log-old: #aaa;
+  --quiet: #555;
+  --ink-bad: #f55;
+  --ink-warn: #ff5;
+  --ink-good: #ff5;
+  --ink-sense: #5ff;
+  --ink-slot: #aaa;
   --btn: transparent;
-  --btn-ink: #e6e1d2;
-  --btn-down: #2c2a33;
-  --btn-edge: #8d8878;
+  --btn-ink: #fff;
+  --btn-edge: #aaa;
+  --btn-down: #fff;
+  --btn-down-ink: #000;
+  --btn-down-edge: #fff;
   --inv-bg: #000;
-  --inv-ink: #e6e1d2;
-  --inv-quiet: #7c776a;
-  --look-ring: rgba(230, 225, 210, 0.9);
-  --sense-ring: rgba(150, 205, 235, 0.5);
+  --inv-ink: #fff;
+  --inv-quiet: #aaa;
+  --stairs: #ff5;
+  --stairs-ink: #000;
+  --corpse: #a00;
+  --corpse-ink: #fff;
+  --blink: #fff;
+  --blink-ink: #000;
+  --blink-box: #fff;
+  --hit: #f55;
+  --hit-ink: #000;
+  --sense: #5ff;
+  --sense-ink: #000;
+  --gold: #ff5;
+  --gold-ink: #000;
+  --dig: #a50;
+  --dig-ink: #000;
+  --box: #fff;
+  --box-in: #000;
+  --blood: #a00;
 }
 
-/* ---------- the log: one list. The newest lines are bright; older ones climb and dim ---------- */
+/* ---------- the log: one list. The newest lines are bright; older ones climb, dimmer ---------- */
 
 #log {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
   overflow: hidden;
   padding: 0 calc(var(--u) * 4) calc(var(--u) * 2.6);
-  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 34%);
-  mask-image: linear-gradient(to bottom, transparent 0%, #000 34%);
 }
 
+/* The newest line is first in the list and sits at the bottom; older ones stack up from it.
+   A line that would not fit whole wraps into a second column, which is off the edge and
+   clipped. So the top is a hard cut, and it never slices a line. */
 #log-lines {
+  height: 100%;
   display: flex;
-  flex-direction: column;
+  flex-flow: column-reverse wrap;
+  align-content: flex-start;
+  overflow: hidden;
 }
 
-/* events are spaced out a little: the gap is padding, so it grows in with the line */
+/* events are spaced out a little: the gap is part of the line */
 .line {
   flex: none;
-  overflow: hidden;
+  width: 100%;
   padding-top: calc(var(--u) * 1.9);
   font-size: calc(var(--u) * 3.7);
   line-height: 1.34;
@@ -118,48 +181,25 @@ body {
   overflow-wrap: anywhere;
 }
 
-.line.old {
-  color: var(--log-old);
-  opacity: 0.72;
-}
-
 .line.k-bad {
-  color: #ee7460;
+  color: var(--ink-bad);
 }
 .line.k-good {
-  color: #e2cb6c;
+  color: var(--ink-good);
 }
 .line.k-sense {
-  color: #93bfd4;
+  color: var(--ink-sense);
 }
 /* an empty slot is quieter than writing, but still readable while it is the newest line */
 .line.k-slot {
-  color: #c4beae;
+  color: var(--ink-slot);
 }
-.line.k-slot.old {
-  color: var(--quiet);
-  opacity: 0.85;
-}
-.line.k-story.old {
-  opacity: 0.85;
+/* whatever it was, an older line is one flat dimmer colour */
+.line.old {
+  color: var(--log-old);
 }
 
-.line.enter {
-  animation: line-in 190ms ease-out;
-}
-@keyframes line-in {
-  from {
-    max-height: 0;
-    padding-top: 0;
-    opacity: 0;
-  }
-  to {
-    max-height: 7em;
-    opacity: 1;
-  }
-}
-
-/* ---------- the map: 11 by 11 characters ---------- */
+/* ---------- the map: 11 by 11 characters, each on one flat tile ---------- */
 
 #map-wrap {
   position: relative;
@@ -178,14 +218,20 @@ body {
   background: var(--unknown);
 }
 
+/* render.js gives each cell its ink and its ground as --fg and --bg */
 .c {
   position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
   overflow: hidden;
+  color: var(--fg);
+  background-color: var(--bg);
   /* cells overlap a hair so no seam shows between them */
   margin: 0 -0.6px -0.6px 0;
+}
+.map .c {
+  cursor: pointer;
 }
 
 /* Monaco has no bold. A thin stroke in the same ink does the job. */
@@ -193,106 +239,190 @@ body {
   -webkit-text-stroke: 0.045em currentColor;
 }
 
-/* observing: a ring on the cell you looked at */
-.map .c {
-  cursor: pointer;
+/* Something new to observe: the tile blinks white, two frames about every two seconds.
+   render.js puts "blink" on the slab for those frames, so every blink is in step. */
+#screen.blink .c.more {
+  z-index: 1;
+  color: var(--blink-ink);
+  background-color: var(--blink);
+  box-shadow: inset 0 0 0 calc(var(--u) * 0.5) var(--blink-box);
 }
+
+/* --- tile effects. One to a tile at a time. --- */
+
+/* observe: a look cursor. A hard box: on two frames, off one, on two. */
 .c.fx-observe {
   z-index: 2;
-  animation: fx-observe 460ms ease-out;
+  animation: fx-observe calc(var(--f) * 5) steps(1, end);
 }
 @keyframes fx-observe {
   0% {
-    box-shadow: inset 0 0 0 0.1em var(--look-ring);
+    box-shadow: inset 0 0 0 calc(var(--u) * 0.5) var(--box), inset 0 0 0 calc(var(--u) * 1) var(--box-in);
   }
-  60% {
-    box-shadow: inset 0 0 0 0.1em var(--look-ring);
+  40% {
+    box-shadow: none;
   }
+  60%,
   100% {
-    box-shadow: inset 0 0 0 0.1em transparent;
+    box-shadow: inset 0 0 0 calc(var(--u) * 0.5) var(--box), inset 0 0 0 calc(var(--u) * 1) var(--box-in);
   }
 }
 
+/* sense: the squares around you blink twice (on two, off one, on two)... */
+.c.fx-sense {
+  z-index: 2;
+  animation: fx-sense calc(var(--f) * 5) steps(1, end);
+}
+@keyframes fx-sense {
+  0% {
+    color: var(--sense-ink);
+    background-color: var(--sense);
+  }
+  40% {
+    color: var(--fg);
+    background-color: var(--bg);
+  }
+  60%,
+  100% {
+    color: var(--sense-ink);
+    background-color: var(--sense);
+  }
+}
+/* ...and then your own square, once: it waits six frames and is on for two */
+.c.fx-sense-self {
+  z-index: 2;
+  animation: fx-sense-self calc(var(--f) * 8) steps(1, end);
+}
+@keyframes fx-sense-self {
+  0% {
+    color: var(--fg);
+    background-color: var(--bg);
+  }
+  75%,
+  100% {
+    color: var(--sense-ink);
+    background-color: var(--sense);
+  }
+}
+
+/* digging: your tile, two frames */
+.c.fx-dig {
+  z-index: 2;
+  animation: fx-dig calc(var(--f) * 2) steps(1, end);
+}
+@keyframes fx-dig {
+  0%,
+  100% {
+    color: var(--dig-ink);
+    background-color: var(--dig);
+  }
+}
+
+/* the golden door opening: its tile, solid gold, two frames */
+.c.fx-unlock {
+  z-index: 2;
+  animation: fx-unlock calc(var(--f) * 2) steps(1, end);
+}
+@keyframes fx-unlock {
+  0%,
+  100% {
+    color: var(--gold-ink);
+    background-color: var(--gold);
+  }
+}
+
+/* a miss: the tile in inverse video, two frames. No jolt. */
+.c.fx-miss {
+  z-index: 2;
+  animation: fx-miss calc(var(--f) * 2) steps(1, end);
+}
+@keyframes fx-miss {
+  0%,
+  100% {
+    color: var(--bg);
+    background-color: var(--fg);
+  }
+}
+
+/* a hit: the struck tile is solid red, itself, solid red. Three frames, with the jolt. */
 .c.fx-hit {
   z-index: 2;
-  animation: fx-hit 230ms ease-out;
+  animation: fx-hit calc(var(--f) * 3) steps(1, end);
 }
 @keyframes fx-hit {
   0% {
-    box-shadow: inset 0 0 0 10em rgba(216, 38, 22, 0.9);
-    transform: scale(1.22);
+    color: var(--hit-ink);
+    background-color: var(--hit);
   }
+  33.33% {
+    color: var(--fg);
+    background-color: var(--bg);
+  }
+  66.67%,
   100% {
-    box-shadow: inset 0 0 0 10em rgba(216, 38, 22, 0);
-    transform: none;
+    color: var(--hit-ink);
+    background-color: var(--hit);
   }
 }
 
-.c.fx-miss {
-  z-index: 2;
-  animation: fx-miss 210ms ease-out;
-}
-@keyframes fx-miss {
-  0% {
-    transform: none;
-  }
-  30% {
-    transform: translateX(-14%);
-  }
-  65% {
-    transform: translateX(11%);
-  }
-  100% {
-    transform: none;
-  }
-}
-
+/* a kill: the same, two frames longer. Then the corpse is simply there. */
 .c.fx-kill {
   z-index: 2;
-  animation: fx-kill 420ms ease-out;
+  animation: fx-kill calc(var(--f) * 5) steps(1, end);
 }
 @keyframes fx-kill {
   0% {
-    box-shadow: inset 0 0 0 10em rgba(255, 255, 255, 0.95);
-    transform: scale(1.3);
+    color: var(--hit-ink);
+    background-color: var(--hit);
   }
-  30% {
-    box-shadow: inset 0 0 0 10em rgba(190, 22, 22, 0.85);
-    transform: none;
+  20% {
+    color: var(--fg);
+    background-color: var(--bg);
   }
+  40% {
+    color: var(--hit-ink);
+    background-color: var(--hit);
+  }
+  60% {
+    color: var(--fg);
+    background-color: var(--bg);
+  }
+  80%,
   100% {
-    box-shadow: inset 0 0 0 10em rgba(190, 22, 22, 0);
+    color: var(--hit-ink);
+    background-color: var(--hit);
   }
 }
 
-/* changing rooms: the old room leaves the way you came from, the new one follows it in */
+/* --- changing rooms: the old room leaves the way you came from and the new one follows
+   it in, a tile at a time, eleven steps --- */
 .map.ghost {
   z-index: 3;
   pointer-events: none;
 }
 .map.out-n {
-  animation: out-n 200ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  animation: out-n calc(var(--slide-step) * 11) steps(11, start) forwards;
 }
 .map.out-e {
-  animation: out-e 200ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  animation: out-e calc(var(--slide-step) * 11) steps(11, start) forwards;
 }
 .map.out-s {
-  animation: out-s 200ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  animation: out-s calc(var(--slide-step) * 11) steps(11, start) forwards;
 }
 .map.out-w {
-  animation: out-w 200ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  animation: out-w calc(var(--slide-step) * 11) steps(11, start) forwards;
 }
 .map.in-n {
-  animation: in-n 200ms cubic-bezier(0.4, 0, 0.2, 1);
+  animation: in-n calc(var(--slide-step) * 11) steps(11, start);
 }
 .map.in-e {
-  animation: in-e 200ms cubic-bezier(0.4, 0, 0.2, 1);
+  animation: in-e calc(var(--slide-step) * 11) steps(11, start);
 }
 .map.in-s {
-  animation: in-s 200ms cubic-bezier(0.4, 0, 0.2, 1);
+  animation: in-s calc(var(--slide-step) * 11) steps(11, start);
 }
 .map.in-w {
-  animation: in-w 200ms cubic-bezier(0.4, 0, 0.2, 1);
+  animation: in-w calc(var(--slide-step) * 11) steps(11, start);
 }
 @keyframes out-n {
   to {
@@ -335,138 +465,102 @@ body {
   }
 }
 
-/* a sheet over the map, for dying and for going down */
+/* --- a sheet over the map, for dying and for going down --- */
 #map-wrap::before {
   content: "";
   position: absolute;
   inset: 0;
   z-index: 5;
   pointer-events: none;
-  opacity: 0;
-  background: #000;
+  visibility: hidden;
+  background-color: #000;
 }
 
+/* dying: red, black, red, two frames each. Then you are at the entrance. */
 #screen.fx-death #map-wrap::before {
-  animation: fx-death 1000ms ease-in-out;
+  animation: fx-death calc(var(--f) * 6) steps(1, end);
 }
 @keyframes fx-death {
   0% {
-    opacity: 1;
-    background-color: #8c1010;
+    visibility: visible;
+    background-color: var(--blood);
   }
-  22% {
-    opacity: 1;
+  33.33% {
+    visibility: visible;
     background-color: #000;
   }
-  58% {
-    opacity: 1;
-    background-color: #000;
-  }
+  66.67%,
   100% {
-    opacity: 0;
-    background-color: #000;
+    visibility: visible;
+    background-color: var(--blood);
   }
 }
 
+/* going down, and starting again: the map is black for two frames, then it is the new one */
 #screen.fx-descend #map-wrap::before {
-  animation: fx-descend 460ms ease-out;
+  animation: fx-descend calc(var(--f) * 2) steps(1, end);
 }
 @keyframes fx-descend {
-  0% {
-    opacity: 1;
-  }
-  30% {
-    opacity: 1;
-  }
+  0%,
   100% {
-    opacity: 0;
-  }
-}
-#screen.fx-descend #map {
-  animation: map-rise 460ms cubic-bezier(0.2, 0.7, 0.2, 1);
-}
-@keyframes map-rise {
-  from {
-    transform: translateY(9%);
-  }
-  to {
-    transform: none;
+    visibility: visible;
   }
 }
 
-/* SENSE: a ring opens from where you stand */
-#map-wrap::after {
-  content: "";
-  position: absolute;
-  left: var(--sx, 50%);
-  top: var(--sy, 50%);
-  width: 300%;
-  height: 300%;
-  margin: -150% 0 0 -150%;
-  z-index: 4;
-  pointer-events: none;
-  border-radius: 50%;
-  opacity: 0;
-  background: radial-gradient(
-    circle closest-side,
-    transparent 0 70%,
-    var(--sense-ring) 90%,
-    transparent 100%
-  );
+/* --- damage: the whole screen jolts. Hard offsets, a frame each, then home. --- */
+
+/* something else is struck: right-down, left-up, right */
+#screen.fx-jolt > * {
+  animation: fx-jolt calc(var(--f) * 3) steps(1, end);
 }
-#screen.fx-sense #map-wrap::after {
-  animation: fx-sense 700ms cubic-bezier(0.15, 0.6, 0.3, 1);
-}
-@keyframes fx-sense {
+@keyframes fx-jolt {
   0% {
-    transform: scale(0.03);
-    opacity: 1;
+    transform: translate(calc(var(--u) * 1), calc(var(--u) * 1));
   }
+  33.33% {
+    transform: translate(calc(var(--u) * -1), calc(var(--u) * -1));
+  }
+  66.67%,
   100% {
-    transform: scale(1);
-    opacity: 0;
+    transform: translate(calc(var(--u) * 1), 0);
   }
 }
 
-/* being hit: the map jolts and the slab's edge goes red */
-#screen::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: 9;
-  pointer-events: none;
-  opacity: 0;
-  box-shadow: inset 0 0 calc(var(--u) * 16) calc(var(--u) * 2) rgba(216, 38, 22, 0.95);
-}
-#screen.fx-hurt::after {
-  animation: fx-hurt 280ms ease-out;
+/* you are struck: bigger, a frame longer, and the hp number flashes red with it */
+#screen.fx-hurt > * {
+  animation: fx-hurt calc(var(--f) * 4) steps(1, end);
 }
 @keyframes fx-hurt {
   0% {
-    opacity: 1;
+    transform: translate(calc(var(--u) * 2), calc(var(--u) * 1));
   }
+  25% {
+    transform: translate(calc(var(--u) * -2), calc(var(--u) * -1));
+  }
+  50% {
+    transform: translate(calc(var(--u) * 2), 0);
+  }
+  75%,
   100% {
-    opacity: 0;
+    transform: translate(calc(var(--u) * -1), 0);
   }
 }
-#screen.fx-hurt #map-wrap {
-  animation: map-jolt 280ms ease-out;
+#screen.fx-hurt .stat.hp .v {
+  animation: fx-hurt-hp calc(var(--f) * 4) steps(1, end);
 }
-@keyframes map-jolt {
+@keyframes fx-hurt-hp {
   0% {
-    transform: translate(0, 0);
+    color: var(--hit-ink);
+    background-color: var(--hit);
   }
-  20% {
-    transform: translate(-1.4%, 0.7%);
+  50% {
+    color: var(--c);
+    background-color: transparent;
   }
-  45% {
-    transform: translate(1.1%, -0.6%);
-  }
-  70% {
-    transform: translate(-0.5%, 0.3%);
-  }
+  75%,
   100% {
-    transform: none;
+    color: var(--hit-ink);
+    background-color: var(--hit);
   }
 }
 
@@ -510,95 +604,175 @@ body {
   font-size: calc(var(--u) * 3.7);
   color: var(--inv-quiet);
 }
-/* the item you are on */
+/* the item you are on: inverse video */
 .row.cursor {
   background: var(--inv-ink);
   color: var(--inv-bg);
 }
-.row.cursor .state {
-  color: var(--inv-bg);
-  opacity: 0.7;
-}
 
-/* ---------- an event: the log, the map and the stat line go; its text is all there is.
-   The newest passage sits just above the options; older ones climb and dim. ---------- */
+/* ---------- an event: a screen of its own. No log, no map, no stats, no buttons.
+   Text from the top, and the choices as links at the bottom. ---------- */
 
 #event {
+  --ev-bg: #000;
+  --ev-ink: #e6e1d2;
+  --ev-old: #8e897c; /*   paragraphs that were already there */
+  --ev-slot: #6f6a5f; /*  an empty slot */
+  --ev-song: #b3ad92; /*  what is sung */
+  --ev-link: #99a3ff; /*  hypertext */
+  --ev-link-quiet: #666da6; /* the way back */
+  --ev-side: calc(var(--u) * 8);
   --ev-size: calc(var(--u) * 4.2);
-  --ev-gap: calc(var(--u) * 6.5); /* between passages */
-  --ev-para: calc(var(--u) * 3); /* between a line of prose and the next */
-  --ev-indent: calc(var(--u) * 6); /* a song's lines */
+  --ev-gap: calc(var(--u) * 6.7); /*   between paragraphs: a line */
+  --ev-inner: calc(var(--u) * 2.5); /* inside a paragraph, between a line and the next */
+  --ev-indent: calc(var(--u) * 6); /*  a song */
   position: absolute;
-  left: 0;
-  right: 0;
-  top: 0;
-  height: calc(var(--u) * 152.5); /* the log, the map and the stat line */
+  inset: 0;
   z-index: 8;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
-  padding: calc(var(--u) * 10) calc(var(--u) * 7) calc(var(--u) * 7);
-  background: var(--slab);
-  color: var(--log-now);
+  padding: calc(var(--u) * 14) var(--ev-side) calc(var(--u) * 3.5);
+  background: var(--ev-bg);
+  color: var(--ev-ink);
+  font-size: var(--ev-size);
+  line-height: 1.6;
 }
 #event[hidden] {
   display: none;
 }
-#event.opening {
-  animation: ev-open 320ms ease-out;
+
+/* a little colour by kind of event, kept flat */
+#event[data-id="toad"] {
+  --ev-song: #8fbd78;
 }
-@keyframes ev-open {
-  from {
-    opacity: 0;
-  }
-}
-/* the text column fills the panel; what climbs past its top fades out */
-#event-lines {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
-  overflow: hidden;
-  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 26%);
-  mask-image: linear-gradient(to bottom, transparent 0%, #000 26%);
-}
-.passage {
-  flex: none;
-  padding-top: var(--ev-gap);
-}
-.passage.old {
-  color: var(--log-old);
-  opacity: 0.5;
-}
-.passage.enter {
-  animation: ev-passage 420ms ease-out both;
-}
-@keyframes ev-passage {
-  from {
-    opacity: 0;
-    transform: translateY(calc(var(--u) * 2));
-  }
-}
-.ev-line {
-  font-size: var(--ev-size);
-  line-height: 1.6;
-  overflow-wrap: anywhere;
-}
-.ev-line + .ev-line {
-  margin-top: var(--ev-para);
-}
-.ev-line.song {
-  padding-left: var(--ev-indent);
-}
-/* a song's lines run together */
-.ev-line.song + .ev-line.song {
-  margin-top: 0;
+#event[data-id="memory"] {
+  --ev-bg: #0c0922;
+  --ev-ink: #d2c8f2;
+  --ev-old: #8a81ad;
+  --ev-slot: #6a628c;
 }
 
-/* in an event the quiet menu strip goes too; the options and the d-pad stay */
-#screen[data-screen="event"] #btn-sys {
+/* everything else is gone while it is up */
+#screen[data-screen="event"] > :not(#event) {
   visibility: hidden;
+}
+
+/* the text. If it is taller than the room above the links, it scrolls. */
+#event-lines {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  scrollbar-width: none;
+}
+#event-lines::-webkit-scrollbar {
+  display: none;
+}
+
+.passage + .passage {
+  margin-top: var(--ev-gap);
+}
+.passage > * + * {
+  margin-top: var(--ev-inner);
+}
+.ev-line {
+  overflow-wrap: anywhere;
+}
+.ev-line.slot {
+  color: var(--ev-slot);
+}
+/* a song: indented, its lines run together, in its own quiet colour */
+.verse {
+  padding-left: var(--ev-indent);
+  color: var(--ev-song);
+}
+.passage.old,
+.passage.old .verse {
+  color: var(--ev-old);
+}
+.passage.old .ev-line.slot {
+  color: var(--ev-slot);
+}
+
+/* New paragraphs come one after another, each whole: the k-th is not there, then it is. */
+.passage.enter {
+  animation: ev-enter calc(var(--f) * var(--ev-every) * var(--k, 0)) steps(1, end);
+}
+@keyframes ev-enter {
+  0% {
+    visibility: hidden;
+  }
+  100% {
+    visibility: visible;
+  }
+}
+
+/* the choices: links, one to a line, each a full-width row for a thumb */
+#event-links {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  margin: calc(var(--u) * 5) calc(var(--ev-side) * -1) 0;
+}
+.link {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: calc(var(--u) * 10);
+  padding: 0 var(--ev-side);
+  border: 0;
+  border-radius: 0;
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  color: var(--ev-link);
+  font-family: var(--mono);
+  font-size: var(--ev-size);
+  line-height: 1.2;
+  text-align: left;
+  cursor: pointer;
+  touch-action: none;
+  outline: none;
+}
+.link[data-kind="back"] {
+  color: var(--ev-link-quiet);
+}
+/* the one the keys are on */
+.link.cursor::before {
+  content: ">";
+  position: absolute;
+  left: calc(var(--u) * 3.4);
+}
+/* pressed: inverse video, at once */
+.link.down {
+  background: var(--ev-link);
+  color: var(--ev-bg);
+}
+.link[data-kind="back"].down {
+  background: var(--ev-link-quiet);
+}
+
+#btn-event-sys {
+  flex: none;
+  justify-content: center;
+  height: calc(var(--u) * 7.5);
+  margin-top: calc(var(--u) * 4);
+  padding: 0;
+  color: var(--ev-old);
+  font-size: calc(var(--u) * 3.7);
+  box-shadow: inset 0 0 0 calc(var(--u) * 0.3) var(--ev-slot);
+}
+#btn-event-sys.open {
+  color: var(--ev-ink);
+}
+
+button:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: -3px;
 }
 
 /* ---------- the stat line ---------- */
@@ -617,17 +791,21 @@ body {
   gap: calc(var(--u) * 1.2);
 }
 
+.stat .v {
+  --c: var(--paper);
+  color: var(--c);
+}
 .stat .v.unknown {
-  color: var(--quiet);
+  --c: var(--quiet);
 }
 .stat.hp.hurt .v {
-  color: #f0b060;
+  --c: var(--ink-warn);
 }
 .stat.hp.low .v {
-  color: #ee7460;
+  --c: var(--ink-bad);
 }
 
-/* ---------- the buttons ---------- */
+/* ---------- the buttons: flat and square. Pressed is inverse video, in one step. ---------- */
 
 #controls {
   display: grid;
@@ -681,14 +859,6 @@ body {
 #screen[data-screen="inv"] #btn-wait {
   display: none;
 }
-#screen[data-screen="inv"] #btn-inv {
-  background: transparent;
-  color: var(--paper);
-  box-shadow: inset 0 0 0 calc(var(--u) * 0.45) var(--quiet);
-}
-#screen[data-screen="inv"] #btn-inv.down {
-  background: #2a2824;
-}
 
 /* a menu: four options, two by two, in place of the buttons */
 #options {
@@ -727,6 +897,52 @@ body {
 .btn.down,
 .pad.down {
   background: var(--btn-down);
+  color: var(--btn-down-ink);
+  box-shadow: inset 0 0 0 calc(var(--u) * 0.45) var(--btn-down-edge);
+}
+
+/* the wide button takes the colour of what you are standing on */
+#btn-context[data-context="stairs"] {
+  background: var(--stairs);
+  color: var(--stairs-ink);
+  box-shadow: none;
+}
+#btn-context[data-context="stairs"].down {
+  background: var(--stairs-ink);
+  color: var(--stairs);
+  box-shadow: inset 0 0 0 calc(var(--u) * 0.45) var(--stairs);
+}
+#btn-context[data-context="corpse"] {
+  background: var(--corpse);
+  color: var(--corpse-ink);
+  box-shadow: none;
+}
+#btn-context[data-context="corpse"].down {
+  background: var(--corpse-ink);
+  color: var(--corpse);
+}
+
+/* Something new to sense: the wide button blinks white, in step with the tiles. */
+#screen.blink #btn-context.more {
+  background: var(--blink);
+  color: var(--blink-ink);
+  box-shadow: inset 0 0 0 calc(var(--u) * 0.9) var(--blink-box);
+}
+
+/* quiet buttons: outlined, on the slab. Back, and the menu strip. */
+#screen[data-screen="inv"] #btn-inv,
+.opt[data-kind="back"],
+#btn-sys {
+  background: transparent;
+  color: var(--paper);
+  box-shadow: inset 0 0 0 calc(var(--u) * 0.45) var(--quiet);
+}
+#screen[data-screen="inv"] #btn-inv.down,
+.opt[data-kind="back"].down,
+#btn-sys.down {
+  background: var(--paper);
+  color: var(--slab);
+  box-shadow: none;
 }
 
 /* a quiet strip along the bottom: restart and the look are under it */
@@ -735,30 +951,13 @@ body {
   grid-row: 2;
   align-self: end;
   height: calc(var(--u) * 7.5);
-  background: transparent;
   color: var(--log-old);
   box-shadow: inset 0 0 0 calc(var(--u) * 0.3) var(--quiet);
   font-size: calc(var(--u) * 3.7);
 }
-#btn-sys.down {
-  background: #2a2824;
-}
 #controls[data-menu="sys"] #btn-sys {
   color: var(--paper);
   box-shadow: inset 0 0 0 calc(var(--u) * 0.3) var(--paper);
-}
-
-/* the wide button takes the colour of what you are standing on */
-#btn-context[data-context="stairs"] {
-  background: #f0d060;
-  color: #17130b;
-}
-#btn-context[data-context="corpse"] {
-  background: #7d1a1a;
-  color: #f3eee0;
-}
-#btn-context[data-context].down {
-  filter: brightness(0.78);
 }
 
 .opt {
@@ -768,21 +967,15 @@ body {
 .opt.empty {
   visibility: hidden;
 }
-/* the option the arrow keys are on */
+/* the option the arrow keys are on: a hard ring inside it */
 .opt.cursor {
   box-shadow: inset 0 0 0 calc(var(--u) * 0.8) var(--btn), inset 0 0 0 calc(var(--u) * 1.5) var(--btn-ink);
-}
-/* back is quieter than the rest */
-.opt[data-kind="back"] {
-  background: transparent;
-  color: var(--paper);
-  box-shadow: inset 0 0 0 calc(var(--u) * 0.45) var(--quiet);
 }
 .opt[data-kind="back"].cursor {
   box-shadow: inset 0 0 0 calc(var(--u) * 0.45) var(--paper);
 }
-.opt[data-kind="back"].down {
-  background: #2a2824;
+.opt.cursor.down {
+  box-shadow: inset 0 0 0 calc(var(--u) * 0.45) var(--btn-down-edge);
 }
 /* a readout, not a button */
 .opt:disabled {
@@ -793,8 +986,14 @@ body {
 }
 
 #screen[data-look="dark"] .opt.cursor {
-  background: #24222b;
-  box-shadow: inset 0 0 0 calc(var(--u) * 0.45) var(--btn-ink);
+  box-shadow: inset 0 0 0 calc(var(--u) * 0.45) var(--btn-ink), inset 0 0 0 calc(var(--u) * 0.9) #000,
+    inset 0 0 0 calc(var(--u) * 1.35) var(--btn-ink);
+}
+#screen[data-look="dark"] .opt[data-kind="back"].cursor {
+  box-shadow: inset 0 0 0 calc(var(--u) * 0.45) var(--paper);
+}
+#screen[data-look="dark"] .opt.cursor.down {
+  box-shadow: none;
 }
 
 /* the d-pad: one solid plus */
@@ -814,6 +1013,7 @@ body {
 }
 .pad.down {
   background: var(--btn-down);
+  box-shadow: inset 0 0 0 calc(var(--u) * 0.45) var(--btn-down-edge);
 }
 .pad[data-dir="n"] {
   grid-area: 1 / 2;
@@ -841,6 +1041,9 @@ body {
   --e: calc(var(--u) * 0.45) solid var(--btn-edge);
   margin: 0;
 }
+#screen[data-look="dark"] .pad.down {
+  box-shadow: none;
+}
 #screen[data-look="dark"] .pad[data-dir="n"] {
   border: var(--e);
   border-bottom: 0;
@@ -858,14 +1061,16 @@ body {
   border-top: 0;
 }
 
+/* For someone who has asked for less motion: nothing jumps and nothing slides.
+   The flashes on single tiles stay. */
 @media (prefers-reduced-motion: reduce) {
+  #screen.fx-jolt > *,
+  #screen.fx-hurt > *,
   .map.in-n,
   .map.in-e,
   .map.in-s,
-  .map.in-w,
-  #screen.fx-hurt #map-wrap,
-  #screen.fx-descend #map {
-    animation-duration: 1ms;
+  .map.in-w {
+    animation: none;
   }
   .map.ghost {
     display: none;

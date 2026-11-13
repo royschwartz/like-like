@@ -4,7 +4,7 @@ import { CONFIG } from '../src/config.js';
 import { TEXT, isSlot } from '../src/text.js';
 import { ARRIVAL, OPP, DOOR } from '../src/gen.js';
 import { newGame, act, view, currentRoom, playerDamage } from '../src/game.js';
-import { clearGoblins, makeGoblin, findSpot, plainFloor, isLegalGoblinCell, STEP, DIRS, S, idx } from './helpers.mjs';
+import { putToad, openRoom, findSpot, plainFloor, isLegalToadCell, saidSince, STEP, DIRS, S, idx } from './helpers.mjs';
 
 // The last lines said.
 const said = (g, n = 1) => g.log.slice(-n);
@@ -56,53 +56,51 @@ test('bumping a wall takes no turn and returns nothing', () => {
   assert.equal(room.t[idx(at[0] + STEP[dir][0], at[1] + STEP[dir][1])], 'wall');
 });
 
-test('fighting a goblin to death leaves a corpse; the wide button then says corpse', () => {
+test('fighting the toad to death leaves a corpse with its key; the wide button then says corpse', () => {
   const g = newGame({ seed: 5 });
   tough(g);
-  clearGoblins(g);
   const [x, y] = standWithFloorEast(g);
   const room = currentRoom(g);
-  room.goblins.push(makeGoblin(x + 1, y, true));
+  putToad(g, x + 1, y, true);
   let killed = false;
   for (let k = 0; k < 200 && !killed; k++) {
+    const from = g.nextLogId;
     const ev = act(g, { type: 'move', dir: 'e' });
     const a = ev.find((e) => e.type === 'attack' && e.by === 'player');
     assert.ok(a, 'an attack');
     assert.deepEqual([a.x, a.y], [x + 1, y]);
     if (a.hit) assert.equal(a.dmg, playerDamage(g));
+    assert.ok(saidSince(g, from).length <= CONFIG.saysAtMost);
     killed = ev.some((e) => e.type === 'kill');
   }
   assert.ok(killed);
-  assert.equal(room.goblins.length, 0);
+  assert.equal(room.toad, null);
   let v = view(g);
   assert.deepEqual(v.cells[idx(x + 1, y)].thing, { kind: 'corpse' });
-  assert.ok(g.log.some((l) => l.text === TEXT.log.goblinDies && l.kind === 'good'));
+  assert.ok(g.log.some((l) => l.text === TEXT.log.toadDies && l.kind === 'good'));
   act(g, { type: 'move', dir: 'e' });
   v = view(g);
   assert.deepEqual([v.player.x, v.player.y], [x + 1, y]);
-  assert.deepEqual(v.context, { id: 'corpse', label: TEXT.context.corpse });
+  assert.deepEqual(v.context, { id: 'corpse', label: TEXT.context.corpse, more: false });
 
-  // The corpse menu: nothing on it.
+  // The corpse menu: its key. Taking it.
   const turn = g.turn;
   assert.deepEqual(act(g, { type: 'context' }), []);
   v = view(g);
   assert.equal(v.turn, turn, 'opening the corpse takes no time');
   assert.equal(v.menu.id, 'corpse');
   assert.equal(v.menu.title, TEXT.context.corpse);
-  assert.deepEqual(v.menu.options, [{ label: TEXT.menu.nothing, kind: 'info', disabled: true }, null, null, BACK]);
-  assert.equal(v.menu.cursor, 3);
-  assert.equal(said(g)[0].text, TEXT.log.corpseEmpty);
-
-  // Taking something from a corpse.
-  act(g, { type: 'back' });
-  room.corpses[0].items.push({ key: 'sword' });
-  act(g, { type: 'context' });
-  v = view(g);
-  assert.deepEqual(v.menu.options[0], { label: TEXT.thing.sword, kind: 'item', disabled: false });
+  assert.deepEqual(v.menu.options, [{ label: TEXT.thing.key, kind: 'item', disabled: false }, null, null, BACK]);
   act(g, { type: 'choose', index: 0 });
-  assert.equal(said(g)[0].text, TEXT.log.take(TEXT.thing.sword));
+  assert.equal(said(g)[0].text, TEXT.log.take(TEXT.thing.key));
   assert.equal(g.items.length, 2);
-  assert.deepEqual(view(g).menu.options[0], { label: TEXT.menu.nothing, kind: 'info', disabled: true });
+  assert.deepEqual(view(g).menu.options, [{ label: TEXT.menu.nothing, kind: 'info', disabled: true }, null, null, BACK]);
+  assert.equal(view(g).menu.cursor, 3);
+
+  // Opening it again: nothing on it.
+  act(g, { type: 'back' });
+  act(g, { type: 'context' });
+  assert.equal(said(g)[0].text, TEXT.log.corpseEmpty);
 });
 
 test('the stairs take you down a level', () => {
@@ -110,7 +108,8 @@ test('the stairs take you down a level', () => {
   const st = g.level.stairs;
   g.room = st.room;
   [g.x, g.y] = [st.x, st.y];
-  assert.deepEqual(view(g).context, { id: 'stairs', label: TEXT.context.stairs });
+  assert.deepEqual(view(g).context, { id: 'stairs', label: TEXT.context.stairs, more: false });
+  const from = g.nextLogId;
   const ev = act(g, { type: 'context' });
   assert.deepEqual(ev, [{ type: 'descend' }]);
   const v = view(g);
@@ -118,24 +117,24 @@ test('the stairs take you down a level', () => {
   assert.equal(v.room.id, g.level.entrance.room);
   assert.deepEqual([v.player.x, v.player.y], [g.level.entrance.x, g.level.entrance.y]);
   assert.equal(v.cells[idx(v.player.x, v.player.y)].t, 'entrance');
-  assert.deepEqual(v.log.slice(-2).map((l) => [l.text, l.kind]), [
-    [TEXT.log.level(2), 'plain'],
+  assert.deepEqual(v.log.filter((l) => l.id >= from).map((l) => [l.text, l.kind]), [
     [descendLine(g), isSlot(descendLine(g)) ? 'slot' : 'story'],
   ]);
 });
 
 test('dying puts you back on the entrance with full hp, the level otherwise as it was', () => {
   const g = newGame({ seed: 7 });
-  clearGoblins(g);
   const [x, y] = standWithFloorEast(g);
   g.x = x;
   g.y = y;
-  currentRoom(g).goblins.push(makeGoblin(x + 1, y, false));
+  putToad(g, x + 1, y, false);
   const terrain = JSON.stringify(g.level.rooms.map((r) => r.t));
   const level = g.level;
   g.hp = 1;
   let died = false;
+  let from = 0;
   for (let k = 0; k < 200 && !died; k++) {
+    from = g.nextLogId;
     const ev = act(g, { type: 'wait' });
     died = ev.some((e) => e.type === 'death');
     if (died) assert.deepEqual(ev[ev.length - 1], { type: 'death' });
@@ -148,71 +147,67 @@ test('dying puts you back on the entrance with full hp, the level otherwise as i
   assert.equal(v.room.id, g.level.entrance.room);
   assert.deepEqual([v.player.x, v.player.y], [g.level.entrance.x, g.level.entrance.y]);
   assert.equal(v.depth, 1);
-  assert.deepEqual(said(g).map((l) => [l.text, l.kind]), [[TEXT.log.youDie, 'bad']]);
+  assert.deepEqual(v.log.filter((l) => l.id >= from).map((l) => [l.text, l.kind]), [[TEXT.log.youDie, 'bad']]);
   assert.ok(!v.log.some((l) => l.text === descendLine(g) && l.turn > 0), 'no descend line on death');
-  assert.equal(currentRoom(g).goblins.length, 1, 'the goblin is still there');
+  assert.ok(currentRoom(g).toad, 'the toad is still there');
 });
 
-test('dying moves a goblin off the entrance', () => {
-  const g = newGame({ seed: 8 });
-  clearGoblins(g);
-  const e = g.level.entrance;
-  const room = g.level.rooms[e.room];
-  // Stand far from the entrance, next to a goblin that will kill you.
-  const at = findSpot(g, (x, y, r) => plainFloor(r, x, y) && plainFloor(r, x + 1, y) && Math.abs(x - e.x) + Math.abs(y - e.y) > 4);
-  [g.x, g.y] = at;
-  room.goblins.push(makeGoblin(at[0] + 1, at[1], false, 1));
-  room.goblins.push(makeGoblin(e.x, e.y, true, 2));
-  g.hp = 1;
-  let died = false;
-  for (let k = 0; k < 200 && !died; k++) died = act(g, { type: 'wait' }).some((ev) => ev.type === 'death');
-  assert.ok(died);
-  assert.deepEqual([g.x, g.y], [e.x, e.y]);
-  for (const b of room.goblins) assert.ok(isLegalGoblinCell(g, room, b));
-  assert.equal(things(view(g), 'player').length, 1);
-});
-
-test('SENSE: your numbers for a while, the room, the doors, the goblins until your next action', () => {
-  const g = seedWith((g) => currentRoom(g).goblins.length > 0 && DIRS.some((d) => currentRoom(g).nb[d] !== null));
+test('sense: your numbers for a while, the whole room, and one line each time', () => {
+  // An ordinary room has nothing to sense yet.
+  const g = newGame({ seed: 21 });
   tough(g);
-  const room = currentRoom(g);
   let v = view(g);
   assert.deepEqual([v.stats.str, v.stats.love, v.stats.will], [null, null, null]);
-  assert.equal(v.context.id, 'sense');
-  const goblins = room.goblins.length;
-  const asleep = room.goblins.filter((b) => b.asleep).length;
-  const logLen = g.log.length;
+  assert.deepEqual(v.context, { id: 'sense', label: TEXT.context.sense, more: false });
+  let from = g.nextLogId;
+  const turn = g.turn;
   const ev = act(g, { type: 'context' });
-  assert.deepEqual(ev[0], { type: 'sense' });
+  assert.deepEqual(ev, [{ type: 'sense' }]);
+  assert.equal(g.turn, turn + 1, 'sensing takes a turn');
   v = view(g);
   assert.deepEqual([v.stats.str, v.stats.love, v.stats.will], [CONFIG.player.str, CONFIG.player.love, CONFIG.player.will]);
-  // The sense lines come first, then whatever the goblins did.
-  const want = [TEXT.log.senseHere(goblins, asleep)];
-  for (const d of DIRS) {
-    const n = room.nb[d];
-    if (n === null) continue;
-    want.push(TEXT.log.senseDoor(TEXT.dir[d], g.level.rooms[n].goblins.length, g.level.stairs.room === n));
-  }
-  const lines = g.log.slice(logLen).filter((l) => l.kind === 'sense');
-  assert.deepEqual(lines.map((l) => l.text), want);
-  assert.deepEqual(g.log.slice(logLen, logLen + want.length).map((l) => l.kind), want.map(() => 'sense'));
+  assert.deepEqual(v.log.filter((l) => l.id >= from).map((l) => l.text), [TEXT.log.senseNothing]);
   assert.ok(v.cells.every((c) => c.state !== 'unknown'), 'whole room seen');
-  assert.equal(things(v, 'goblin').length, room.goblins.length, 'every goblin drawn');
-
-  // Next action: only goblins in sight.
-  act(g, { type: 'wait' });
-  v = view(g);
-  const inSight = v.cells.filter((c, i) => c.state === 'visible' && room.goblins.some((b) => idx(b.x, b.y) === i)).length;
-  assert.equal(things(v, 'goblin').length, inSight);
-  for (const c of things(v, 'goblin')) assert.equal(c.state, 'visible');
-
   // Numbers last CONFIG.senseSelfTurns turns from the sense.
-  for (let k = 1; k < CONFIG.senseSelfTurns; k++) {
+  for (let k = 0; k < CONFIG.senseSelfTurns; k++) {
     assert.equal(view(g).stats.str, CONFIG.player.str, `turn ${k}`);
     act(g, { type: 'wait' });
   }
   v = view(g);
   assert.deepEqual([v.stats.str, v.stats.love, v.stats.will], [null, null, null]);
+
+  // The toad's room: his lines, one each time you sense; the last tells you of the worms.
+  g.room = g.level.toadRoom;
+  [g.x, g.y] = findSpot(g, (x, y, r) => plainFloor(r, x, y));
+  const lines = TEXT.senseToad;
+  for (let k = 0; k < lines.length; k++) {
+    assert.equal(view(g).context.more, true, `something new to sense before press ${k + 1}`);
+    assert.equal(g.knowsWorms, false);
+    from = g.nextLogId;
+    act(g, { type: 'context' });
+    const now = view(g).log.filter((l) => l.id >= from);
+    assert.deepEqual(now.map((l) => [l.text, l.kind]), [[lines[k], 'sense']]);
+  }
+  assert.equal(g.knowsWorms, true);
+  assert.equal(view(g).context.more, false);
+  // Nothing new: the last line again.
+  from = g.nextLogId;
+  act(g, { type: 'context' });
+  assert.deepEqual(saidSince(g, from), [lines[lines.length - 1]]);
+});
+
+test('sense shows the toad behind a wall until your next action', () => {
+  const g = newGame({ seed: 22 });
+  tough(g);
+  const room = openRoom(g);
+  for (let x = 1; x < S - 1; x++) room.t[idx(x, 5)] = 'wall';
+  putToad(g, 2, 7, true);
+  [g.x, g.y] = [2, 2];
+  assert.equal(things(view(g), 'toad').length, 0);
+  act(g, { type: 'context' });
+  assert.equal(things(view(g), 'toad').length, 1, 'drawn while sensed');
+  act(g, { type: 'wait' });
+  assert.equal(things(view(g), 'toad').length, 0);
 });
 
 test('doors: arrive on the matching arrival cell; the room you left stays as it was', () => {
@@ -241,18 +236,18 @@ test('doors: arrive on the matching arrival cell; the room you left stays as it 
   for (let i = 0; i < S * S; i++) if (snapshot.seen[i]) assert.notEqual(v.cells[i].state, 'unknown');
 });
 
-test('goblins never stand on doors or arrival cells, even when you wait on one', () => {
+test('the toad never stands on doors, arrival cells, the bust or you, even when you wait on an arrival cell', () => {
   for (let seed = 1; seed <= 40; seed++) {
     const g = newGame({ seed });
+    tough(g);
+    g.room = g.level.toadRoom;
     const room = currentRoom(g);
     const d = DIRS.find((k) => room.nb[k] !== null);
-    if (!d) continue;
-    tough(g);
-    for (const r of g.level.rooms) for (const b of r.goblins) b.asleep = false;
+    room.toad.asleep = false;
     [g.x, g.y] = ARRIVAL[d];
     for (let k = 0; k < 40; k++) {
       act(g, { type: 'wait' });
-      for (const b of currentRoom(g).goblins) assert.ok(isLegalGoblinCell(g, currentRoom(g), b));
+      assert.ok(isLegalToadCell(g, room), `seed ${seed} turn ${k}`);
     }
   }
 });
@@ -271,7 +266,6 @@ test('menus: toggling, switching, paging, and nothing passes time', () => {
   act(g, { type: 'menu', id: 'act' });
 
   // A corpse with six swords: two a page, then more; the last page holds up to three.
-  clearGoblins(g);
   const room = currentRoom(g);
   room.corpses.push({ x: g.x, y: g.y, items: Array.from({ length: 6 }, () => ({ key: 'sword' })) });
   act(g, { type: 'context' });
@@ -312,7 +306,6 @@ test('the act menu holds only rest; cursor movement', () => {
 test('the wait action: one turn, with no menu open', () => {
   const g = newGame({ seed: 11 });
   tough(g);
-  clearGoblins(g);
   const turn = g.turn;
   assert.deepEqual(act(g, { type: 'wait' }), []);
   assert.equal(g.turn, turn + 1);
@@ -321,41 +314,63 @@ test('the wait action: one turn, with no menu open', () => {
   assert.equal(g.turn, turn + 1, 'not with a menu open');
 });
 
-test('rest heals after quiet turns, and stops for an awake goblin in sight', () => {
+const rest = (g) => {
+  act(g, { type: 'menu', id: 'act' });
+  return act(g, { type: 'choose', index: 0 });
+};
+
+test('rest heals after quiet turns, and stops for an awake toad in sight', () => {
   const g = newGame({ seed: 12 });
-  clearGoblins(g);
   g.hp = 1;
   const turn = g.turn;
-  act(g, { type: 'menu', id: 'act' });
-  act(g, { type: 'choose', index: 0 });
+  let from = g.nextLogId;
+  rest(g);
   assert.equal(g.turn, turn + CONFIG.restTurns);
   assert.equal(g.hp, Math.min(g.maxHp, 1 + CONFIG.restHeal));
   assert.equal(view(g).menu, null);
-  assert.deepEqual(said(g).map((l) => [l.text, l.kind]), [[TEXT.log.restBetter, 'good']]);
-  assert.ok(g.log.some((l) => l.text === TEXT.log.youRest));
+  assert.deepEqual(g.log.filter((l) => l.id >= from).map((l) => [l.text, l.kind]), [
+    [TEXT.log.youRest, 'plain'],
+    [TEXT.log.restBetter, 'good'],
+  ]);
 
-  // An awake goblin in sight: rest stops at once.
-  const room = currentRoom(g);
+  // An awake toad in sight: rest stops at once.
   const at = findSpot(g, (x, y, r) => plainFloor(r, x, y) && plainFloor(r, x + 1, y) && plainFloor(r, x + 2, y));
   [g.x, g.y] = at;
-  room.goblins.push(makeGoblin(at[0] + 2, at[1], false));
+  const toad = putToad(g, at[0] + 2, at[1], false);
   const t2 = g.turn;
   const hp = g.hp;
-  act(g, { type: 'menu', id: 'act' });
-  act(g, { type: 'choose', index: 0 });
+  from = g.nextLogId;
+  rest(g);
   assert.equal(g.turn, t2);
   assert.equal(g.hp, hp);
-  assert.deepEqual(said(g, 2).map((l) => l.text), [TEXT.log.youRest, TEXT.log.restStopped]);
+  assert.deepEqual(saidSince(g, from), [TEXT.log.youRest, TEXT.log.restStopped]);
 
-  // An asleep goblin next to you: it may wake, and then rest stops.
-  room.goblins = [makeGoblin(at[0] + 1, at[1], true)];
-  for (let k = 0; k < 20; k++) {
-    act(g, { type: 'menu', id: 'act' });
-    act(g, { type: 'choose', index: 0 });
-    if (!room.goblins[0].asleep) break;
-  }
-  assert.equal(room.goblins[0].asleep, false);
-  assert.equal(said(g)[0].text, TEXT.log.restStopped);
+  // Asleep beside you, it sleeps on: rest runs its course.
+  toad.asleep = true;
+  toad.x = at[0] + 1;
+  from = g.nextLogId;
+  rest(g);
+  assert.equal(g.turn, t2 + CONFIG.restTurns);
+  assert.equal(toad.asleep, true);
+  assert.equal(saidSince(g, from)[0], TEXT.log.youRest);
+});
+
+test('an awake toad coming into sight stops rest before it can strike', () => {
+  const g = newGame({ seed: 12 });
+  const room = openRoom(g);
+  for (let x = 1; x < S - 1; x++) room.t[idx(x, 5)] = 'wall';
+  room.t[idx(4, 5)] = 'floor'; // a gap
+  [g.x, g.y] = [2, 2];
+  const toad = putToad(g, 4, 8, false);
+  toad.lastSeen = { x: 2, y: 2 }; // it is on its way
+  g.hp = 1;
+  const turn = g.turn;
+  const from = g.nextLogId;
+  const ev = rest(g);
+  assert.ok(g.turn > turn && g.turn < turn + CONFIG.restTurns, `stopped after ${g.turn - turn} turns`);
+  assert.equal(g.hp, 1);
+  assert.ok(!ev.some((e) => e.type === 'attack'));
+  assert.deepEqual(saidSince(g, from), [TEXT.log.youRest, TEXT.log.restStopped]);
 });
 
 test('the psy menu shows will and love as you perceive them', () => {
@@ -417,7 +432,7 @@ test('the sys menu: look switch and restart', () => {
   assert.equal(v.menu, null);
   assert.equal(v.stats.hp, CONFIG.player.hp);
   assert.deepEqual(v.log.map((l) => l.text), [...TEXT.opening, descendLine(g)]);
-  assert.equal(v.fresh, v.log[0].id);
+  assert.equal(v.fresh, v.log[1].id);
   assert.ok(v.log[0].id > lastId, 'log ids keep going up');
   // The same seed restarts the same way.
   const h = newGame({ seed: 14 });
@@ -435,14 +450,13 @@ test('a new game: the opening, then the descend line', () => {
     [TEXT.opening[0], 'story', 0],
     [text, isSlot(text) ? 'slot' : 'story', 0],
   ]);
-  assert.equal(v.fresh, v.log[0].id);
+  assert.equal(v.fresh, v.log[1].id, 'the status is what you arrive in');
   assert.equal(things(v, 'player').length, 1);
   assert.equal(v.cells[idx(v.player.x, v.player.y)].t, 'entrance');
 });
 
 test('walls and doors next to floor in sight are drawn as in sight', () => {
   const g = newGame({ seed: 16 });
-  clearGoblins(g);
   const room = currentRoom(g);
   // An open room: no obstacles, no grass, the doors kept.
   room.t = room.t.map((c, i) => {
@@ -499,21 +513,16 @@ test('walls and doors next to floor in sight are drawn as in sight', () => {
   assert.ok(room.seen[idx(0, 0)]);
 });
 
-test('the wall frame never shows a goblin out of line of sight', () => {
+test('the wall frame never shows the toad out of line of sight', () => {
   const g = newGame({ seed: 17 });
-  clearGoblins(g);
-  const room = currentRoom(g);
-  room.t = room.t.map((c, i) => {
-    const x = i % S;
-    const y = Math.floor(i / S);
-    return x === 0 || y === 0 || x === S - 1 || y === S - 1 ? c : 'floor';
-  });
-  // A wall across the room with the goblin behind it.
+  const room = openRoom(g);
+  // A wall across the room with the toad behind it.
   for (let x = 1; x < S - 1; x++) room.t[idx(x, 5)] = 'wall';
   room.t[idx(9, 5)] = 'floor';
-  room.goblins.push(makeGoblin(2, 6, true));
+  putToad(g, 2, 6, true);
   [g.x, g.y] = [2, 2];
   const v = view(g);
   assert.equal(v.cells[idx(2, 5)].state, 'visible');
   assert.equal(v.cells[idx(2, 6)].thing, null);
+  assert.equal(v.cells[idx(2, 6)].more, false);
 });

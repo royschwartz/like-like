@@ -8,11 +8,12 @@ import { CONFIG } from './config.js';
 const SIZE = CONFIG.roomSize;
 const LOG_KEEP = 12; // lines kept in #log-lines
 const FX_SAFETY_MS = 900; // remove an effect class even if no animationend comes
-const SCREEN_SAFETY_MS = 1300; // longer: fx-death runs 1000 ms
-const SLIDE_SAFETY_MS = 400; // same, for the room slide
+const SCREEN_SAFETY_MS = 1300;
+const SLIDE_SAFETY_MS = 900;
 const DIRS = ['n', 'e', 's', 'w'];
-const SCREEN_FX = ['fx-hurt', 'fx-death', 'fx-descend', 'fx-sense'];
-const PASSAGE_STAGGER_MS = 650; // passages that come together come in one after another
+const JOLT_FX = ['fx-jolt', 'fx-hurt'];
+const COVER_FX = ['fx-death', 'fx-descend'];
+const CELL_FX = ['fx-hit', 'fx-miss', 'fx-kill', 'fx-observe', 'fx-sense', 'fx-sense-self', 'fx-dig', 'fx-unlock'];
 
 export function createRenderer(root = document) {
   const $ = (id) => root.querySelector('#' + id);
@@ -25,6 +26,8 @@ export function createRenderer(root = document) {
   const invRows = $('inv-rows');
   const eventEl = $('event');
   const eventLines = $('event-lines');
+  const eventLinks = $('event-links');
+  const eventMenu = $('btn-event-sys');
   const controls = $('controls');
   const btnContext = $('btn-context');
   const menuButtons = { inv: $('btn-inv'), psy: $('btn-psy'), act: $('btn-act'), sys: $('btn-sys') };
@@ -39,13 +42,33 @@ export function createRenderer(root = document) {
   let invKey = null; // what the inventory screen last showed
   let eventKey = null; // what the event panel last showed
   let eventDrawn = { sig: null, texts: [] }; // the open event, and the text of each passage drawn
+  let linksKey = null;
+  let roomKey = null;
+  let canBlink = false;
   const fx = createFx();
   let slide = null; // { ghost, dirClass, timer }
+  const style = screen.ownerDocument.defaultView.getComputedStyle(screen);
+  const frameMs = parseFloat(style.getPropertyValue('--f')) || 70;
+  const blinkMs = frameMs * (parseFloat(style.getPropertyValue('--blink-on')) || 2);
+  const blinkEveryMs = frameMs * (parseFloat(style.getPropertyValue('--blink-every')) || 28);
+  let blinkOff = null;
+  const blinkTimer = setInterval(() => {
+    if (!canBlink || screen.ownerDocument.hidden) return;
+    screen.classList.add('blink');
+    clearTimeout(blinkOff);
+    blinkOff = setTimeout(() => screen.classList.remove('blink'), blinkMs);
+  }, blinkEveryMs);
 
   function draw(view, events = []) {
     if (!view) return;
     events = Array.isArray(events) ? events : [];
 
+    const nextRoom = `${view.depth}:${view.room?.id}:${view.room?.key}`;
+    if (nextRoom !== roomKey || events.some((e) => e.type === 'death' || e.type === 'restart')) {
+      for (const cell of cells) for (const cls of CELL_FX) fx.stop(cell, cls);
+      endSlide();
+      roomKey = nextRoom;
+    }
     const room = events.find((e) => e && e.type === 'room' && DIRS.includes(e.dir));
     if (room) startSlide(room.dir);
 
@@ -55,13 +78,20 @@ export function createRenderer(root = document) {
     drawScreenMode(view);
     drawInv(view.inv);
     drawEvent(view.event);
+    drawEventLinks(view.event, view.menu);
     drawStats(view.stats);
     drawButtons(view);
-    // In an event, its options are the menu at the bottom.
-    drawOptions(view.event ? { id: 'event', options: view.event.options, cursor: view.event.cursor } : view.menu);
+    drawOptions(view.event ? null : view.menu);
+    canBlink = !view.event && !view.inv && !view.menu && (view.cells?.some((c) => c.more) || view.context?.more);
+    if (!canBlink) screen.classList.remove('blink');
 
-    for (const e of events) cellEffect(e);
-    for (const e of events) screenEffect(e, view);
+    const died = events.some((e) => e.type === 'death');
+    for (const e of events) {
+      // The map already shows the entrance after death; the old room's tile effects
+      // must not flash unrelated squares there. The screen still jolts and flashes.
+      if (!died) cellEffect(e, view);
+      screenEffect(e);
+    }
   }
 
   // --- map ---
@@ -75,13 +105,14 @@ export function createRenderer(root = document) {
       const y = (i - x) / SIZE;
       const paint = paintCell(list[i] || null, x, y, env);
       const last = lastPaint[i];
+      const el = cells[i];
+      el.classList.toggle('more', !!list[i]?.more);
       if (last && last.ch === paint.ch && last.fg === paint.fg && last.bg === paint.bg && last.bold === paint.bold) {
         continue;
       }
-      const el = cells[i];
       if (!last || last.ch !== paint.ch) el.textContent = paint.ch;
-      if (!last || last.fg !== paint.fg) el.style.color = paint.fg;
-      if (!last || last.bg !== paint.bg) el.style.backgroundColor = paint.bg;
+      if (!last || last.fg !== paint.fg) el.style.setProperty('--fg', paint.fg);
+      if (!last || last.bg !== paint.bg) el.style.setProperty('--bg', paint.bg);
       if (!last || last.bold !== paint.bold) el.classList.toggle('b', !!paint.bold);
       lastPaint[i] = paint;
     }
@@ -98,7 +129,10 @@ export function createRenderer(root = document) {
     const ghost = map.cloneNode(true);
     ghost.removeAttribute('id');
     ghost.className = `map ghost out-${dir}`;
-    for (const c of ghost.children) c.className = c.classList.contains('b') ? 'c b' : 'c';
+    for (const c of ghost.children) {
+      c.className = c.classList.contains('b') ? 'c b' : 'c';
+      c.removeAttribute('data-cell');
+    }
     mapWrap.appendChild(ghost);
     const dirClass = `in-${dir}`;
     map.classList.remove(...DIRS.map((d) => `in-${d}`));
@@ -129,32 +163,40 @@ export function createRenderer(root = document) {
 
   // --- effects ---
 
-  function cellEffect(e) {
-    if (!e || !inRoom(e.x, e.y)) return;
+  function cellEffect(e, view) {
+    if (!e) return;
+    if (e.type === 'sense') {
+      const p = view.player;
+      if (!p || !inRoom(p.x, p.y)) return;
+      for (let y = p.y - 1; y <= p.y + 1; y++) {
+        for (let x = p.x - 1; x <= p.x + 1; x++) {
+          if (!inRoom(x, y)) continue;
+          fx.play(cells[y * SIZE + x], x === p.x && y === p.y ? 'fx-sense-self' : 'fx-sense', CELL_FX);
+        }
+      }
+      return;
+    }
+    if (!inRoom(e.x, e.y)) return;
     const el = cells[e.y * SIZE + e.x];
-    if (e.type === 'attack') fx.play(el, e.hit ? 'fx-hit' : 'fx-miss');
-    else if (e.type === 'kill') fx.play(el, 'fx-kill');
-    else if (e.type === 'observe') fx.play(el, 'fx-observe');
+    if (e.type === 'attack') fx.play(el, e.hit ? 'fx-hit' : 'fx-miss', CELL_FX);
+    else if (e.type === 'kill') fx.play(el, 'fx-kill', CELL_FX);
+    else if (e.type === 'observe') fx.play(el, 'fx-observe', CELL_FX);
+    else if (e.type === 'dig') fx.play(el, 'fx-dig', CELL_FX);
+    else if (e.type === 'unlock') fx.play(el, 'fx-unlock', CELL_FX);
   }
 
-  function screenEffect(e, view) {
+  function screenEffect(e) {
     if (!e) return;
-    if (e.type === 'attack' && e.by !== 'player' && e.hit) fx.play(screen, 'fx-hurt', SCREEN_FX);
-    else if (e.type === 'death') fx.play(screen, 'fx-death', SCREEN_FX);
-    else if (e.type === 'descend' || e.type === 'restart') fx.play(screen, 'fx-descend', SCREEN_FX);
-    else if (e.type === 'sense') {
-      const p = view.player || { x: (SIZE - 1) / 2, y: (SIZE - 1) / 2 };
-      mapWrap.style.setProperty('--sx', pct(p.x));
-      mapWrap.style.setProperty('--sy', pct(p.y));
-      fx.play(screen, 'fx-sense', SCREEN_FX);
-    }
+    if (e.type === 'attack' && e.hit) fx.play(screen, e.by === 'player' ? 'fx-jolt' : 'fx-hurt', JOLT_FX);
+    else if (e.type === 'death') fx.play(screen, 'fx-death', COVER_FX);
+    else if (e.type === 'descend' || e.type === 'restart') fx.play(screen, 'fx-descend', COVER_FX);
   }
 
   // --- log: one list. The lines the latest action said are bright; older ones dim. ---
 
   function drawLog(log, fresh) {
-    const lines = Array.isArray(log) ? log.filter(Boolean).slice(-LOG_KEEP) : [];
-    const freshFrom = Number.isInteger(fresh) ? fresh : lines.length ? lines[lines.length - 1].id : 0;
+    const lines = Array.isArray(log) ? log.filter(Boolean).slice(-LOG_KEEP).reverse() : [];
+    const freshFrom = Number.isInteger(fresh) ? fresh : lines.length ? lines[0].id : 0;
     const keep = new Set();
 
     lines.forEach((line, i) => {
@@ -171,7 +213,6 @@ export function createRenderer(root = document) {
         rec = { el, text: line.text, turn: line.turn, kind: null };
         logEls.set(line.id, rec);
         el.className = 'line';
-        fx.play(el, 'enter');
       }
       if (rec.kind !== line.kind) {
         if (rec.kind) rec.el.classList.remove(`k-${rec.kind}`);
@@ -229,7 +270,7 @@ export function createRenderer(root = document) {
     });
   }
 
-  // --- an event: the whole slab but the options. Passages stack up; older ones dim. ---
+  // --- an event: its own scrollable text and links, with the system menu below ---
 
   function drawEvent(event) {
     if (!eventEl) return;
@@ -243,6 +284,7 @@ export function createRenderer(root = document) {
     const key = JSON.stringify([event.id, event.now, lines]);
     if (key === eventKey) return;
     eventKey = key;
+    setAttr(eventEl, 'data-id', event.id);
     const groups = [];
     for (const l of lines) {
       const n = Number.isInteger(l.passage) && l.passage >= 0 ? l.passage : 0;
@@ -258,23 +300,60 @@ export function createRenderer(root = document) {
     }
     if (eventEl.hidden) {
       eventEl.hidden = false;
-      fx.play(eventEl, 'opening');
     }
     const doc = eventLines.ownerDocument;
     while (eventLines.firstChild) eventLines.removeChild(eventLines.firstChild);
     groups.forEach((group, n) => {
       const box = doc.createElement('div');
       box.className = 'passage ' + (n >= event.now ? 'now' : 'old') + (n >= from ? ' enter' : '');
-      if (n > from) box.style.animationDelay = `${(n - from) * PASSAGE_STAGGER_MS}ms`;
+      box.style.setProperty('--k', Math.max(0, n - from));
+      let verse = null;
       for (const l of group || []) {
         const el = doc.createElement('div');
-        el.className = l.song ? 'ev-line song' : 'ev-line';
+        el.className = l.slot ? 'ev-line slot' : 'ev-line';
         el.textContent = l.text == null ? '' : String(l.text);
-        box.appendChild(el);
+        if (l.song) {
+          if (!verse) {
+            verse = doc.createElement('div');
+            verse.className = 'verse';
+            box.appendChild(verse);
+          }
+          verse.appendChild(el);
+        } else {
+          verse = null;
+          box.appendChild(el);
+        }
       }
       eventLines.appendChild(box);
     });
     eventDrawn = { sig, texts };
+    eventLines.scrollTop = from > 0 ? eventLines.scrollHeight : 0;
+  }
+
+  function drawEventLinks(event, menu) {
+    const choices = event && (menu?.id === 'sys' ? menu : event);
+    const opts = choices?.options || [];
+    const key = JSON.stringify(opts);
+    if (key !== linksKey) {
+      linksKey = key;
+      eventLinks.replaceChildren();
+      opts.forEach((o, i) => {
+        if (!o) return;
+        const link = eventLinks.ownerDocument.createElement('button');
+        link.type = 'button';
+        link.className = 'link';
+        link.dataset.choose = String(i);
+        link.dataset.kind = o.kind;
+        link.textContent = o.label ?? '';
+        link.disabled = !!o.disabled;
+        eventLinks.appendChild(link);
+      });
+    }
+    for (const link of eventLinks.children) {
+      link.classList.toggle('cursor', Number(link.dataset.choose) === choices?.cursor);
+    }
+    setText(eventMenu, TEXT.button.sys);
+    eventMenu.classList.toggle('open', !!event && menu?.id === 'sys');
   }
 
   // --- stats ---
@@ -298,6 +377,7 @@ export function createRenderer(root = document) {
     setText(btnWait, TEXT.button.wait ?? '');
     setText(btnUse, TEXT.button.use ?? '');
     const ctx = view.context || {};
+    btnContext.classList.toggle('more', !!ctx.more);
     setText(btnContext, ctx.label == null ? '' : ctx.label);
     if (ctx.id) setAttr(btnContext, 'data-context', ctx.id);
     else btnContext.removeAttribute('data-context');
@@ -320,7 +400,12 @@ export function createRenderer(root = document) {
     });
   }
 
-  return { draw };
+  return { draw, destroy() {
+    clearInterval(blinkTimer);
+    clearTimeout(blinkOff);
+    screen.classList.remove('blink');
+    endSlide();
+  } };
 }
 
 // --- building, once ---
@@ -379,6 +464,7 @@ function createFx() {
       running.set(el, mine);
       el.addEventListener('animationend', (e) => onEnd(el, e, group));
     }
+    for (const other of group || []) if (other !== cls) stop(el, other);
     if (mine.has(cls)) clearTimeout(mine.get(cls));
     el.classList.remove(cls);
     void el.offsetWidth; // reflow, so the animation starts again
@@ -405,17 +491,13 @@ function createFx() {
     el.classList.remove(cls);
   }
 
-  return { play };
+  return { play, stop };
 }
 
 // --- small helpers ---
 
 function inRoom(x, y) {
   return Number.isInteger(x) && Number.isInteger(y) && x >= 0 && y >= 0 && x < SIZE && y < SIZE;
-}
-
-function pct(n) {
-  return `${(((n + 0.5) / SIZE) * 100).toFixed(3)}%`;
 }
 
 function setText(el, text) {

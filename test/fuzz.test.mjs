@@ -2,7 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { makeRng } from '../src/rng.js';
 import { newGame, act, view, currentRoom } from '../src/game.js';
-import { randomAction, isLegalGoblinCell, idx, DIRS, STEP } from './helpers.mjs';
+import { CONFIG } from '../src/config.js';
+import { randomAction, isLegalToadCell, logLines, idx, DIRS, STEP } from './helpers.mjs';
 
 const SEEDS = 60;
 const STEPS = 3000;
@@ -28,20 +29,29 @@ function check(g, v, lastId) {
     assert.ok(Number.isInteger(v.inv.cursor) && v.inv.cursor >= 0 && v.inv.cursor < v.inv.items.length, 'inventory cursor');
     assert.equal(v.context.id, 'inspect');
   }
-  for (const r of g.level.rooms) for (const b of r.goblins) assert.ok(isLegalGoblinCell(g, r, b), 'goblin on a legal cell');
   for (const r of g.level.rooms) {
     const t = r.toad;
     if (!t) continue;
     assert.ok(['floor', 'grass'].includes(r.t[idx(t.x, t.y)]), 'toad on open ground');
-    assert.ok(!r.goblins.some((b) => b.x === t.x && b.y === t.y), 'toad and goblin apart');
-    assert.ok(!(r === room && t.x === g.x && t.y === g.y), 'toad not on you');
+    assert.ok(isLegalToadCell(g, r), 'toad on a legal cell, and not on you');
   }
+  // Only a unit in sight ever blinks, and the wide button only when it says sense.
+  for (const cell of v.cells) {
+    assert.equal(typeof cell.more, 'boolean');
+    if (cell.more) assert.ok(cell.state === 'visible' && (cell.t === 'statue' || (cell.thing && cell.thing.kind === 'toad')), 'only a unit in sight blinks');
+  }
+  assert.equal(typeof v.context.more, 'boolean');
+  if (v.context.more) assert.equal(v.context.id, 'sense');
   if (v.event) {
-    assert.equal(v.event.options.length, 4);
-    assert.equal(v.event.options[3].kind, 'back');
-    const at = v.event.options[v.event.cursor];
-    assert.ok(at && !at.disabled, 'event cursor on a choosable option');
+    const opts = v.event.options;
+    assert.ok(opts.length >= 1 && opts.every((o) => o && typeof o.label === 'string' && o.label.length > 0), 'event options: a plain list');
+    assert.equal(opts[opts.length - 1].kind, 'back');
+    assert.equal(opts.filter((o) => o.kind === 'back').length, 1);
+    assert.ok(Number.isInteger(v.event.cursor) && v.event.cursor >= 0 && v.event.cursor < opts.length, 'event cursor on an option');
     assert.ok(v.event.lines.length > 0 && v.event.lines.every((l) => typeof l.text === 'string' && l.text.length > 0));
+    assert.ok(v.event.now >= 0 && v.event.now <= Math.max(...v.event.lines.map((l) => l.passage)));
+    assert.ok(!v.menu || ['psy', 'sys'].includes(v.menu.id), 'events keep a memory menu or their system menu');
+    assert.equal(v.inv, null);
   }
   if (v.menu) {
     assert.equal(v.menu.options.length, 4);
@@ -59,6 +69,7 @@ test('fuzz: random play never breaks the rules', () => {
   let observed = 0;
   let used = 0;
   let events = 0;
+  let mostSaid = 0;
   for (let seed = 1; seed <= SEEDS; seed++) {
     const g = newGame({ seed: seed * 7919 });
     const r = makeRng(seed);
@@ -67,8 +78,8 @@ test('fuzz: random play never breaks the rules', () => {
     const toad = g.level.rooms[tr].toad;
     if (seed % 3 === 1) {
       g.room = tr;
-      const step = DIRS.map((d) => [toad.x + STEP[d][0], toad.y + STEP[d][1]]).find(
-        ([x, y]) => ['floor', 'grass'].includes(currentRoom(g).t[idx(x, y)]) && !currentRoom(g).goblins.some((b) => b.x === x && b.y === y),
+      const step = DIRS.map((d) => [toad.x + STEP[d][0], toad.y + STEP[d][1]]).find(([x, y]) =>
+        ['floor', 'grass'].includes(currentRoom(g).t[idx(x, y)]),
       );
       if (!step) continue;
       [g.x, g.y] = step;
@@ -81,8 +92,21 @@ test('fuzz: random play never breaks the rules', () => {
     check(g, view(g), 0);
     for (let k = 0; k < STEPS; k++) {
       const action = randomAction(r);
+      const from = g.nextLogId;
       const ev = act(g, action);
       assert.ok(Array.isArray(ev));
+      // Two wrapped lines in all. The opening is historical text, never fresh.
+      const said = g.log.filter((l) => l.id >= from);
+      assert.ok(said.length <= CONFIG.saysAtMost, `${JSON.stringify(action)} said ${said.length}: ${said.map((l) => l.text).join(' | ')}`);
+      const statuses = ev.some((e) => e.type === 'restart') ? said.slice(1) : said;
+      const wrapped = statuses.reduce((sum, l) => sum + logLines(l.text), 0);
+      assert.ok(wrapped <= CONFIG.saysAtMost, `${JSON.stringify(action)} said ${wrapped} wrapped lines: ${statuses.map((l) => l.text).join(' | ')}`);
+      if (said.length > mostSaid) mostSaid = said.length;
+      for (const l of said) {
+        if (ev.some((e) => e.type === 'restart') && l === said[0]) continue;
+        assert.ok(logLines(l.text) <= 2, `too long for the log: ${l.text}`);
+      }
+      if (said.length) assert.equal(view(g).fresh, ev.some((e) => e.type === 'restart') ? said[1].id : said[0].id, 'fresh is the first line the action said');
       if (ev.some((e) => e.type === 'restart')) restarts++;
       if (ev.some((e) => e.type === 'death')) deaths++;
       if (ev.some((e) => e.type === 'observe')) observed++;
@@ -99,4 +123,5 @@ test('fuzz: random play never breaks the rules', () => {
   assert.ok(observed > 0, 'observed');
   assert.ok(used > 0, 'used an item');
   assert.ok(events > 0, 'opened an event');
+  assert.equal(mostSaid, CONFIG.saysAtMost, 'some action said two lines');
 });

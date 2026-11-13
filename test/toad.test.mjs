@@ -4,16 +4,15 @@ import { CONFIG } from '../src/config.js';
 import { TEXT } from '../src/text.js';
 import { los } from '../src/fov.js';
 import { newGame, act, view, currentRoom } from '../src/game.js';
-import { clearGoblins, makeGoblin, DIRS, STEP, S, idx } from './helpers.mjs';
+import { putToad, openRoom, DIRS, STEP, S, idx } from './helpers.mjs';
 
 const texts = (g, from) => g.log.filter((l) => l.id >= from).map((l) => l.text);
 const open = (c) => c === 'floor' || c === 'grass';
 const manhattan = (ax, ay, bx, by) => Math.abs(ax - bx) + Math.abs(ay - by);
 
-// A game in the toad's room, no goblins, you `dist` steps from the toad and in its sight.
+// A game in the toad's room, you `dist` steps from the toad and in its sight.
 function atToad(seed = 21, dist = 1) {
   const g = newGame({ seed });
-  clearGoblins(g);
   g.hp = g.maxHp = 100000;
   g.room = g.level.toadRoom;
   const room = currentRoom(g);
@@ -40,15 +39,21 @@ function seedWithToadAt(dist) {
   throw new Error('no seed');
 }
 
-// Observe the toad; the lines said.
+// Observe the toad once; the lines said.
 function lookAtToad(g, t) {
   const from = g.nextLogId;
   const ev = act(g, { type: 'observe', x: t.x, y: t.y });
   return { ev, said: texts(g, from) };
 }
 
-const labels = (v) => v.event.options.map((o) => (o ? o.label : null));
-const O = TEXT.toad.options;
+// Click on the toad until its event opens (one observation a click).
+function openItsEvent(g, t) {
+  for (let k = 0; k < 6 && !view(g).event; k++) act(g, { type: 'observe', x: t.x, y: t.y });
+  assert.equal(view(g).event.id, 'toad');
+}
+
+const labels = (v) => v.event.options.map((o) => o.label);
+const eventTexts = (v) => v.event.lines.map((l) => l.text);
 
 test('level 1 has the toad asleep with its key; level 2 has none', () => {
   const g = newGame({ seed: 5 });
@@ -72,35 +77,50 @@ test('the toad and the golden door are drawn', () => {
   assert.equal(v.cells[idx(gd.x, gd.y)].t, 'golddoor');
 });
 
-test('observing the toad from afar: two lines, no event', () => {
+test('observing the toad from afar: one line a click, no event', () => {
   const { g, t } = seedWithToadAt(CONFIG.observeClose + 1);
   const turn = g.turn;
-  const { ev, said } = lookAtToad(g, t);
-  assert.deepEqual(said, ['a large sleeping toad', 'it seems stronger than you']);
-  assert.deepEqual(ev, [{ type: 'observe', x: t.x, y: t.y }]);
+  const first = lookAtToad(g, t);
+  assert.deepEqual(first.said, ['a large sleeping toad']);
+  assert.deepEqual(first.ev, [{ type: 'observe', x: t.x, y: t.y }]);
+  assert.deepEqual(lookAtToad(g, t).said, ['it seems stronger than you']);
+  assert.deepEqual(lookAtToad(g, t).said, ['it seems stronger than you']);
   assert.equal(view(g).event, null);
   assert.equal(g.turn, turn);
 });
 
-test('observing it close: the chain, then its event opens', () => {
+test('observing it close: a line a click, the chain, then its song opens its event', () => {
   for (const dist of [1, CONFIG.observeClose]) {
     const { g, t } = seedWithToadAt(dist);
     const turn = g.turn;
+    assert.equal(view(g).cells[idx(t.x, t.y)].more, true, 'it blinks');
+    assert.deepEqual(lookAtToad(g, t).said, ['a large sleeping toad']);
+    assert.deepEqual(lookAtToad(g, t).said, ['it seems stronger than you']);
+    assert.deepEqual(lookAtToad(g, t).said, ['it wears a chain with a golden key around its neck']);
+    assert.equal(view(g).event, null);
+    assert.equal(view(g).cells[idx(t.x, t.y)].more, true, 'one more');
     const { ev, said } = lookAtToad(g, t);
-    assert.deepEqual(said, ['a large sleeping toad', 'it seems stronger than you', 'it wears a chain with a golden key around its neck']);
+    assert.deepEqual(said, ['it is singing in its sleep, in an Irish style']);
     assert.deepEqual(ev, [{ type: 'observe', x: t.x, y: t.y }, { type: 'event', id: 'toad' }]);
     const v = view(g);
     assert.deepEqual(v.event.lines, [
-      { text: 'it is singing in its sleep, in an Irish style', song: false, passage: 0 },
-      { text: 'when I was small', song: true, passage: 0 },
-      { text: 'a mischievous girl did I love', song: true, passage: 0 },
-      { text: 'who I let open my mouth', song: true, passage: 0 },
-      { text: 'and she pulled out my tongue', song: true, passage: 0 },
+      { text: 'it is singing in its sleep, in an Irish style', song: false, slot: false, passage: 0 },
+      { text: 'when I was small', song: true, slot: false, passage: 1 },
+      { text: 'a mischievous girl did I love', song: true, slot: false, passage: 1 },
+      { text: 'who I let open my mouth', song: true, slot: false, passage: 1 },
+      { text: 'and she pulled out my tongue', song: true, slot: false, passage: 1 },
     ]);
     assert.equal(v.event.now, 0);
-    assert.deepEqual(labels(v), ['listen more', 'go for the key', 'attack!', 'back']);
+    assert.deepEqual(v.event.options, [
+      { label: 'listen more', kind: 'action', slot: false },
+      { label: 'go for the key', kind: 'action', slot: false },
+      { label: 'attack!', kind: 'action', slot: false },
+      { label: 'back', kind: 'back', slot: false },
+    ]);
     assert.equal(v.event.cursor, 0);
     assert.equal(g.turn, turn);
+    act(g, { type: 'back' });
+    assert.equal(view(g).cells[idx(t.x, t.y)].more, false, 'nothing new now');
   }
 });
 
@@ -119,39 +139,39 @@ test('observing the golden door, and the awake toad', () => {
   assert.ok(!ev.some((e) => e.type === 'event'));
 });
 
-test('the event: listen more three times, the toad stirs, then wakes', () => {
+test('the event: listen more three times, the toad stirs, then wakes; each choice is a new page', () => {
   const { g, t } = atToad();
-  lookAtToad(g, t);
+  openItsEvent(g, t);
   const turn = g.turn;
   act(g, { type: 'context' }); // listen more (the cursor's option)
   let v = view(g);
   assert.equal(t.stirred, true);
-  assert.equal(v.event.now, 1);
+  assert.equal(v.event.now, 0);
   assert.deepEqual(
-    v.event.lines.filter((l) => l.passage === 1).map((l) => [l.text, l.song]),
-    [["and she didn't care", true], ['so she never knew', true], ['that my tongue grew back', true], ['the toad stirs momentarily, interrupting the song', false]],
+    v.event.lines.map((l) => [l.text, l.song, l.passage]),
+    [["and she didn't care", true, 0], ['so she never knew', true, 0], ['that my tongue grew back', true, 0], ['the toad stirs momentarily, interrupting the song', false, 1]],
   );
   act(g, { type: 'choose', index: 0 });
   v = view(g);
-  assert.deepEqual(v.event.lines.filter((l) => l.passage === 2).map((l) => l.text), ['I changed for a long time', "I'm coming back different"]);
+  assert.deepEqual(eventTexts(v), ['I changed for a long time', "I'm coming back different"]);
   assert.equal(t.asleep, true);
   act(g, { type: 'choose', index: 0 });
   v = view(g);
-  assert.deepEqual(v.event.lines.filter((l) => l.passage === 3).map((l) => l.text), ['the toad wakes up']);
+  assert.deepEqual(eventTexts(v), ['the toad wakes up']);
   assert.equal(t.asleep, false);
-  assert.deepEqual(labels(v), [null, null, null, 'back']);
-  assert.equal(v.event.cursor, 3);
+  assert.deepEqual(labels(v), ['back']);
+  assert.equal(v.event.cursor, 0);
   assert.equal(g.turn, turn, 'nothing in an event takes time');
   act(g, { type: 'context' });
   assert.equal(view(g).event, null);
   assert.equal(g.turn, turn);
 });
 
-test('in an event, other actions do nothing; the arrows move the cursor; back closes it', () => {
+test('in an event, other actions do nothing; the arrows move down and up the links; back closes it', () => {
   const { g, t } = atToad();
-  lookAtToad(g, t);
+  openItsEvent(g, t);
   const before = view(g);
-  for (const a of [{ type: 'wait' }, { type: 'menu', id: 'inv' }, { type: 'menu', id: 'sys' }, { type: 'observe', x: t.x, y: t.y }, { type: 'use' }, { type: 'pick', index: 0 }, { type: 'choose', index: 7 }, { type: 'move', dir: 'q' }]) {
+  for (const a of [{ type: 'wait' }, { type: 'menu', id: 'inv' }, { type: 'observe', x: t.x, y: t.y }, { type: 'use' }, { type: 'pick', index: 0 }, { type: 'choose', index: 4 }, { type: 'choose', index: -1 }, { type: 'choose', index: 1.5 }, { type: 'move', dir: 'q' }]) {
     assert.deepEqual(act(g, a), []);
   }
   assert.deepEqual(view(g), before);
@@ -159,13 +179,76 @@ test('in an event, other actions do nothing; the arrows move the cursor; back cl
     act(g, { type: 'move', dir });
     return view(g).event.cursor;
   };
-  assert.equal(cursor('e'), 1);
+  assert.equal(cursor('n'), 0, 'already at the top');
+  assert.equal(cursor('s'), 1);
+  assert.equal(cursor('e'), 2);
   assert.equal(cursor('s'), 3);
+  assert.equal(cursor('s'), 3, 'already at the bottom');
   assert.equal(cursor('w'), 2);
-  assert.equal(cursor('n'), 0);
+  assert.equal(cursor('n'), 1);
   act(g, { type: 'back' });
   assert.equal(view(g).event, null);
   assert.equal(t.asleep, true);
+});
+
+test('the system menu preserves an event and its cursor through look changes and back', () => {
+  const { g, t } = atToad();
+  openItsEvent(g, t);
+  act(g, { type: 'move', dir: 's' });
+  const before = view(g).event;
+  const turn = g.turn;
+  act(g, { type: 'menu', id: 'sys' });
+  assert.equal(view(g).menu.id, 'sys');
+  assert.deepEqual(view(g).event, before);
+  act(g, { type: 'move', dir: 's' });
+  assert.equal(view(g).menu.cursor, 1, 'arrows follow the event menu links in order');
+  assert.deepEqual(act(g, { type: 'context' }), [{ type: 'look', look: 'dark' }]);
+  assert.deepEqual(view(g).event, before);
+  act(g, { type: 'move', dir: 's' });
+  assert.equal(view(g).menu.cursor, 3, 'skip the empty menu slot');
+  act(g, { type: 'context' });
+  assert.equal(view(g).menu, null);
+  assert.deepEqual(view(g).event, before);
+  for (const close of [{ type: 'back' }, { type: 'menu', id: 'sys' }]) {
+    act(g, { type: 'menu', id: 'sys' });
+    act(g, close);
+    assert.equal(view(g).menu, null);
+    assert.deepEqual(view(g).event, before);
+  }
+  assert.equal(g.turn, turn);
+});
+
+test('restart from an event menu closes the event and retains the selected look', () => {
+  const { g, t } = atToad();
+  openItsEvent(g, t);
+  const seed = g.seed;
+  act(g, { type: 'menu', id: 'sys' });
+  act(g, { type: 'choose', index: 1 });
+  assert.deepEqual(act(g, { type: 'choose', index: 0 }), [{ type: 'restart' }]);
+  const v = view(g);
+  assert.equal(v.event, null);
+  assert.equal(v.menu, null);
+  assert.equal(v.turn, 0);
+  assert.equal(v.look, 'dark');
+  assert.notEqual(g.seed, seed);
+});
+
+test('a memory system menu preserves the psy menu underneath it', () => {
+  const g = newGame({ seed: 18 });
+  g.memories.push('worms');
+  act(g, { type: 'menu', id: 'psy' });
+  const psy = view(g).menu;
+  act(g, { type: 'context' });
+  const memory = view(g).event;
+  assert.equal(memory.id, 'memory');
+  act(g, { type: 'menu', id: 'sys' });
+  assert.equal(view(g).menu.id, 'sys');
+  act(g, { type: 'back' });
+  assert.deepEqual(view(g).event, memory);
+  assert.deepEqual(view(g).menu, psy);
+  act(g, { type: 'back' });
+  assert.equal(view(g).event, null);
+  assert.deepEqual(view(g).menu, psy);
 });
 
 test('go for the key: CONFIG.keyChance, calm and stirred, from the seeded chance', () => {
@@ -175,19 +258,19 @@ test('go for the key: CONFIG.keyChance, calm and stirred, from the seeded chance
     CONFIG.keyChance.calm = 1;
     CONFIG.keyChance.stirred = 0;
     let { g, t } = atToad();
-    lookAtToad(g, t);
+    openItsEvent(g, t);
     act(g, { type: 'choose', index: 1 });
     let v = view(g);
-    assert.deepEqual(v.event.lines.filter((l) => l.passage === 1).map((l) => l.text), ['success!']);
-    assert.deepEqual(labels(v), [null, null, null, 'back']);
+    assert.deepEqual(eventTexts(v), ['success!']);
+    assert.deepEqual(labels(v), ['back']);
     assert.ok(g.items.some((it) => it.key === 'key'));
     assert.equal(t.key, false);
     assert.equal(t.asleep, true);
     act(g, { type: 'back' });
     // Without its key: no chain line, and no key option.
-    const { said } = lookAtToad(g, t);
-    assert.deepEqual(said, ['a large sleeping toad', 'it seems stronger than you']);
-    assert.deepEqual(labels(view(g)), ['listen more', 'attack!', null, 'back']);
+    g.observed = {};
+    assert.deepEqual([0, 1, 2].map(() => lookAtToad(g, t).said[0]), ['a large sleeping toad', 'it seems stronger than you', 'it is singing in its sleep, in an Irish style']);
+    assert.deepEqual(labels(view(g)), ['listen more', 'attack!', 'back']);
     act(g, { type: 'back' });
     // The inventory: the key's name and description are his to write.
     act(g, { type: 'menu', id: 'inv' });
@@ -199,11 +282,12 @@ test('go for the key: CONFIG.keyChance, calm and stirred, from the seeded chance
 
     // Once stirred, the stirred chance: here, sure failure.
     ({ g, t } = atToad());
-    lookAtToad(g, t);
+    openItsEvent(g, t);
     act(g, { type: 'choose', index: 0 }); // listen: it stirs
     act(g, { type: 'choose', index: 1 });
     v = view(g);
-    assert.deepEqual(v.event.lines.filter((l) => l.passage === 2).map((l) => l.text), ['failure! the toad wakes up']);
+    assert.deepEqual(eventTexts(v), ['failure! the toad wakes up']);
+    assert.deepEqual(labels(v), ['back']);
     assert.equal(t.asleep, false);
     assert.ok(!g.items.some((it) => it.key === 'key'));
   } finally {
@@ -214,7 +298,7 @@ test('go for the key: CONFIG.keyChance, calm and stirred, from the seeded chance
   for (let seed = 1; seed <= 40; seed++) {
     const runs = [0, 1].map(() => {
       const { g, t } = atToad(seed);
-      lookAtToad(g, t);
+      openItsEvent(g, t);
       act(g, { type: 'choose', index: 1 });
       return g.items.some((it) => it.key === 'key');
     });
@@ -226,7 +310,7 @@ test('go for the key: CONFIG.keyChance, calm and stirred, from the seeded chance
 
 test('attack! closes the event and strikes the toad, which wakes; a turn passes', () => {
   const { g, t } = atToad();
-  lookAtToad(g, t);
+  openItsEvent(g, t);
   const turn = g.turn;
   const from = g.nextLogId;
   const ev = act(g, { type: 'choose', index: 2 });
@@ -282,7 +366,6 @@ test('the toad dies; its corpse holds the key unless you have it', () => {
 
 test('the golden door: locked without the key, opens with it, and the stairs are behind it', () => {
   const g = newGame({ seed: 9 });
-  clearGoblins(g);
   g.hp = g.maxHp = 100000;
   const gd = g.level.golddoor;
   g.room = gd.room;
@@ -320,34 +403,39 @@ test('the golden door: locked without the key, opens with it, and the stairs are
   assert.deepEqual(texts(g, from), ['[door]']);
 });
 
-test('sense in the toad room adds his four lines, and then you know about the worms', () => {
+test('sensing the toad room through to its last line gives you dig for worms', () => {
   const g = newGame({ seed: 12 });
-  clearGoblins(g);
   g.hp = g.maxHp = 100000;
-  // Elsewhere: nothing more.
+  // Elsewhere: nothing to sense, and only rest under *.
   let from = g.nextLogId;
   act(g, { type: 'context' });
-  assert.ok(!texts(g, from).includes('worms are down there you think'));
+  assert.deepEqual(texts(g, from), ['[you sense nothing]']);
   assert.equal(g.knowsWorms, false);
-  act(g, { type: 'menu', id: 'act' });
-  assert.deepEqual(view(g).menu.options.map((o) => o && o.label), ['rest', null, null, 'back']);
-  act(g, { type: 'back' });
-  // In the toad's room.
+  const actMenu = () => {
+    act(g, { type: 'menu', id: 'act' });
+    const labels = view(g).menu.options.map((o) => o && o.label);
+    act(g, { type: 'back' });
+    return labels;
+  };
+  assert.deepEqual(actMenu(), ['rest', null, null, 'back']);
+  // In the toad's room: a line each time.
   g.room = g.level.toadRoom;
   const room = currentRoom(g);
   const at = room.t.findIndex((c, i) => c === 'floor' && !(room.toad.x === i % S && room.toad.y === Math.floor(i / S)) && i % S > 0);
   [g.x, g.y] = [at % S, Math.floor(at / S)];
-  from = g.nextLogId;
-  act(g, { type: 'context' });
-  const lines = g.log.filter((l) => l.id >= from);
-  const said = lines.map((l) => l.text);
-  assert.deepEqual(said.slice(-4), [
+  const want = [
     'there is the smell of [cinnamon] in the air',
     'you have a feeling you have been here before',
     'the ground struggles gently beneath your feet',
     'worms are down there you think',
-  ]);
-  assert.ok(lines.slice(-4).every((l) => l.kind === 'sense'));
+  ];
+  for (let k = 0; k < want.length; k++) {
+    assert.deepEqual(actMenu(), ['rest', null, null, 'back'], `before line ${k + 1}`);
+    from = g.nextLogId;
+    act(g, { type: 'context' });
+    const lines = g.log.filter((l) => l.id >= from);
+    assert.deepEqual(lines.map((l) => [l.text, l.kind]), [[want[k], 'sense']]);
+  }
   assert.equal(g.knowsWorms, true);
   act(g, { type: 'menu', id: 'act' });
   assert.deepEqual(view(g).menu.options[1], { label: 'dig for worms', kind: 'action', disabled: false });
@@ -355,7 +443,6 @@ test('sense in the toad room adds his four lines, and then you know about the wo
 
 test('dig for worms: grass or dirt only, three turns, then worms; inspecting them brings a memory', () => {
   const g = newGame({ seed: 13 });
-  clearGoblins(g);
   g.hp = g.maxHp = 100000;
   g.knowsWorms = true;
   const room = currentRoom(g);
@@ -393,11 +480,11 @@ test('dig for worms: grass or dirt only, three turns, then worms; inspecting the
   assert.ok(ev2.some((e) => e.type === 'event' && e.id === 'memory'));
   assert.deepEqual(texts(g, from), ['you have a memory']);
   const v = view(g);
-  assert.deepEqual(v.event.lines.map((l) => l.text), [
-    'memory! you are standing amongst people wearing full bodied suits, all white. you are in a suit yourself. the figure next to you extends his hand, upon which rests a single, normal looking worm',
-    '"we have programmed these worms to consume harmful substances that are in the ground, or just about any substance"',
+  assert.deepEqual(v.event.lines.map((l) => [l.text, l.passage]), [
+    ['memory! you are standing amongst people wearing full bodied suits, all white. you are in a suit yourself. the figure next to you extends his hand, upon which rests a single, normal looking worm', 0],
+    ['"we have programmed these worms to consume harmful substances that are in the ground, or just about any substance"', 1],
   ]);
-  assert.deepEqual(labels(v), [null, null, null, 'back']);
+  assert.deepEqual(labels(v), ['back']);
   assert.deepEqual(g.memories, ['worms']);
   act(g, { type: 'back' });
   assert.equal(view(g).event, null);
@@ -421,27 +508,87 @@ test('dig for worms: grass or dirt only, three turns, then worms; inspecting the
   assert.equal(g.turn, t2);
 });
 
-test('a memory that comes back during a rest stops the rest', () => {
-  const g = newGame({ seed: 14 });
-  clearGoblins(g);
+const rest = (g) => {
+  act(g, { type: 'menu', id: 'act' });
+  return act(g, { type: 'choose', index: 0 });
+};
+
+test('a memory waits for a rest to end, and for room in the log', () => {
+  // Hurt: the rest says its two lines, so the memory comes with the next turn.
+  let g = newGame({ seed: 14 });
   g.hp = 1;
   g.recall = { id: 'worms', turn: g.turn + 3 };
-  const turn = g.turn;
-  act(g, { type: 'menu', id: 'act' });
-  act(g, { type: 'choose', index: 0 });
-  assert.equal(g.turn, turn + 3);
+  let turn = g.turn;
+  let from = g.nextLogId;
+  rest(g);
+  assert.equal(g.turn, turn + CONFIG.restTurns);
+  assert.equal(g.hp, 1 + CONFIG.restHeal, 'the rest finished');
+  assert.deepEqual(texts(g, from), ['you rest', 'you feel better']);
+  assert.equal(view(g).event, null);
+  from = g.nextLogId;
+  act(g, { type: 'wait' });
+  assert.deepEqual(texts(g, from), ['you have a memory']);
   assert.equal(view(g).event.id, 'memory');
-  assert.equal(g.hp, 1, 'no rest finished');
+
+  // Whole: the rest says one line, and the memory comes as it ends.
+  g = newGame({ seed: 14 });
+  g.recall = { id: 'worms', turn: g.turn + 3 };
+  turn = g.turn;
+  from = g.nextLogId;
+  rest(g);
+  assert.equal(g.turn, turn + CONFIG.restTurns);
+  assert.deepEqual(texts(g, from), ['you rest', 'you have a memory']);
+  assert.equal(view(g).event.id, 'memory');
 });
 
-test('a goblin never steps onto the toad, and the toad never onto a goblin', () => {
-  const { g, room, t } = atToad();
-  t.asleep = false;
-  for (let k = 0; k < 6; k++) room.goblins.push(makeGoblin(1 + (k % 3), 1 + Math.floor(k / 3), false, 800 + k));
-  room.goblins = room.goblins.filter((b) => open(room.t[idx(b.x, b.y)]) && !(b.x === t.x && b.y === t.y) && !(b.x === g.x && b.y === g.y));
-  for (let k = 0; k < 60; k++) {
-    act(g, { type: 'wait' });
-    if (!room.toad) break;
-    assert.ok(!room.goblins.some((b) => b.x === room.toad.x && b.y === room.toad.y));
+test('digging stops when something awake is in sight, and never says three lines', () => {
+  const g = newGame({ seed: 15 });
+  g.hp = g.maxHp = 100000;
+  g.knowsWorms = true;
+  openRoom(g);
+  [g.x, g.y] = [3, 3];
+  const toad = putToad(g, 7, 3, false);
+  const dig = () => {
+    act(g, { type: 'menu', id: 'act' });
+    return act(g, { type: 'choose', index: 1 });
+  };
+  let from = g.nextLogId;
+  const turn = g.turn;
+  dig();
+  assert.equal(g.turn, turn, 'it does not begin');
+  assert.deepEqual(texts(g, from), ['[you dig]', '[you stop digging]']);
+  assert.ok(!g.items.some((it) => it.key === 'worms'));
+  // Asleep, it lets you dig; a memory that is due waits for the worms.
+  toad.asleep = true;
+  g.recall = { id: 'worms', turn: g.turn + 1 };
+  from = g.nextLogId;
+  dig();
+  assert.deepEqual(texts(g, from), ['[you dig]', '[you find worms]']);
+  assert.equal(view(g).event, null);
+  assert.ok(g.items.some((it) => it.key === 'worms'));
+});
+
+test('a memory that is due in a fight waits until there is room to say it', () => {
+  const g = newGame({ seed: 16 });
+  g.hp = g.maxHp = 100000;
+  openRoom(g);
+  [g.x, g.y] = [3, 3];
+  const toad = putToad(g, 4, 3, false);
+  toad.hp = 100000;
+  g.recall = { id: 'worms', turn: g.turn };
+  let came = false;
+  for (let k = 0; k < 40 && !came; k++) {
+    const from = g.nextLogId;
+    act(g, { type: 'move', dir: 'e' }); // strike it; it answers
+    const said = texts(g, from);
+    assert.ok(said.length <= CONFIG.saysAtMost, said.join(' | '));
+    came = said.includes('you have a memory');
+    if (!came) assert.equal(said.length, 2, 'your line and its line leave no room');
   }
+  // It came on a turn with room: never, while both of you keep speaking.
+  assert.equal(came, false);
+  toad.asleep = true;
+  const from = g.nextLogId;
+  act(g, { type: 'wait' });
+  assert.deepEqual(texts(g, from), ['you have a memory']);
 });

@@ -2,7 +2,7 @@
 // it; a wall cell itself is seen when sight reaches it. No range limit.
 //
 // los(a, b) is true when a straight line either way is clear, so it is
-// symmetric: if you see a goblin, it sees you.
+// symmetric: if you see the toad, it sees you.
 
 import { CONFIG } from './config.js';
 
@@ -44,7 +44,7 @@ export function los(t, ax, ay, bx, by) {
 
 // For drawing only: sight plus every wall or door cell touching (8 ways) a
 // walkable cell in sight, so the room's frame has no gaps. Never used for
-// what blocks sight, what goblins see, or whether a goblin is drawn.
+// what blocks sight, what the toad sees, or whether it is drawn.
 export function frame(t, seen) {
   const out = seen.slice();
   for (let y = 0; y < S; y++) {

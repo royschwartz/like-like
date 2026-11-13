@@ -86,24 +86,12 @@ function checkLevel(level, depth) {
   assert.equal(hops[st.room], Math.max(...hops), 'stairs in the farthest room');
   if (rooms.length === 1) assert.ok(dist[0][idx(st.x, st.y)] >= 5, 'stairs far enough');
 
-  // Goblins.
-  const all = rooms.flatMap((r) => r.goblins.map((b) => [r, b]));
-  const cap = rooms.length * CONFIG.goblin.perRoom;
-  assert.ok(all.length <= depth + CONFIG.goblinsExtraMax);
-  assert.ok(all.length >= Math.min(depth, cap));
-  const ids = new Set();
-  for (const [room, b] of all) {
-    assert.ok(room.goblins.length <= CONFIG.goblin.perRoom);
-    const c = room.t[idx(b.x, b.y)];
-    assert.ok(c === 'floor' || c === 'grass', `goblin on ${c}`);
-    assert.ok(!isArrivalSpot(b.x, b.y));
-    assert.ok(dist[room.id][idx(b.x, b.y)] >= CONFIG.goblin.awayFromEntrance, 'goblin too near the entrance');
-    assert.equal(room.goblins.filter((o) => o.x === b.x && o.y === b.y).length, 1);
-    assert.equal(b.hp, CONFIG.goblin.hp);
-    assert.equal(typeof b.asleep, 'boolean');
-    ids.add(b.id);
+  // Nothing lives on a level but the toad, on its own level.
+  for (const room of rooms) {
+    assert.equal('goblins' in room, false, 'the goblins are gone');
+    assert.deepEqual(room.corpses, []);
+    if (depth !== CONFIG.toadLevel) assert.equal(room.toad, null);
   }
-  assert.equal(ids.size, all.length, 'goblin ids unique');
   return rooms.length;
 }
 
@@ -124,7 +112,6 @@ function checkToad(level) {
   assert.deepEqual(toad.home, { x: toad.x, y: toad.y });
   assert.ok(['floor', 'grass'].includes(room.t[idx(toad.x, toad.y)]), 'toad on open ground');
   assert.ok(!isArrivalSpot(toad.x, toad.y));
-  assert.ok(!room.goblins.some((b) => b.x === toad.x && b.y === toad.y), 'no goblin on the toad');
   // One golden door, in that room, between the stairs and the rest.
   assert.equal(rooms.flatMap((r) => r.t).filter((c) => c === 'golddoor').length, 1);
   const gd = level.golddoor;
@@ -156,8 +143,6 @@ function checkToad(level) {
       if (!behind) assert.ok(around[r.id][i] >= 0, `cell ${i % S},${Math.floor(i / S)} in room ${r.id} cut off by the toad`);
     }
   }
-  // No goblin behind the golden door.
-  for (const b of room.goblins) assert.ok(locked[tr][idx(b.x, b.y)] >= 0, 'goblin behind the golden door');
   // The bust of DEE: one, in this room, not by the door or the toad, reachable from beside it.
   assert.equal(rooms.flatMap((r) => r.t).filter((c) => c === 'statue').length, 1);
   rooms.forEach((r) => assert.equal(r.statue !== null, r.id === tr));

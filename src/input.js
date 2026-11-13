@@ -15,16 +15,22 @@ export function bindInput(root, dispatch) {
 
   function onKey(e) {
     if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if ((e.key === 'Enter' || e.key === ' ') && e.target.closest?.('button')) return;
     const action = keyAction(e.key);
     if (!action) return;
     e.preventDefault();
     dispatch(action);
+    // When tab focus is on a choice, arrow navigation must move that focus with
+    // the visible cursor so the next native Enter/Space activates the same choice.
+    if (action.type === 'move' && e.target.closest?.('button')) {
+      root.querySelector('#event:not([hidden]) #event-links .cursor, #controls[data-menu] .opt.cursor')?.focus({ preventScroll: true });
+    }
   }
 
   function onPointerDown(e) {
     if (e.button != null && e.button !== 0) return;
-    const el = e.target && e.target.closest ? e.target.closest('.btn, .pad, [data-cell], [data-pick]') : null;
-    if (!el || !root.contains(el)) return;
+    const el = e.target && e.target.closest ? e.target.closest('.btn, .pad, .link, [data-cell], [data-pick]') : null;
+    if (!el || !root.contains(el) || el.disabled) return;
     const action = elementAction(el);
     if (!action) return;
     e.preventDefault(); // no focus, no emulated mouse events
@@ -98,6 +104,15 @@ export function bindInput(root, dispatch) {
   root.addEventListener('pointerdown', onPointerDown);
   root.addEventListener('pointerup', onPointerEnd);
   root.addEventListener('pointercancel', onPointerEnd);
+  // Keyboard activation and assistive technologies dispatch click without pointerdown.
+  // Pointer actions already run on press, so their later click must not run twice.
+  root.addEventListener('click', (e) => {
+    if (e.detail !== 0) return;
+    const el = e.target.closest?.('button');
+    if (!el || !root.contains(el) || el.disabled) return;
+    const action = elementAction(el);
+    if (action) dispatch(action);
+  });
   // A d-pad pointer leaving its arm lets go of it but is still followed.
   root.addEventListener('pointerleave', (e) => {
     const hold = held.get(e.pointerId);
@@ -126,7 +141,7 @@ function keyAction(key) {
   if (key && key.length === 1) {
     const k = key.toLowerCase();
     if (KEY_MENUS[k]) return { type: 'menu', id: KEY_MENUS[k] };
-    if (k >= '1' && k <= '4') return { type: 'choose', index: Number(k) - 1 };
+    if (k >= '1' && k <= '9') return { type: 'choose', index: Number(k) - 1 };
   }
   return null;
 }
