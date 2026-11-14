@@ -127,6 +127,8 @@ test('observing the bust never opens its event: a short line, then lifeless; it 
     assert.ok(logLines(TEXT.observe.statue) <= 2 && logLines(LIFELESS) <= 2, 'the statue description is short');
     for (const dist of [1, CONFIG.observeClose, CONFIG.observeClose + 1]) {
       const { g, s } = atBust(dist);
+      assert.equal(view(g).cells[idx(s.x, s.y)].more, false, 'not until it is sensed');
+      currentRoom(g).noticed = { statue: true }; // as noticing it leaves it
       assert.equal(view(g).cells[idx(s.x, s.y)].more, true);
       const r = observeBust(g, s);
       assert.deepEqual(r.said, ['[bust]'], `dist ${dist}`);
@@ -136,6 +138,7 @@ test('observing the bust never opens its event: a short line, then lifeless; it 
       assert.equal(view(g).cells[idx(s.x, s.y)].more, false);
     }
     const { g, s } = atBust(1);
+    currentRoom(g).noticed = { statue: true };
     intoBust(g, s);
     act(g, { type: 'back' });
     assert.equal(view(g).cells[idx(s.x, s.y)].more, true, 'it has spoken: something new to see');
@@ -306,7 +309,7 @@ test('the loudest case says two lines: the worms go in, the toad wakes in sight,
 test('beside the bust the wide button is what it would be anyway, and the inventory has no give mode', () => {
   const { g, room } = atBust(1);
   assert.equal(TEXT.context.statue, undefined);
-  assert.deepEqual(view(g).context, { id: 'sense', label: TEXT.context.sense, more: true });
+  assert.deepEqual(view(g).context, { id: 'sense', label: TEXT.context.sense, more: false });
   room.corpses.push({ x: g.x, y: g.y, items: [] });
   assert.equal(view(g).context.id, 'corpse');
   room.corpses = [];

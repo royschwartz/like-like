@@ -160,7 +160,6 @@ test('a sense interrupted by combat leaves its two-line discovery unread', () =>
         assert.deepEqual(saidSince(g, from), [TEXT.log.youDie]);
         assert.notEqual(g.sensedTurn, g.turn, 'no sensing glow in the respawn room');
       } else {
-        assert.equal(view(g).context.more, true, 'new discoveries still blink');
         toad.asleep = true;
         const next = g.nextLogId;
         act(g, { type: 'context' });

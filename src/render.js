@@ -13,7 +13,9 @@ const SLIDE_SAFETY_MS = 900;
 const DIRS = ['n', 'e', 's', 'w'];
 const JOLT_FX = ['fx-jolt', 'fx-hurt'];
 const COVER_FX = ['fx-death', 'fx-descend'];
-const CELL_FX = ['fx-hit', 'fx-miss', 'fx-kill', 'fx-observe', 'fx-sense', 'fx-sense-self', 'fx-dig', 'fx-unlock'];
+// The two classes of the sense wave: an open cell the front crosses, and one that takes it in.
+const WAVE_FX = ['fx-wave', 'fx-absorb'];
+const CELL_FX = ['fx-hit', 'fx-miss', 'fx-kill', 'fx-observe', 'fx-dig', 'fx-unlock', ...WAVE_FX];
 
 export function createRenderer(root = document) {
   const $ = (id) => root.querySelector('#' + id);
@@ -47,17 +49,33 @@ export function createRenderer(root = document) {
   let canBlink = false;
   const fx = createFx();
   let slide = null; // { ghost, dirClass, timer }
-  const style = screen.ownerDocument.defaultView.getComputedStyle(screen);
-  const frameMs = parseFloat(style.getPropertyValue('--f')) || 70;
-  const blinkMs = frameMs * (parseFloat(style.getPropertyValue('--blink-on')) || 2);
-  const blinkEveryMs = frameMs * (parseFloat(style.getPropertyValue('--blink-every')) || 28);
+  let wave = null; // the sense wave while it is going: { els, timer }
+  const win = screen.ownerDocument.defaultView;
+  const style = win.getComputedStyle(screen);
+  const num = (name, fallback) => {
+    const n = parseFloat(style.getPropertyValue(name));
+    return Number.isFinite(n) ? n : fallback;
+  };
+  const frameMs = num('--f', 70);
+  const blinkMs = frameMs * num('--blink-on', 2);
+  const blinkEveryMs = frameMs * num('--blink-every', 28);
+  // The blink: white for a couple of frames, about every two seconds, all in step.
+  // Nothing blinks while a sense wave is going; when the wave ends the blinking starts
+  // again from there, so the first blink comes just after the wave and never during it.
   let blinkOff = null;
-  const blinkTimer = setInterval(() => {
-    if (!canBlink || screen.ownerDocument.hidden) return;
-    screen.classList.add('blink');
-    clearTimeout(blinkOff);
-    blinkOff = setTimeout(() => screen.classList.remove('blink'), blinkMs);
-  }, blinkEveryMs);
+  let blinkNext = null;
+  function blinkLoop(wait) {
+    clearTimeout(blinkNext);
+    blinkNext = setTimeout(() => {
+      blinkLoop(blinkEveryMs);
+      if (!canBlink || wave || screen.ownerDocument.hidden) return;
+      screen.classList.add('blink');
+      clearTimeout(blinkOff);
+      blinkOff = setTimeout(() => screen.classList.remove('blink'), blinkMs);
+    }, wait);
+  }
+  blinkLoop(blinkEveryMs);
+  map.addEventListener('animationend', onWaveCellEnd);
 
   function draw(view, events = []) {
     if (!view) return;
@@ -65,10 +83,14 @@ export function createRenderer(root = document) {
 
     const nextRoom = `${view.depth}:${view.room?.id}:${view.room?.key}`;
     if (nextRoom !== roomKey || events.some((e) => e.type === 'death' || e.type === 'restart')) {
+      stopWave();
       for (const cell of cells) for (const cls of CELL_FX) fx.stop(cell, cls);
       endSlide();
       roomKey = nextRoom;
     }
+    // An event or the inventory takes the map's place: a wave under it is dropped, so
+    // none of it is left to finish when the map comes back.
+    if (view.event || view.inv) stopWave();
     const room = events.find((e) => e && e.type === 'room' && DIRS.includes(e.dir));
     if (room) startSlide(room.dir);
 
@@ -82,7 +104,10 @@ export function createRenderer(root = document) {
     drawStats(view.stats);
     drawButtons(view);
     drawOptions(view.event ? null : view.menu);
-    canBlink = !view.event && !view.inv && !view.menu && (view.cells?.some((c) => c.more) || view.context?.more);
+    // What can blink: on the map, a unit with something new to observe; in the inventory,
+    // an item with something new to inspect. The sense button never blinks.
+    const blinkers = view.inv ? view.inv.items : view.cells;
+    canBlink = !view.event && !view.menu && Array.isArray(blinkers) && blinkers.some((c) => c && c.more);
     if (!canBlink) screen.classList.remove('blink');
 
     const died = events.some((e) => e.type === 'death');
@@ -165,17 +190,7 @@ export function createRenderer(root = document) {
 
   function cellEffect(e, view) {
     if (!e) return;
-    if (e.type === 'sense') {
-      const p = view.player;
-      if (!p || !inRoom(p.x, p.y)) return;
-      for (let y = p.y - 1; y <= p.y + 1; y++) {
-        for (let x = p.x - 1; x <= p.x + 1; x++) {
-          if (!inRoom(x, y)) continue;
-          fx.play(cells[y * SIZE + x], x === p.x && y === p.y ? 'fx-sense-self' : 'fx-sense', CELL_FX);
-        }
-      }
-      return;
-    }
+    if (e.type === 'sense') return startWave(e, view);
     if (!inRoom(e.x, e.y)) return;
     const el = cells[e.y * SIZE + e.x];
     if (e.type === 'attack') fx.play(el, e.hit ? 'fx-hit' : 'fx-miss', CELL_FX);
@@ -183,6 +198,68 @@ export function createRenderer(root = document) {
     else if (e.type === 'observe') fx.play(el, 'fx-observe', CELL_FX);
     else if (e.type === 'dig') fx.play(el, 'fx-dig', CELL_FX);
     else if (e.type === 'unlock') fx.play(el, 'fx-unlock', CELL_FX);
+  }
+
+  // --- the sense wave ---
+  // The rules say which cells the sensing reaches and on which step (d), and which of
+  // them take it in (absorb). Each cell gets its step as --d and one class; style.css
+  // waits d steps and then flashes it, so a front of flat colour moves out a ring a step
+  // and the walls hold it a little longer. Sensing again starts it over from nothing.
+  // Any other tile effect on a cell takes that cell out of the wave (one to a tile).
+  function startWave(e, view) {
+    stopWave();
+    const list = Array.isArray(e.wave) ? e.wave : [];
+    const f = num('--f', 70);
+    const step = num('--sense-step', 0.5);
+    const on = num('--sense-on', 1);
+    const hold = num('--sense-absorb', 4);
+    // Asked for less motion: nothing travels. Only your own square flashes.
+    const still = !!win.matchMedia && win.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const todo = [];
+    let frames = 0; // how long the whole wave lasts
+    for (const c of list) {
+      if (!c || !inRoom(c.x, c.y) || !(c.d >= 0)) continue;
+      if (still && c.d !== 0) continue;
+      const i = c.y * SIZE + c.x;
+      // a cell you have never seen is drawn as nothing, and stays that way
+      const seen = view.cells && view.cells[i];
+      if (!seen || seen.state === 'unknown') continue;
+      const el = cells[i];
+      for (const cls of CELL_FX) fx.stop(el, cls);
+      el.style.setProperty('--d', String(c.d));
+      todo.push([el, c.absorb ? 'fx-absorb' : 'fx-wave']);
+      frames = Math.max(frames, c.d * step + (c.absorb ? hold : on));
+    }
+    if (!todo.length) return;
+    void map.offsetWidth; // reflow, so a wave that was cut short starts again
+    for (const [el, cls] of todo) el.classList.add(cls);
+    screen.classList.remove('blink');
+    // The timer is what ends the wave; it is set a frame past the last cell's last frame.
+    wave = { els: todo.map((t) => t[0]), timer: setTimeout(endWave, (frames + 1) * f) };
+  }
+
+  // A cell's part in the wave is over: it goes back to being an ordinary cell.
+  function onWaveCellEnd(e) {
+    if (!WAVE_FX.includes(e.animationName) || !e.target.classList) return;
+    e.target.classList.remove(...WAVE_FX);
+    e.target.style.removeProperty('--d');
+  }
+
+  // Drop the wave at once, wherever it has got to, leaving nothing on the cells.
+  function stopWave() {
+    if (!wave) return;
+    clearTimeout(wave.timer);
+    for (const el of wave.els) {
+      el.classList.remove(...WAVE_FX);
+      el.style.removeProperty('--d');
+    }
+    wave = null;
+  }
+
+  // The wave has run its course: now what it found may blink, starting two frames on.
+  function endWave() {
+    stopWave();
+    blinkLoop(frameMs * 2);
   }
 
   function screenEffect(e) {
@@ -256,7 +333,8 @@ export function createRenderer(root = document) {
     items.forEach((it, i) => {
       const doc = invRows.ownerDocument;
       const row = doc.createElement('div');
-      row.className = i === inv.cursor ? 'row cursor' : 'row';
+      // more: there is something about it you have not inspected; its name blinks
+      row.className = (i === inv.cursor ? 'row cursor' : 'row') + (it && it.more ? ' more' : '');
       row.dataset.pick = String(i);
       const name = doc.createElement('span');
       name.className = 'name';
@@ -383,7 +461,6 @@ export function createRenderer(root = document) {
     centreInk(menuButtons.act);
     centreInk(btnWait);
     const ctx = view.context || {};
-    btnContext.classList.toggle('more', !!ctx.more);
     setText(btnContext, ctx.label == null ? '' : ctx.label);
     if (ctx.id) setAttr(btnContext, 'data-context', ctx.id);
     else btnContext.removeAttribute('data-context');
@@ -407,8 +484,10 @@ export function createRenderer(root = document) {
   }
 
   return { draw, destroy() {
-    clearInterval(blinkTimer);
+    clearTimeout(blinkNext);
     clearTimeout(blinkOff);
+    stopWave();
+    map.removeEventListener('animationend', onWaveCellEnd);
     screen.classList.remove('blink');
     endSlide();
   } };

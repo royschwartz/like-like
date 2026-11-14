@@ -37,9 +37,9 @@ Then go to `http://localhost:5173`. Add `?seed=7` to the address to play the sam
 
 - A level is one to four rooms. A room is 11 by 11 characters, walls included, and fills the screen. Walk through a door (`+`) and the next room slides in.
 - The log at the top says what happens. Its newest lines are bright; older ones are dimmer. One action adds at most two wrapped lines of text. The opening is kept in full above the arrival status.
-- Tap or click a thing on the map to observe it. It takes no time and gives one observation. Click again and it may say something new; come closer and there may be more. A thing that blinks white has something you haven't observed.
+- Tap or click a thing on the map to observe it. It takes no time and gives one observation. Click again and it may say something new; come closer and there may be more. Nothing blinks for being there to look at. Once you've noticed a thing, by sensing or now and then without trying (the nearer, the likelier), it blinks white while it has something you haven't observed. In the inventory, an item you haven't inspected blinks.
 - `inv` replaces the map with what you carry. Move up and down to choose an item.
-- You see what's in your line of sight. `sense` takes a turn: it shows you your own numbers for a while, shows the whole room, and reveals at most one observation. Combat messages take priority; an observation that cannot fit waits for a later sensing. The wide button blinks white while there is something here you haven't sensed.
+- You see what's in your line of sight. `sense` takes a turn: it spreads out from you through everywhere you could walk, and the walls take it in; it shows you your own numbers for a while, shows the whole room, and reveals at most one observation. Combat messages take priority; an observation that cannot fit waits for a later sensing. Now and then a secret of the room comes to you without sensing.
 - Stand on the stairs (`>`) and the wide button says `stairs`.
 - When you die you begin again at the level's entrance (`<`), and the level is as you left it.
 - On level 1 a toad (`T`) sleeps in the room farthest from the entrance. The stairs are behind a golden door (`+`) in a corner of its room, and only its key opens it. Nothing else lives in the dungeon yet.

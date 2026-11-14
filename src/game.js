@@ -38,6 +38,9 @@ function makeState(seed, look, nextLogId) {
     event: null, // an event over the whole screen, or null (see "events" below)
     observed: {}, // the observations you have had, by id (see "observe" below)
     sensed: {}, //   the things you have sensed, by id
+    inspected: {}, // the items you have inspected, by key: until then one blinks in the inventory
+    // noticing without trying has its own chance, so it changes nothing else's luck
+    noticeRng: makeRng((seed ^ 0x6e07ce) >>> 0),
     knowsWorms: false, // the last thing sensed in the toad's room tells you; then * offers digging
     memories: [], //   the memories you have, by id, in the order they came back
     recall: null, //   a memory on its way back: { id, turn }, or null
@@ -186,10 +189,13 @@ export function playerDamage(g) {
 
 // After your action: the toad acts if it is here, the turn goes up, you look
 // around, and a memory on its way may come back.
-function endTurn(g, ev, recallAfter = true) {
+// `idle`: you may notice things without trying this turn (not while sensing, which is
+// the strong search, and not while resting or digging).
+function endTurn(g, ev, recallAfter = true, idle = true) {
   const r = toadActs(g, ev);
   g.turn++;
   see(g);
+  if (idle && !r.died && !g.busy) noticeIdly(g);
   if (recallAfter) recallDue(g, ev);
   return r;
 }
@@ -444,9 +450,105 @@ function senseLines(g) {
   return TEXT.senseToad.map((text, k) => ({ id: `toad.${k}`, text, worms: k === last }));
 }
 
-// Is there something here you have not sensed? (The wide button blinks.)
-function senseMore(g) {
-  return senseLines(g).some((l) => !g.sensed[l.id]);
+// How sensing goes out (decision 113, "for now"): from you, a step at a time, to every
+// cell it can go, which is anything you could walk on, and through the toad. What stands
+// in its way (a wall, the locked golden door, the bust) takes it in and passes it no
+// further. Returns [{ x, y, d, absorb }] in the order it gets there: d is the step it
+// arrives on (you are 0); absorb, the cell takes it in. Steps go four ways; a cell that
+// takes it in is reached from any of the eight round it, so a room's corners are too.
+const SENSE_STOPS = new Set(['wall', 'golddoor', 'statue']);
+function senseWave(g) {
+  const room = currentRoom(g);
+  const d = new Array(S * S).fill(-1);
+  const wave = [];
+  const start = idx(g.x, g.y);
+  d[start] = 0;
+  const queue = [start];
+  for (let q = 0; q < queue.length; q++) {
+    const i = queue[q];
+    const x = i % S;
+    const y = (i - x) / S;
+    wave.push({ x, y, d: d[i], absorb: false });
+    for (const dir of DIRS) {
+      const [nx, ny] = [x + STEP[dir][0], y + STEP[dir][1]];
+      if (nx < 0 || ny < 0 || nx >= S || ny >= S) continue;
+      const n = idx(nx, ny);
+      if (d[n] >= 0 || SENSE_STOPS.has(room.t[n])) continue;
+      d[n] = d[i] + 1;
+      queue.push(n);
+    }
+  }
+  // what takes it in: a stop beside a reached cell, one step after the nearest of them
+  const taken = [];
+  for (let i = 0; i < S * S; i++) {
+    if (d[i] >= 0 || !SENSE_STOPS.has(room.t[i])) continue;
+    const x = i % S;
+    const y = (i - x) / S;
+    let near = -1;
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        const [nx, ny] = [x + dx, y + dy];
+        if ((dx || dy) && nx >= 0 && ny >= 0 && nx < S && ny < S) {
+          const k = d[idx(nx, ny)];
+          if (k >= 0 && (near < 0 || k < near)) near = k;
+        }
+      }
+    }
+    if (near >= 0) taken.push({ x, y, d: near + 1, absorb: true });
+  }
+  return wave.concat(taken).sort((a, b) => a.d - b.d || a.y - b.y || a.x - b.x);
+}
+
+// ---- noticing: like Brogue's searching (decisions 114, 118, 119) ----------------
+// What is unknown about a unit is shown once you have noticed it: from then on it blinks
+// while it has something you have not observed. Marks are kept by the room, for good.
+// Sensing is the strong search: every unit its wave reaches or that takes it in is noticed,
+// and it tells the next of the room's secrets. Without trying, each turn, you may notice a
+// unit in sight (the nearer, the likelier), and now and then a secret of the room comes to you.
+const noticedIn = (room) => room.noticed || (room.noticed = {});
+
+function noticeSensed(g, wave) {
+  const room = currentRoom(g);
+  const marks = noticedIn(room);
+  for (const c of wave) {
+    if (room.toad && room.toad.x === c.x && room.toad.y === c.y) marks.toad = true;
+    if (room.statue && room.statue.x === c.x && room.statue.y === c.y) marks.statue = true;
+  }
+}
+
+// The units of a room you have not noticed: [kind, x, y, name].
+function unnoticed(room) {
+  const marks = noticedIn(room);
+  const out = [];
+  if (room.toad && !marks.toad) out.push(['toad', room.toad.x, room.toad.y, room.toad.asleep ? 'toadAsleep' : 'toad']);
+  if (room.statue && !marks.statue) {
+    out.push(['statue', room.statue.x, room.statue.y, room.statue.spoke ? 'statueLifeless' : 'statue']);
+  }
+  return out;
+}
+
+// The chance, this turn, of noticing a unit this many steps away without trying.
+export function noticeChance(steps) {
+  const { near, reach } = CONFIG.notice;
+  return near * Math.max(0, 1 - (steps - 1) / reach);
+}
+
+function noticeIdly(g) {
+  const room = currentRoom(g);
+  const vis = fov(room.t, g.x, g.y);
+  for (const [kind, x, y, name] of unnoticed(room)) {
+    if (!vis[idx(x, y)]) continue;
+    const near = isNear(g, x, y);
+    if (!observations(room, name, near).some((o) => !g.observed[o.id])) continue;
+    if (chance(g.noticeRng, noticeChance(manhattan(x, y, g.x, g.y)))) noticedIn(room)[kind] = true;
+  }
+  // a secret of the room, unbidden: the same next line sensing would tell
+  const line = senseLines(g).find((l) => !g.sensed[l.id]);
+  if (line && chance(g.noticeRng, CONFIG.notice.secret) && canSay(g, line.text)) {
+    say(g, line.text, 'sense');
+    g.sensed[line.id] = true;
+    if (line.worms) g.knowsWorms = true;
+  }
 }
 
 // One sensing, one line: the next thing you have not sensed here, or, when there
@@ -459,11 +561,13 @@ function sense(g, ev) {
     room.seen[i] = true;
     room.memCorpse[i] = !!corpseAt(room, i % S, Math.floor(i / S));
   }
-  ev.push({ type: 'sense' });
+  const wave = senseWave(g);
+  noticeSensed(g, wave);
+  ev.push({ type: 'sense', wave });
   const here = g.room;
   // A blow or a death has priority over a discovery. An unsaid discovery stays
   // available (and blinking) for the next sense; a memory waits for spare room.
-  const outcome = endTurn(g, ev, false);
+  const outcome = endTurn(g, ev, false, false);
   if (!outcome.died) {
     const text = line?.text ?? TEXT.log.senseNothing;
     if (canSay(g, text)) {
@@ -681,6 +785,7 @@ const MEMORY_OF = { worms: 'worms' };
 function inspect(g) {
   const it = g.items[g.inv.cursor];
   say(g, TEXT.slot[it.key], 'observe');
+  g.inspected[it.key] = true;
   const m = MEMORY_OF[it.key];
   if (m && !g.memories.includes(m) && !g.recall) g.recall = { id: m, turn: g.turn + CONFIG.memoryDelay };
 }
@@ -700,8 +805,9 @@ function use(g) {
 // ---- observe -------------------------------------------------------------
 // One click, one observation ("in single instances, not many stacked"). A thing can
 // have several: each click says the next one you have not had, and when there is
-// nothing new it says the last one again. Coming close can add more. A unit with
-// one you have not had blinks (view: cell.more).
+// nothing new it says the last one again. Coming close can add more. Nothing blinks
+// for being there to look at (decision 112): a unit blinks only once you have noticed it,
+// by sensing or without trying, and then while it has one you have not had (view: cell.more).
 
 // What is drawn on a cell, by the same sight rules as view():
 // 'player', 'toad', 'corpse', or null; undefined for a cell never seen.
@@ -754,8 +860,9 @@ function observations(room, name, near) {
 
 const isNear = (g, x, y) => manhattan(x, y, g.x, g.y) <= CONFIG.observeClose;
 
-// The units: what blinks when it has something new to observe.
+// The units: what can blink, once sensed, when it has something new to observe.
 const UNITS = new Set(['toad', 'toadAsleep', 'statue', 'statueLifeless']);
+const UNIT_KIND = { toad: 'toad', toadAsleep: 'toad', statue: 'statue', statueLifeless: 'statue' };
 
 function sight(g) {
   const room = currentRoom(g);
@@ -1089,11 +1196,11 @@ export function view(g) {
   for (let i = 0; i < S * S; i++) {
     const state = shown[i] ? 'visible' : room.seen[i] ? 'remembered' : 'unknown';
     const thing = thingAt(g, room, i, vis, shown, sensed) ?? null;
-    // A unit in sight with something you have not observed blinks.
+    // A unit in sight that you have noticed, with something you have not observed, blinks.
     let more = false;
     if (state === 'visible') {
       const name = nameAt(room, i, thing);
-      if (UNITS.has(name)) {
+      if (UNITS.has(name) && noticedIn(room)[UNIT_KIND[name]]) {
         more = observations(room, name, isNear(g, i % S, Math.floor(i / S))).some((o) => !g.observed[o.id]);
       }
     }
@@ -1128,6 +1235,8 @@ export function view(g) {
         key: it.key,
         name: TEXT.thing[it.key],
         state: [it.inHand ? TEXT.menu.inHand : '', it.enchanted ? TEXT.menu.enchanted : ''].filter(Boolean).join(' '),
+        // something to find out by inspecting it: it blinks in the list (decision 117)
+        more: !g.inspected[it.key],
       })),
       cursor: g.inv.cursor,
     };
@@ -1147,8 +1256,8 @@ export function view(g) {
       hp: g.hp,
       maxHp: g.maxHp,
     },
-    // more: there is something here you have not sensed; the wide button blinks
-    context: { id: ctx, label: TEXT.context[ctx], more: ctx === 'sense' && senseMore(g) },
+    // The wide button never blinks any more (decision 116); `more` stays for the screen code.
+    context: { id: ctx, label: TEXT.context[ctx], more: false },
     menu,
     inv,
     event,

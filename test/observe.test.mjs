@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { CONFIG } from '../src/config.js';
 import { TEXT } from '../src/text.js';
-import { newGame, act, view } from '../src/game.js';
+import { newGame, act, view, noticeChance } from '../src/game.js';
 import { putToad, openRoom, saidSince, S, idx } from './helpers.mjs';
 
 // A game in an open room: floor inside, wall round it, nothing else; you at (5, 5).
@@ -111,13 +111,17 @@ test('the toad awake; on a corpse, the toad is what you see', () => {
   assert.deepEqual(look(g, 8, 5).texts, [TEXT.observe.toad]);
 });
 
-test('units blink while they have something you have not observed', () => {
+test('once sensed, units blink while they have something you have not observed', () => {
   const { g, room } = openGame();
   const far = [5 + NEAR + 1, 5];
   putToad(g, ...far, true);
   room.t[idx(5, 2)] = 'statue';
   room.statue = { x: 5, y: 2, spoke: false };
   const more = () => view(g).cells.map((c, i) => (c.more ? i : -1)).filter((i) => i >= 0);
+  assert.deepEqual(more(), [], 'nothing blinks just for being there to look at');
+  act(g, { type: 'context' }); // sense
+  room.toad.asleep = true; // (whatever the turn did to it)
+  [room.toad.x, room.toad.y] = far;
   assert.deepEqual(more(), [idx(5, 2), idx(...far)], 'the bust and the toad; never the ground');
   look(g, ...far);
   assert.ok(more().includes(idx(...far)), 'one more from afar');
@@ -193,3 +197,139 @@ test('observing takes no time, moves fresh, and is ignored with a menu or the in
     assert.deepEqual(view(g), before);
   }
 });
+
+// ---- sensing goes out: where it can go, taken in by walls (decisions 112 to 114) ----
+
+const waveOf = (g) => act(g, { type: 'context' }).find((e) => e.type === 'sense').wave;
+const at = (wave, x, y) => wave.find((c) => c.x === x && c.y === y);
+
+test('sensing spreads a step at a time to every cell it can go, and walls take it in', () => {
+  const { g, room } = openGame();
+  // a wall across the room at y = 3, with a gap at x = 9
+  for (let x = 1; x < S - 1; x++) room.t[idx(x, 3)] = 'wall';
+  room.t[idx(9, 3)] = 'floor';
+  const wave = waveOf(g);
+  assert.deepEqual(at(wave, 5, 5), { x: 5, y: 5, d: 0, absorb: false }, 'it starts from you');
+  assert.equal(at(wave, 7, 6).d, 3, 'four ways, a step at a time');
+  assert.equal(at(wave, 5, 2).d, 4 + 2 + 4 + 1, 'round through the gap: right, up, then back along');
+  assert.equal(at(wave, 9, 3).absorb, false, 'the gap passes it on');
+  const wall = at(wave, 5, 3);
+  assert.equal(wall.absorb, true, 'the wall takes it in');
+  assert.equal(wall.d, 2, 'one step after the nearest cell it reached');
+  assert.equal(at(wave, 0, 0).absorb, true, 'the corners too');
+  for (const c of wave) {
+    assert.equal(c.absorb, ['wall', 'golddoor', 'statue'].includes(room.t[idx(c.x, c.y)]), `${c.x},${c.y}`);
+  }
+  // every open cell once, in order of arrival
+  const open = room.t.filter((t) => t === 'floor').length;
+  assert.equal(wave.filter((c) => !c.absorb).length, open);
+  assert.equal(new Set(wave.map((c) => idx(c.x, c.y))).size, wave.length);
+  assert.ok(wave.every((c, k) => k === 0 || wave[k - 1].d <= c.d));
+});
+
+test('what sensing cannot reach is not marked, and does not blink', () => {
+  const { g, room } = openGame();
+  // the top of the room walled off whole, the toad and the bust beyond it
+  for (let x = 1; x < S - 1; x++) room.t[idx(x, 3)] = 'wall';
+  putToad(g, 7, 1, true);
+  room.t[idx(3, 1)] = 'statue';
+  room.statue = { x: 3, y: 1, spoke: false };
+  const wave = waveOf(g);
+  assert.equal(at(wave, 7, 1), undefined);
+  assert.equal(at(wave, 3, 1), undefined);
+  assert.deepEqual(room.noticed, {});
+  // open the wall and they are in sight, but still not sensed: nothing blinks
+  for (let x = 1; x < S - 1; x++) room.t[idx(x, 3)] = 'floor';
+  room.toad.asleep = true;
+  [room.toad.x, room.toad.y] = [7, 1];
+  assert.ok(view(g).cells.every((c) => !c.more));
+  // sense again and they do
+  waveOf(g);
+  room.toad.asleep = true;
+  [room.toad.x, room.toad.y] = [7, 1];
+  const more = view(g).cells.map((c, i) => (c.more ? i : -1)).filter((i) => i >= 0);
+  assert.deepEqual(more, [idx(3, 1), idx(7, 1)]);
+});
+
+// ---- noticing without trying, as Brogue searches (decisions 116 to 119) ----
+
+// Run fn with CONFIG.notice set to these numbers.
+function withNotice(n, fn) {
+  const was = { ...CONFIG.notice };
+  Object.assign(CONFIG.notice, n);
+  try {
+    fn();
+  } finally {
+    Object.assign(CONFIG.notice, was);
+  }
+}
+
+test('without trying, the nearer a unit, the likelier you notice it; none past its reach', () => {
+  const { near, reach } = CONFIG.notice;
+  assert.equal(noticeChance(1), near);
+  for (let d = 1; d <= reach + 2; d++) assert.ok(noticeChance(d + 1) <= noticeChance(d), `${d}`);
+  assert.equal(noticeChance(reach + 1), 0);
+});
+
+test('a unit in sight is noticed without sensing; one out of sight is not', () => {
+  withNotice({ near: 1, reach: 20, secret: 0 }, () => {
+    const { g, room } = openGame();
+    putToad(g, 7, 5, true);
+    const blinking = () => view(g).cells.map((c, i) => (c.more ? i : -1)).filter((i) => i >= 0);
+    assert.deepEqual(blinking(), []);
+    act(g, { type: 'wait' });
+    assert.deepEqual(room.noticed, { toad: true });
+    assert.deepEqual(blinking(), [idx(7, 5)]);
+  });
+  withNotice({ near: 1, reach: 20, secret: 0 }, () => {
+    const { g, room } = openGame();
+    for (let x = 1; x < S - 1; x++) room.t[idx(x, 3)] = 'wall';
+    putToad(g, 7, 1, true);
+    for (let k = 0; k < 5; k++) act(g, { type: 'wait' });
+    assert.deepEqual(room.noticed, {}, 'behind a wall');
+  });
+  withNotice({ near: 0, reach: 20, secret: 0 }, () => {
+    const { g, room } = openGame();
+    putToad(g, 6, 5, true);
+    for (let k = 0; k < 5; k++) act(g, { type: 'wait' });
+    assert.deepEqual(room.noticed, {}, 'no chance, no noticing');
+  });
+});
+
+test('a secret of the room can come without sensing, and sensing then tells the next', () => {
+  withNotice({ near: 0, reach: 8, secret: 1 }, () => {
+    const g = newGame({ seed: 21 });
+    g.room = g.level.toadRoom;
+    const room = openRoom(g);
+    [g.x, g.y] = [5, 5];
+    room.t[idx(5, 5)] = 'floor';
+    let from = g.nextLogId;
+    act(g, { type: 'wait' });
+    assert.deepEqual(saidSince(g, from), [TEXT.senseToad[0]]);
+    assert.equal(g.log[g.log.length - 1].kind, 'sense');
+    from = g.nextLogId;
+    act(g, { type: 'context' });
+    assert.deepEqual(saidSince(g, from), [TEXT.senseToad[1]], 'one sensing, one line: the next');
+  });
+});
+
+test('the wide button never blinks', () => {
+  const g = newGame({ seed: 21 });
+  g.room = g.level.toadRoom;
+  openRoom(g);
+  [g.x, g.y] = [5, 5];
+  assert.equal(view(g).context.id, 'sense');
+  assert.equal(view(g).context.more, false, 'even with all of the room still to sense');
+});
+
+test('an item blinks in the inventory until you inspect it', () => {
+  const g = newGame({ seed: 21 });
+  act(g, { type: 'menu', id: 'inv' });
+  assert.equal(view(g).inv.items[0].more, true, 'the sword, never inspected');
+  act(g, { type: 'context' }); // inspect
+  assert.equal(view(g).inv.items[0].more, false);
+  act(g, { type: 'back' });
+  act(g, { type: 'menu', id: 'inv' });
+  assert.equal(view(g).inv.items[0].more, false, 'and stays so');
+});
+

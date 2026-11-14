@@ -162,7 +162,8 @@ test('sense: your numbers for a while, the whole room, and one line each time', 
   let from = g.nextLogId;
   const turn = g.turn;
   const ev = act(g, { type: 'context' });
-  assert.deepEqual(ev, [{ type: 'sense' }]);
+  assert.deepEqual(ev.map((e) => e.type), ['sense']);
+  assert.ok(Array.isArray(ev[0].wave) && ev[0].wave[0].d === 0, 'it carries how it went out');
   assert.equal(g.turn, turn + 1, 'sensing takes a turn');
   v = view(g);
   assert.deepEqual([v.stats.str, v.stats.love, v.stats.will], [CONFIG.player.str, CONFIG.player.love, CONFIG.player.will]);
@@ -181,7 +182,7 @@ test('sense: your numbers for a while, the whole room, and one line each time', 
   [g.x, g.y] = findSpot(g, (x, y, r) => plainFloor(r, x, y));
   const lines = TEXT.senseToad;
   for (let k = 0; k < lines.length; k++) {
-    assert.equal(view(g).context.more, true, `something new to sense before press ${k + 1}`);
+    assert.equal(view(g).context.more, false, `the wide button never blinks (press ${k + 1})`);
     assert.equal(g.knowsWorms, false);
     from = g.nextLogId;
     act(g, { type: 'context' });

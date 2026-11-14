@@ -93,6 +93,8 @@ test('observing it close: a line a click, the chain, then its song opens its eve
   for (const dist of [1, CONFIG.observeClose]) {
     const { g, t } = seedWithToadAt(dist);
     const turn = g.turn;
+    assert.equal(view(g).cells[idx(t.x, t.y)].more, false, 'not until it is sensed');
+    currentRoom(g).noticed = { toad: true }; // as noticing it leaves it
     assert.equal(view(g).cells[idx(t.x, t.y)].more, true, 'it blinks');
     assert.deepEqual(lookAtToad(g, t).said, ['a large sleeping toad']);
     assert.deepEqual(lookAtToad(g, t).said, ['it seems stronger than you']);

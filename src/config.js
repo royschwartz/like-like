@@ -66,4 +66,9 @@ export const CONFIG = {
 
   // After SENSE, your own numbers stay readable for this many turns.
   senseSelfTurns: 30,
+
+  // Noticing without trying, each turn, as Brogue searches without being asked.
+  // near: the chance of noticing a unit in sight beside you; it falls away to nothing
+  // `reach` steps further off. secret: the chance a secret of the room comes to you.
+  notice: { near: 0.5, reach: 8, secret: 0.04 },
 };

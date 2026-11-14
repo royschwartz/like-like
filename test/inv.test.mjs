@@ -15,7 +15,7 @@ test('the inventory screen: toggle, its view, inspect, use, back', () => {
   assert.equal(v.menu, null);
   assert.deepEqual(v.inv, {
     title: TEXT.button.inv,
-    items: [{ key: 'sword', name: TEXT.thing.sword, state: TEXT.menu.inHand }],
+    items: [{ key: 'sword', name: TEXT.thing.sword, state: TEXT.menu.inHand, more: true }],
     cursor: 0,
   });
   assert.deepEqual(v.context, { id: 'inspect', label: TEXT.context.inspect, more: false });
