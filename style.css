@@ -1,8 +1,9 @@
 /* LIKE LIKE — the look.
    A black slab, upright, 9.5 wide and 20 tall. From the top: the log, the square map (or
-   the inventory in its place), the stat line, the buttons, and a quiet menu strip. An event
-   takes the whole slab for itself. Every size is a multiple of --u, one hundredth of the
-   slab's width, so the whole screen scales as one piece.
+   the inventory in its place), the stat line, and the controls: a block of buttons on the
+   left and the d-pad on the right, with wait in its middle. An event takes the whole slab
+   for itself. Every size is a multiple of --u, one hundredth of the slab's width, so the
+   whole screen scales as one piece.
 
    Nothing here moves smoothly. Every effect is a few hard frames, each --f long: a tile
    flashes, the screen jumps, a box blinks. No easing, no fades, no glows, no soft shadows.
@@ -57,6 +58,14 @@ body {
   --slide-step: calc(var(--f) / 2); /* changing rooms: the map moves a tile each this long */
   --ev-every: 4; /*     an event's new paragraphs come this many frames apart */
 
+  /* the controls, in u. Layout b of the interface study (decisions 99 to 102). */
+  --pad: 58; /*         the d-pad, across */
+  --btn-scale: 0.8; /*  each button against its cell in the study: "smaller ... by 20%" */
+  --side: 4; /*         the margin at the sides */
+  --top: 3; /*          above the controls */
+  --bot: 4; /*          below them (more if the phone's home bar needs it) */
+  --stat-h: 8; /*       the stat line */
+
   /* paper look: the drawing. A pale map, pale buttons, black everything else. */
   --slab: #0b0a09;
   --paper: #ece7d8;
@@ -102,7 +111,8 @@ body {
   width: var(--w);
   height: calc(var(--w) * 20 / 9.5);
   display: grid;
-  grid-template-rows: calc(var(--u) * 43) calc(var(--u) * 100) calc(var(--u) * 9.5) 1fr;
+  /* the log takes whatever the map, the stat line and the controls leave */
+  grid-template-rows: minmax(0, 1fr) calc(var(--u) * 100) calc(var(--u) * var(--stat-h)) auto;
   overflow: hidden;
   background: var(--slab);
   color: var(--paper);
@@ -805,72 +815,91 @@ button:focus-visible {
   --c: var(--ink-bad);
 }
 
-/* ---------- the buttons: flat and square. Pressed is inverse video, in one step. ---------- */
+/* ---------- the controls: a block of buttons on the left, the d-pad on the right ----------
+   Layout b of the interface study, which he chose (decision 99). The block keeps the
+   study's outer edges: the screen's margin on the left, the pad's top and bottom above and
+   below. It has three rows and two columns, and each button is --btn-scale of the cell it
+   had in the study (101), pinned to the block's outer edges, so the room it gives up goes
+   between the buttons and their alignment stays (102). Pressed is inverse video, in one step. */
 
 #controls {
+  /* a cell of the study's b, before the buttons shrank, and a button now */
+  --cell-w: calc((100 - 2 * var(--side) - var(--pad) - 7) / 2);
+  --cell-h: calc((var(--pad) - 6) / 3);
+  --bw: calc(var(--cell-w) * var(--btn-scale));
+  --bh: calc(var(--cell-h) * var(--btn-scale));
+  --row-gap: calc((var(--pad) - 3 * var(--bh)) / 2);
   display: grid;
-  grid-template-columns: 1fr calc(var(--u) * 40);
-  grid-template-rows: auto 1fr;
-  column-gap: calc(var(--u) * 4);
-  padding: calc(var(--u) * 2.5) calc(var(--u) * 4) calc(var(--u) * 3.5);
+  /* button, the room between, button, 4u, the pad */
+  grid-template-columns:
+    calc(var(--u) * var(--bw)) minmax(0, 1fr) calc(var(--u) * var(--bw))
+    calc(var(--u) * 4) calc(var(--u) * var(--pad));
+  /* button, room, button, room, button: as tall as the pad */
+  grid-template-rows:
+    calc(var(--u) * var(--bh)) calc(var(--u) * var(--row-gap)) calc(var(--u) * var(--bh))
+    calc(var(--u) * var(--row-gap)) calc(var(--u) * var(--bh));
+  /* clear of the phone's home bar */
+  padding: calc(var(--u) * var(--top)) calc(var(--u) * var(--side))
+    max(calc(var(--u) * var(--bot)), env(safe-area-inset-bottom, 0px));
 }
 
-#buttons,
-#options {
-  grid-column: 1;
-  grid-row: 1;
-  align-self: center;
-  height: calc(var(--u) * 31);
-  gap: calc(var(--u) * 3);
-}
-
-/* the wide one spans inv and *, psy sits over wait: as drawn */
+/* The buttons sit straight on the controls' grid, so menu is one of the block. */
 #buttons {
-  display: grid;
-  grid-template-columns: 1.45fr 1fr 1fr;
-  grid-template-rows: 1fr 1fr;
+  display: contents;
 }
 #btn-context {
-  grid-area: 1 / 1 / 2 / 3;
-}
-#btn-psy {
-  grid-area: 1 / 3;
+  grid-area: 1 / 1 / 2 / 4;
 }
 #btn-inv {
-  grid-area: 2 / 1;
+  grid-area: 3 / 1;
+}
+#btn-psy {
+  grid-area: 3 / 3;
 }
 #btn-act {
-  grid-area: 2 / 2;
+  grid-area: 5 / 1;
 }
-#btn-wait {
-  grid-area: 2 / 3;
+#btn-sys {
+  grid-area: 5 / 3;
+}
+#dpad {
+  grid-area: 1 / 5 / 6 / 6;
 }
 
-/* on the inventory screen: inspect, back, and a wide use. No psy, no *, no wait. */
+/* on the inventory screen: inspect, a wide use, and back at the bottom left. No psy, no *.
+   The pad stays, to move through the list; its middle is blank, as there is no waiting. */
 #btn-use {
   display: none;
-  grid-area: 2 / 2 / 3 / 4;
+  grid-area: 3 / 1 / 4 / 4;
 }
 #screen[data-screen="inv"] #btn-use {
   display: flex;
 }
+#screen[data-screen="inv"] #btn-inv {
+  grid-area: 5 / 1;
+}
 #screen[data-screen="inv"] #btn-psy,
-#screen[data-screen="inv"] #btn-act,
-#screen[data-screen="inv"] #btn-wait {
+#screen[data-screen="inv"] #btn-act {
   display: none;
 }
 
-/* a menu: four options, two by two, in place of the buttons */
+/* a menu: four options, two by two, across the whole width above menu's row. The pad goes
+   while it is up (the arrow keys still move between the options). */
 #options {
   display: none;
+  grid-area: 1 / 1 / 4 / 6;
   grid-template-columns: 1fr 1fr;
   grid-template-rows: 1fr 1fr;
+  gap: calc(var(--u) * 3);
 }
 #controls[data-menu] #options {
   display: grid;
 }
 #controls[data-menu] #buttons {
   display: none;
+}
+#controls[data-menu] #dpad {
+  visibility: hidden;
 }
 
 .btn,
@@ -893,9 +922,13 @@ button:focus-visible {
   touch-action: none;
   outline: none;
 }
+/* the block's buttons are smaller, and so is their type, so "back" fits */
+#buttons .btn,
+#btn-sys {
+  font-size: calc(var(--u) * 3.9);
+}
 
-.btn.down,
-.pad.down {
+.btn.down {
   background: var(--btn-down);
   color: var(--btn-down-ink);
   box-shadow: inset 0 0 0 calc(var(--u) * 0.45) var(--btn-down-edge);
@@ -929,7 +962,7 @@ button:focus-visible {
   box-shadow: inset 0 0 0 calc(var(--u) * 0.9) var(--blink-box);
 }
 
-/* quiet buttons: outlined, on the slab. Back, and the menu strip. */
+/* quiet buttons: outlined, on the slab. Back, and menu. */
 #screen[data-screen="inv"] #btn-inv,
 .opt[data-kind="back"],
 #btn-sys {
@@ -945,19 +978,22 @@ button:focus-visible {
   box-shadow: none;
 }
 
-/* a quiet strip along the bottom: restart and the look are under it */
+/* menu: restart and the look are under it. It is a square, not a word (decision 104). */
 #btn-sys {
-  grid-column: 1 / -1;
-  grid-row: 2;
-  align-self: end;
-  height: calc(var(--u) * 7.5);
   color: var(--log-old);
   box-shadow: inset 0 0 0 calc(var(--u) * 0.3) var(--quiet);
-  font-size: calc(var(--u) * 3.7);
 }
 #controls[data-menu="sys"] #btn-sys {
   color: var(--paper);
   box-shadow: inset 0 0 0 calc(var(--u) * 0.3) var(--paper);
+}
+#btn-sys::before,
+#btn-event-sys::before {
+  content: "";
+  flex: none;
+  width: calc(var(--u) * 3.6);
+  height: calc(var(--u) * 3.6);
+  box-shadow: inset 0 0 0 calc(var(--u) * 0.45) currentColor;
 }
 
 .opt {
@@ -996,69 +1032,151 @@ button:focus-visible {
   box-shadow: none;
 }
 
-/* the d-pad: one solid plus */
+/* ---------- the d-pad: a plus, with wait in the middle ---------- */
+
 #dpad {
-  grid-column: 2;
-  grid-row: 1;
-  width: calc(var(--u) * 40);
-  height: calc(var(--u) * 40);
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  grid-template-rows: repeat(3, 1fr);
+  position: relative;
+  width: calc(var(--u) * var(--pad));
+  height: calc(var(--u) * var(--pad));
 }
-.pad,
-.hub {
-  background: var(--btn);
+
+/* Each arm is the whole quarter of the square on its side (cut along the diagonals), so a
+   thumb that lands in a corner still moves you. What is drawn is the plate (::before) and
+   the mark on it (::after). */
+#dpad .pad[data-dir],
+#dpad .pad[data-dir].down {
+  position: absolute;
+  inset: 0;
+  display: block;
+  margin: 0;
+  border: 0;
+  background: none;
   box-shadow: none;
 }
-.pad.down {
+#dpad .pad[data-dir="n"] {
+  clip-path: polygon(0 0, 100% 0, 50% 50%);
+}
+#dpad .pad[data-dir="e"] {
+  clip-path: polygon(100% 0, 100% 100%, 50% 50%);
+}
+#dpad .pad[data-dir="s"] {
+  clip-path: polygon(0 100%, 100% 100%, 50% 50%);
+}
+#dpad .pad[data-dir="w"] {
+  clip-path: polygon(0 0, 0 100%, 50% 50%);
+}
+
+#dpad .pad[data-dir]::before {
+  content: "";
+  position: absolute;
+  box-sizing: border-box;
+  width: 33.5%;
+  height: 33.5%;
+  background: var(--btn);
+}
+#dpad .pad[data-dir="n"]::before {
+  left: 33.25%;
+  top: 0;
+}
+#dpad .pad[data-dir="e"]::before {
+  right: 0;
+  top: 33.25%;
+}
+#dpad .pad[data-dir="s"]::before {
+  left: 33.25%;
+  bottom: 0;
+}
+#dpad .pad[data-dir="w"]::before {
+  left: 0;
+  top: 33.25%;
+}
+
+/* the mark: a flat triangle */
+#dpad .pad[data-dir]::after {
+  content: "";
+  position: absolute;
+  width: 9%;
+  height: 9%;
+  background: var(--btn-ink);
+  transform: translate(-50%, -50%);
+}
+#dpad .pad[data-dir="n"]::after {
+  left: 50%;
+  top: 16.67%;
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+}
+#dpad .pad[data-dir="e"]::after {
+  left: 83.33%;
+  top: 50%;
+  clip-path: polygon(0 0, 100% 50%, 0 100%);
+}
+#dpad .pad[data-dir="s"]::after {
+  left: 50%;
+  top: 83.33%;
+  clip-path: polygon(0 0, 100% 0, 50% 100%);
+}
+#dpad .pad[data-dir="w"]::after {
+  left: 16.67%;
+  top: 50%;
+  clip-path: polygon(100% 0, 100% 100%, 0 50%);
+}
+
+/* pressed: the plate in inverse video */
+#dpad .pad[data-dir].down::before {
   background: var(--btn-down);
   box-shadow: inset 0 0 0 calc(var(--u) * 0.45) var(--btn-down-edge);
 }
-.pad[data-dir="n"] {
-  grid-area: 1 / 2;
-  margin-bottom: -1px;
-}
-.pad[data-dir="w"] {
-  grid-area: 2 / 1;
-  margin-right: -1px;
-}
-.hub {
-  grid-area: 2 / 2;
-}
-.pad[data-dir="e"] {
-  grid-area: 2 / 3;
-  margin-left: -1px;
-}
-.pad[data-dir="s"] {
-  grid-area: 3 / 2;
-  margin-top: -1px;
+#dpad .pad[data-dir].down::after {
+  background: var(--btn-down-ink);
 }
 
-/* dark look: the plus is an outline, like the buttons */
-#screen[data-look="dark"] .pad,
-#screen[data-look="dark"] .hub {
-  --e: calc(var(--u) * 0.45) solid var(--btn-edge);
+/* the middle is wait ("..."): a button of its own over the arms, a little apart from them */
+#dpad .hub {
+  position: absolute;
+  left: calc(33.25% + var(--u) * 1.2);
+  top: calc(33.25% + var(--u) * 1.2);
+  z-index: 1;
+  width: calc(33.5% - var(--u) * 2.4);
+  height: calc(33.5% - var(--u) * 2.4);
   margin: 0;
+  padding: 0;
 }
-#screen[data-look="dark"] .pad.down {
+#dpad .hub.down {
+  background: var(--btn-down);
+  color: var(--btn-down-ink);
+  box-shadow: inset 0 0 0 calc(var(--u) * 0.45) var(--btn-down-edge);
+}
+/* there is no waiting in the inventory */
+#screen[data-screen="inv"] #dpad .hub {
+  color: transparent;
+  pointer-events: none;
+}
+
+/* dark look: the plus is an outline, like the buttons, each arm open toward the middle.
+   Drawn with inset shadows, as the buttons' edges are, so the lines are the same weight. */
+#screen[data-look="dark"] #dpad .pad[data-dir]::before {
+  --e: calc(var(--u) * 0.45);
+  background: transparent;
+}
+#screen[data-look="dark"] #dpad .pad[data-dir="n"]::before {
+  box-shadow: inset 0 var(--e) 0 0 var(--btn-edge), inset var(--e) 0 0 0 var(--btn-edge),
+    inset calc(var(--e) * -1) 0 0 0 var(--btn-edge);
+}
+#screen[data-look="dark"] #dpad .pad[data-dir="e"]::before {
+  box-shadow: inset 0 var(--e) 0 0 var(--btn-edge), inset 0 calc(var(--e) * -1) 0 0 var(--btn-edge),
+    inset calc(var(--e) * -1) 0 0 0 var(--btn-edge);
+}
+#screen[data-look="dark"] #dpad .pad[data-dir="s"]::before {
+  box-shadow: inset 0 calc(var(--e) * -1) 0 0 var(--btn-edge), inset var(--e) 0 0 0 var(--btn-edge),
+    inset calc(var(--e) * -1) 0 0 0 var(--btn-edge);
+}
+#screen[data-look="dark"] #dpad .pad[data-dir="w"]::before {
+  box-shadow: inset 0 var(--e) 0 0 var(--btn-edge), inset 0 calc(var(--e) * -1) 0 0 var(--btn-edge),
+    inset var(--e) 0 0 0 var(--btn-edge);
+}
+#screen[data-look="dark"] #dpad .pad[data-dir].down::before {
+  background: var(--btn-down);
   box-shadow: none;
-}
-#screen[data-look="dark"] .pad[data-dir="n"] {
-  border: var(--e);
-  border-bottom: 0;
-}
-#screen[data-look="dark"] .pad[data-dir="w"] {
-  border: var(--e);
-  border-right: 0;
-}
-#screen[data-look="dark"] .pad[data-dir="e"] {
-  border: var(--e);
-  border-left: 0;
-}
-#screen[data-look="dark"] .pad[data-dir="s"] {
-  border: var(--e);
-  border-top: 0;
 }
 
 /* For someone who has asked for less motion: nothing jumps and nothing slides.

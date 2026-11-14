@@ -352,7 +352,7 @@ export function createRenderer(root = document) {
     for (const link of eventLinks.children) {
       link.classList.toggle('cursor', Number(link.dataset.choose) === choices?.cursor);
     }
-    setText(eventMenu, TEXT.button.sys);
+    nameOnly(eventMenu, TEXT.button.sys);
     eventMenu.classList.toggle('open', !!event && menu?.id === 'sys');
   }
 
@@ -371,7 +371,10 @@ export function createRenderer(root = document) {
   // --- buttons ---
 
   function drawButtons(view) {
-    for (const id of Object.keys(menuButtons)) setText(menuButtons[id], TEXT.button[id] ?? '');
+    for (const id of Object.keys(menuButtons)) {
+      if (id === 'sys') nameOnly(menuButtons.sys, TEXT.button.sys);
+      else setText(menuButtons[id], TEXT.button[id] ?? '');
+    }
     // On the inventory screen the inv button is the way back.
     if (view.inv) setText(menuButtons.inv, TEXT.menu.back ?? '');
     setText(btnWait, TEXT.button.wait ?? '');
@@ -502,6 +505,12 @@ function inRoom(x, y) {
 
 function setText(el, text) {
   if (el && el.textContent !== text) el.textContent = text;
+}
+
+// A button drawn as a picture (the menu's square): its word is its name, not its text.
+function nameOnly(el, name) {
+  setText(el, '');
+  setAttr(el, 'aria-label', name ?? '');
 }
 
 function setAttr(el, name, value) {

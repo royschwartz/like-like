@@ -12,8 +12,11 @@ export const TEXT = {
 
   // HIS, from his drawing of the screen.
   stat: { str: 'str', love: 'love', hp: 'hp', will: 'will', unknown: '??' },
-  // HIS: inv, psy, *, wait, use. PLAIN: menu, a neutral control (restart, the look).
-  button: { inv: 'inv', psy: 'psy', act: '*', wait: 'wait', use: 'use', sys: 'menu' },
+  // HIS: inv, psy, *, use, and "..." for wait ("change wait to ..."). PLAIN: menu, a neutral
+  // control (restart, the look). The menu button shows a square, not this word ("put in a
+  // menu style icon, like a square or something instead of saying menu"); the word is only
+  // its name for a screen reader.
+  button: { inv: 'inv', psy: 'psy', act: '*', wait: '...', use: 'use', sys: 'menu' },
 
   // HIS. What the wide button says, by where you stand; inspect in the inventory.
   context: { sense: 'sense', corpse: 'corpse', stairs: 'stairs', inspect: 'inspect' },

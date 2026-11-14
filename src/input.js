@@ -6,8 +6,11 @@ const S = CONFIG.roomSize;
 const REPEAT_FIRST_MS = 260;
 const REPEAT_EVERY_MS = 110;
 
+// The arrow keys or w a s d move, and move the cursor in a list, a menu or an event.
 const KEY_DIRS = { ArrowUp: 'n', ArrowRight: 'e', ArrowDown: 's', ArrowLeft: 'w' };
-const KEY_MENUS = { i: 'inv', a: 'act', p: 'psy', m: 'sys' };
+const LETTER_DIRS = { w: 'n', a: 'w', s: 's', d: 'e' };
+// a is a direction, so * is x (or * itself)
+const KEY_MENUS = { i: 'inv', x: 'act', '*': 'act', p: 'psy', m: 'sys' };
 
 export function bindInput(root, dispatch) {
   const doc = root.ownerDocument || root;
@@ -136,10 +139,12 @@ function keyAction(key) {
   if (KEY_DIRS[key]) return { type: 'move', dir: KEY_DIRS[key] };
   if (key === 'Enter' || key === ' ' || key === 'Spacebar') return { type: 'context' };
   if (key === 'Escape' || key === 'Backspace') return { type: 'back' };
-  if (key === '.' || key === 'z' || key === 'Z') return { type: 'wait' };
-  if (key === 'u' || key === 'U') return { type: 'use' };
   if (key && key.length === 1) {
     const k = key.toLowerCase();
+    if (LETTER_DIRS[k]) return { type: 'move', dir: LETTER_DIRS[k] };
+    if (k === 'e') return { type: 'context' }; // the wide button, beside w a s d
+    if (k === '.' || k === 'z' || k === 'q') return { type: 'wait' };
+    if (k === 'u') return { type: 'use' };
     if (KEY_MENUS[k]) return { type: 'menu', id: KEY_MENUS[k] };
     if (k >= '1' && k <= '9') return { type: 'choose', index: Number(k) - 1 };
   }

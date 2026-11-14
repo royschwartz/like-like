@@ -20,16 +20,16 @@ Then go to `http://localhost:5173`. Add `?seed=7` to the address to play the sam
 
 | | Phone | Keyboard |
 |---|---|---|
-| Move, or hit what's in the way | d-pad (hold to keep going) | arrow keys |
-| The wide button: `sense`, or `corpse` on a corpse, or `stairs` on the stairs | tap | Enter or Space |
+| Move, or hit what's in the way | d-pad: an arm, or the corner beside it (hold to keep going) | arrow keys or `w` `a` `s` `d` |
+| The wide button: `sense`, or `corpse` on a corpse, or `stairs` on the stairs | tap | Enter, Space or `e` |
 | Observe a thing on the map | tap it | click it |
 | `inv` what you carry: the inventory screen | tap | `i` |
-| In the inventory: `inspect` an item, `use` it, `back` | wide button, `use`, `back` | Enter, `u`, Esc |
-| `*` rest, or dig for worms once you know of them | tap | `a` |
+| In the inventory: `inspect` an item, `use` it, `back` | wide button, `use`, `back` | Enter or `e`, `u`, Esc |
+| `*` rest, or dig for worms once you know of them | tap | `x` or `*` |
 | `psy` what you know of your mind | tap | `p` |
-| `wait` a turn | tap | `.` or `z` |
-| `menu` restart, and the paper or dark look | tap | `m` |
-| Pick an option | tap | `1` to `4`, or arrows and Enter |
+| `...` wait a turn | the middle of the d-pad | `.`, `z` or `q` |
+| The menu (a square): restart, and the paper or dark look | tap | `m` |
+| Pick an option | tap | `1` to `4`, or arrows or `w` `a` `s` `d` and Enter |
 | Back | `back` | Esc |
 | In an event: take a link | tap it | arrows and Enter, or `1` to `9`; Esc for `back` |
 
@@ -44,7 +44,7 @@ Then go to `http://localhost:5173`. Add `?seed=7` to the address to play the sam
 - When you die you begin again at the level's entrance (`<`), and the level is as you left it.
 - On level 1 a toad (`T`) sleeps in the room farthest from the entrance. The stairs are behind a golden door (`+`) in a corner of its room, and only its key opens it. Nothing else lives in the dungeon yet.
 - Walk into the toad to strike it. Awake, it comes for you. Dead, it leaves a corpse (`%`): stand on it and the wide button says `corpse`.
-- An event is a screen of its own: text and links to choose from, with `menu` still at the bottom. Reading and choosing take no time; `attack!` returns to the map and takes a combat turn. Keep observing the sleeping toad from close by and its event opens.
+- An event is a screen of its own: text and links to choose from, with the menu still at the bottom. Reading and choosing take no time; `attack!` returns to the map and takes a combat turn. Keep observing the sleeping toad from close by and its event opens.
 - Sensing in the toad's room, a line at a time, comes to the worms; then `*` can dig for them, on grass or dirt. Inspecting them brings a memory back a few turns later. Memories you have are under `psy`.
 - The toad's room also holds a bust (`&`). You can't walk onto it; move into it and its event opens, taking no turn. The first time, it speaks. After that its links are what you carry: choose one to put it in the opening, which enchants it once (an enchanted sword does 1 more damage). An item holding a memory gives it up at once. The bust's speaking and enchanting are noise, and may wake the toad.
 
