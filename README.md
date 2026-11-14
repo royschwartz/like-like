@@ -28,7 +28,7 @@ Then go to `http://localhost:5173`. Add `?seed=7` to the address to play the sam
 | `*` rest, or dig for worms once you know of them | tap | `x` or `*` |
 | `psy` what you know of your mind | tap | `p` |
 | `...` wait a turn | the middle of the d-pad | `.`, `z` or `q` |
-| The menu (a square): restart, and the paper or dark look | tap | `m` |
+| The menu (a square): restart, the paper or dark look, and the outlines round the buttons (off, or 1 to 8, grey up to white) | tap | `m` |
 | Pick an option | tap | `1` to `4`, or arrows or `w` `a` `s` `d` and Enter |
 | Back | `back` | Esc |
 | In an event: take a link | tap it | arrows and Enter, or `1` to `9`; Esc for `back` |

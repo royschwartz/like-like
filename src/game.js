@@ -11,12 +11,13 @@ const SQUARE_MENUS = ['inv', 'act', 'psy', 'sys'];
 
 // ---- a new game --------------------------------------------------------
 
-function makeState(seed, look, nextLogId) {
+function makeState(seed, look, nextLogId, outlines = CONFIG.outlines.start) {
   const rng = makeRng(seed);
   const level = makeLevel(rng, 1);
   const g = {
     seed,
     look,
+    outlines, // the lines round the buttons in the dark look: 0 none, up to CONFIG.outlines.levels
     rng,
     depth: 1,
     turn: 0,
@@ -58,9 +59,10 @@ function makeState(seed, look, nextLogId) {
   return g;
 }
 
-export function newGame({ seed, look } = {}) {
+export function newGame({ seed, look, outlines } = {}) {
   const s = Number.isInteger(seed) ? seed : Date.now() % 2147483647;
-  return makeState(s, look === 'dark' ? 'dark' : 'paper', 1);
+  const lines = Number.isInteger(outlines) && outlines >= 0 && outlines <= CONFIG.outlines.levels ? outlines : undefined;
+  return makeState(s, look === 'dark' ? 'dark' : 'paper', 1, lines);
 }
 
 // ---- small helpers -----------------------------------------------------
@@ -642,7 +644,7 @@ function dig(g, ev) {
 }
 
 function restart(g, ev) {
-  const fresh = makeState(deriveSeed(g.seed), g.look, g.nextLogId);
+  const fresh = makeState(deriveSeed(g.seed), g.look, g.nextLogId, g.outlines);
   for (const k of Object.keys(g)) delete g[k];
   Object.assign(g, fresh);
   ev.push({ type: 'restart' });
@@ -686,6 +688,8 @@ function entries(g, menu) {
           disabled: false,
           run: 'look',
         },
+        // the lines round the buttons: each choice is the next step, round to none again
+        { label: TEXT.menu.outlines(g.outlines), kind: 'action', disabled: false, run: 'outlines' },
       ];
     case 'corpse': {
       const items = corpseHere(g)?.items ?? [];
@@ -1127,6 +1131,10 @@ function chooseSlot(g, i, ev) {
       g.look = g.look === 'paper' ? 'dark' : 'paper';
       ev.push({ type: 'look', look: g.look });
       break;
+    case 'outlines':
+      g.outlines = (g.outlines + 1) % (CONFIG.outlines.levels + 1);
+      ev.push({ type: 'outlines', outlines: g.outlines });
+      break;
     case 'take': {
       const [it] = corpseHere(g).items.splice(slot.arg, 1);
       g.items.push({ key: it.key, inHand: false });
@@ -1246,6 +1254,7 @@ export function view(g) {
     depth: g.depth,
     turn: g.turn,
     look: g.look,
+    outlines: g.outlines,
     room: { id: g.room, key: room.key },
     player: { x: g.x, y: g.y },
     cells,

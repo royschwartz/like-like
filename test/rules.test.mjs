@@ -407,7 +407,7 @@ test('the sys menu: look switch and restart', () => {
   assert.deepEqual(v.menu.options, [
     { label: TEXT.menu.restart, kind: 'action', disabled: false },
     { label: TEXT.menu.lookDark, kind: 'action', disabled: false },
-    null,
+    { label: TEXT.menu.outlines(CONFIG.outlines.start), kind: 'action', disabled: false },
     BACK,
   ]);
   assert.deepEqual(act(g, { type: 'choose', index: 1 }), [{ type: 'look', look: 'dark' }]);
@@ -527,3 +527,29 @@ test('the wall frame never shows the toad out of line of sight', () => {
   assert.equal(v.cells[idx(2, 6)].thing, null);
   assert.equal(v.cells[idx(2, 6)].more, false);
 });
+
+test('the sys menu: the lines round the buttons, a step at a time, round to none, kept on restart', () => {
+  const g = newGame({ seed: 14 });
+  assert.equal(view(g).outlines, CONFIG.outlines.start);
+  act(g, { type: 'menu', id: 'sys' });
+  const seen = [];
+  for (let k = 0; k <= CONFIG.outlines.levels; k++) {
+    const turn = g.turn;
+    const ev = act(g, { type: 'choose', index: 2 });
+    assert.equal(g.turn, turn, 'it takes no time');
+    assert.equal(view(g).menu.id, 'sys', 'the menu stays open to step again');
+    seen.push(ev[0].outlines);
+    assert.deepEqual(ev, [{ type: 'outlines', outlines: view(g).outlines }]);
+    assert.equal(view(g).menu.options[2].label, TEXT.menu.outlines(view(g).outlines));
+  }
+  const n = CONFIG.outlines.levels;
+  assert.deepEqual(seen, Array.from({ length: n + 1 }, (_, k) => (CONFIG.outlines.start + k + 1) % (n + 1)));
+  act(g, { type: 'choose', index: 2 });
+  const kept = view(g).outlines;
+  act(g, { type: 'choose', index: 0 }); // restart
+  assert.equal(view(g).outlines, kept, 'kept, as the look is');
+  assert.equal(TEXT.menu.outlines(0), 'outlines off');
+  assert.equal(newGame({ seed: 1, outlines: 3 }).outlines, 3);
+  assert.equal(newGame({ seed: 1, outlines: 99 }).outlines, CONFIG.outlines.start, 'out of range: the start');
+});
+

@@ -64,6 +64,10 @@ export const CONFIG = {
   restTurns: 10,
   restHeal: 1,
 
+  // The lines round the buttons and the d-pad in the dark look, set in the menu:
+  // 0 is none, then `levels` steps of grey up to white. A new game starts at `start`.
+  outlines: { levels: 8, start: 0 },
+
   // After SENSE, your own numbers stay readable for this many turns.
   senseSelfTurns: 30,
 

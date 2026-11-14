@@ -90,6 +90,8 @@ body {
   --btn: #ece7d8;
   --btn-ink: #0b0a09;
   --btn-edge: transparent;
+  --quiet-edge: var(--quiet); /* the edge of a quiet button: back, and menu */
+  --open-edge: var(--paper); /*  menu's edge while its menu is open */
   --btn-down: #0b0a09;
   --btn-down-ink: #ece7d8;
   --btn-down-edge: #ece7d8;
@@ -144,7 +146,15 @@ body {
   --ink-slot: #aaa;
   --btn: transparent;
   --btn-ink: #fff;
-  --btn-edge: #aaa;
+  /* The lines round the buttons, the menu's options and the d-pad: none, or a step of
+     grey up to white, as set in the menu ("outlines", data-outlines below). Quiet buttons
+     and the event screen's menu take half as much. */
+  --edge: transparent;
+  --edge-quiet: transparent;
+  --btn-edge: var(--edge);
+  --quiet-edge: var(--edge-quiet);
+  --open-edge: var(--edge);
+  --event-edge: var(--edge-quiet);
   --btn-down: #fff;
   --btn-down-ink: #000;
   --btn-down-edge: #fff;
@@ -170,6 +180,17 @@ body {
   --box-in: #000;
   --blood: #a00;
 }
+
+/* The outlines setting, a step at a time: n eighths of the way from black to white,
+   and half that for the quiet ones. 0, the start, is no lines at all. */
+#screen[data-look="dark"][data-outlines="1"] { --edge: #202020; --edge-quiet: #101010; }
+#screen[data-look="dark"][data-outlines="2"] { --edge: #404040; --edge-quiet: #202020; }
+#screen[data-look="dark"][data-outlines="3"] { --edge: #606060; --edge-quiet: #303030; }
+#screen[data-look="dark"][data-outlines="4"] { --edge: #808080; --edge-quiet: #404040; }
+#screen[data-look="dark"][data-outlines="5"] { --edge: #9f9f9f; --edge-quiet: #505050; }
+#screen[data-look="dark"][data-outlines="6"] { --edge: #bfbfbf; --edge-quiet: #606060; }
+#screen[data-look="dark"][data-outlines="7"] { --edge: #dfdfdf; --edge-quiet: #707070; }
+#screen[data-look="dark"][data-outlines="8"] { --edge: #ffffff; --edge-quiet: #808080; }
 
 /* ---------- the log: one list. The newest lines are bright; older ones climb, dimmer ---------- */
 
@@ -800,7 +821,7 @@ body {
   padding: 0;
   color: var(--ev-old);
   font-size: calc(var(--u) * 3.7);
-  box-shadow: inset 0 0 0 calc(var(--u) * 0.3) var(--ev-slot);
+  box-shadow: inset 0 0 0 calc(var(--u) * 0.3) var(--event-edge, var(--ev-slot));
 }
 #btn-event-sys.open {
   color: var(--ev-ink);
@@ -983,7 +1004,7 @@ button:focus-visible {
 #btn-sys {
   background: transparent;
   color: var(--paper);
-  box-shadow: inset 0 0 0 calc(var(--u) * 0.45) var(--quiet);
+  box-shadow: inset 0 0 0 calc(var(--u) * 0.45) var(--quiet-edge);
 }
 #screen[data-screen="inv"] #btn-inv.down,
 .opt[data-kind="back"].down,
@@ -996,11 +1017,11 @@ button:focus-visible {
 /* menu: restart and the look are under it. It is a square, not a word (decision 104). */
 #btn-sys {
   color: var(--log-old);
-  box-shadow: inset 0 0 0 calc(var(--u) * 0.3) var(--quiet);
+  box-shadow: inset 0 0 0 calc(var(--u) * 0.3) var(--quiet-edge);
 }
 #controls[data-menu="sys"] #btn-sys {
   color: var(--paper);
-  box-shadow: inset 0 0 0 calc(var(--u) * 0.3) var(--paper);
+  box-shadow: inset 0 0 0 calc(var(--u) * 0.3) var(--open-edge);
 }
 #btn-sys::before,
 #btn-event-sys::before {

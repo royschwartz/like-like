@@ -207,7 +207,11 @@ test('the system menu preserves an event and its cursor through look changes and
   assert.deepEqual(act(g, { type: 'context' }), [{ type: 'look', look: 'dark' }]);
   assert.deepEqual(view(g).event, before);
   act(g, { type: 'move', dir: 's' });
-  assert.equal(view(g).menu.cursor, 3, 'skip the empty menu slot');
+  assert.equal(view(g).menu.cursor, 2, 'the outlines setting');
+  assert.equal(act(g, { type: 'context' })[0].type, 'outlines');
+  assert.deepEqual(view(g).event, before);
+  act(g, { type: 'move', dir: 's' });
+  assert.equal(view(g).menu.cursor, 3, 'then back');
   act(g, { type: 'context' });
   assert.equal(view(g).menu, null);
   assert.deepEqual(view(g).event, before);

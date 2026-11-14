@@ -145,6 +145,8 @@ export function createRenderer(root = document) {
 
   function drawLook(view) {
     if (view.look && screen.getAttribute('data-look') !== view.look) screen.setAttribute('data-look', view.look);
+    // the lines round the buttons: style.css draws each step
+    if (Number.isInteger(view.outlines)) setAttr(screen, 'data-outlines', view.outlines);
   }
 
   // --- room slide ---

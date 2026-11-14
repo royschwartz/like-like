@@ -122,6 +122,8 @@ export const TEXT = {
     nothing: 'nothing',
     lookDark: 'dark',
     lookPaper: 'paper',
+    // PLAIN. The menu's setting for the lines round the buttons: none, or a step of grey.
+    outlines: (n) => (n ? `outlines ${n}` : 'outlines off'),
     dig: 'dig for worms', // HIS
     memory: '[memory]', //  a memory you have, under psy: his to name
     enchanted: '[enchanted]', // beside an enchanted item in the inventory: his to write
