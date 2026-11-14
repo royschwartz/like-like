@@ -1,7 +1,7 @@
 /* LIKE LIKE — the look.
    A black slab, upright, 9.5 wide and 20 tall. From the top: the log, the square map (or
    the inventory in its place), the stat line, and the controls: a column of buttons on the
-   left and the d-pad on the right, with wait in its middle. An event takes the whole slab
+   left and an empty space on the right, with wait in its middle. An event takes the whole slab
    for itself. Every size is a multiple of --u, one hundredth of the slab's width, so the
    whole screen scales as one piece.
 
@@ -61,14 +61,19 @@ body {
   --sense-on: 1; /*      an open cell is solid this long as the wave crosses it */
   --sense-absorb: 4; /*  a wall that takes it in: solid for half of this, then held for half */
   --ev-every: 4; /*     an event's new paragraphs come this many frames apart */
+  /* a tap on the map, in frames (render.js reads these two, and main.js times by them) */
+  --look-on: 6; /*      the looked-at cell blinks and its trail is bright this long; a second
+                        tap in it is a fast move, and when it is over the observation comes */
+  --travel-step: 1; /*  a fast move takes a step each this long */
 
   /* type on buttons is the size of an event screen's: "the same size as the text screen font" */
   --text-size: calc(var(--u) * 4.2);
 
-  /* the controls, in u: a column of five equal boxes on the left, the d-pad on the right.
-     A box is as wide as the pad and its gap leave, and five of them are as tall as the pad. */
-  --pad: 58; /*         the d-pad, across */
-  --pad-gap: 8; /*      between the column of boxes and the pad */
+  /* the controls, in u: a column of five equal boxes on the left, a square space on the
+     right with wait in its middle. A box is as wide as the space and its gap leave, and five
+     of them are as tall as the space. */
+  --right: 58; /*       the space on the right, across */
+  --col-gap: 8; /*      between the column of boxes and that space */
   --btn-gap: 2.5; /*    between one box and the next */
   --side: 4; /*         the margin at the sides */
   --top: 3; /*          above the controls */
@@ -116,6 +121,9 @@ body {
   --dig-ink: #ece7d8;
   --box: #0b0a09; /*    the look cursor: two hard rings, so it reads on any tile */
   --box-in: #ffffff;
+  /* the trail: a wash laid over each cell of the way, bright while the blink lasts, then dim */
+  --trail-hot: rgba(52, 40, 18, 0.3);
+  --trail-dim: rgba(52, 40, 18, 0.13);
   --blood: #a01212;
 
   position: relative;
@@ -146,7 +154,7 @@ body {
   --ink-slot: #aaa;
   --btn: transparent;
   --btn-ink: #fff;
-  /* The lines round the buttons, the menu's options and the d-pad: none, or a step of
+  /* The lines round the buttons and the menu's options: none, or a step of
      grey up to white, as set in the menu ("outlines", data-outlines below). Quiet buttons
      and the event screen's menu take half as much. */
   --edge: transparent;
@@ -178,6 +186,10 @@ body {
   --dig-ink: #000;
   --box: #fff;
   --box-in: #000;
+  /* the trail: a blue the dungeon has nowhere else (the walls are grey), a flat light step
+     and then a darker one */
+  --trail-hot: rgba(120, 140, 255, 0.5);
+  --trail-dim: rgba(120, 140, 255, 0.26);
   --blood: #a00;
 }
 
@@ -273,6 +285,23 @@ body {
 .map .c {
   cursor: pointer;
 }
+/* the map is tapped and tapped again: no zoom, no scroll, no selection */
+#map {
+  touch-action: none;
+}
+
+/* The trail: the way a fast move would walk, from the step beside you to where you would
+   stop, as Brogue lights its travel route. A flat wash over each cell's own ground (a
+   picture on top of --bg, so the painting under it is never touched). Bright while the
+   looked-at cell blinks, then one hard step down to dim, where it stays. During a fast
+   move it is the way still ahead. The tile effects and the blink lay their own solid
+   ground and take the wash off while they last. */
+.c.trail {
+  background-image: linear-gradient(var(--trail-dim), var(--trail-dim));
+}
+.map.trail-hot .c.trail {
+  background-image: linear-gradient(var(--trail-hot), var(--trail-hot));
+}
 
 /* Monaco has no bold. A thin stroke in the same ink does the job. */
 .c.b {
@@ -286,26 +315,33 @@ body {
   z-index: 1;
   color: var(--blink-ink);
   background-color: var(--blink);
+  background-image: none;
   box-shadow: inset 0 0 0 calc(var(--u) * 0.5) var(--blink-box);
 }
 
-/* --- tile effects. One to a tile at a time. --- */
+/* --- tile effects. One to a tile at a time. Each that lays a solid ground takes the
+   trail's wash off for its frames (background-image: none). --- */
 
-/* observe: a look cursor. A hard box: on two frames, off one, on two. */
+/* observing: a look cursor on the tapped cell, for the whole --look-on window. A hard box:
+   on a third of it, off a sixth, on a third, off a sixth (six frames: two, one, two, one).
+   When it is over, the observation comes. */
 .c.fx-observe {
   z-index: 2;
-  animation: fx-observe calc(var(--f) * 5) steps(1, end);
+  animation: fx-observe calc(var(--f) * var(--look-on)) steps(1, end);
 }
 @keyframes fx-observe {
   0% {
     box-shadow: inset 0 0 0 calc(var(--u) * 0.5) var(--box), inset 0 0 0 calc(var(--u) * 1) var(--box-in);
   }
-  40% {
+  33.33% {
     box-shadow: none;
   }
-  60%,
-  100% {
+  50% {
     box-shadow: inset 0 0 0 calc(var(--u) * 0.5) var(--box), inset 0 0 0 calc(var(--u) * 1) var(--box-in);
+  }
+  83.33%,
+  100% {
+    box-shadow: none;
   }
 }
 
@@ -323,6 +359,7 @@ body {
   100% {
     color: var(--sense-ink);
     background-color: var(--sense);
+    background-image: none;
   }
 }
 /* ...and what stops it takes it in: a wall, the locked door, the bust. Solid like the rest
@@ -339,11 +376,13 @@ body {
   0% {
     color: var(--sense-ink);
     background-color: var(--sense);
+    background-image: none;
   }
   50%,
   100% {
     color: var(--sense);
     background-color: var(--sense-ink);
+    background-image: none;
   }
 }
 
@@ -357,6 +396,7 @@ body {
   100% {
     color: var(--dig-ink);
     background-color: var(--dig);
+    background-image: none;
   }
 }
 
@@ -370,6 +410,7 @@ body {
   100% {
     color: var(--gold-ink);
     background-color: var(--gold);
+    background-image: none;
   }
 }
 
@@ -383,6 +424,7 @@ body {
   100% {
     color: var(--bg);
     background-color: var(--fg);
+    background-image: none;
   }
 }
 
@@ -395,15 +437,18 @@ body {
   0% {
     color: var(--hit-ink);
     background-color: var(--hit);
+    background-image: none;
   }
   33.33% {
     color: var(--fg);
     background-color: var(--bg);
+    background-image: none;
   }
   66.67%,
   100% {
     color: var(--hit-ink);
     background-color: var(--hit);
+    background-image: none;
   }
 }
 
@@ -416,23 +461,28 @@ body {
   0% {
     color: var(--hit-ink);
     background-color: var(--hit);
+    background-image: none;
   }
   20% {
     color: var(--fg);
     background-color: var(--bg);
+    background-image: none;
   }
   40% {
     color: var(--hit-ink);
     background-color: var(--hit);
+    background-image: none;
   }
   60% {
     color: var(--fg);
     background-color: var(--bg);
+    background-image: none;
   }
   80%,
   100% {
     color: var(--hit-ink);
     background-color: var(--hit);
+    background-image: none;
   }
 }
 
@@ -862,20 +912,20 @@ button:focus-visible {
   --c: var(--ink-bad);
 }
 
-/* ---------- the controls: a column of boxes on the left, the d-pad on the right ----------
+/* ---------- the controls: a column of boxes on the left, wait on the right ----------
    Five boxes, all the same, wider than they are tall: the top one (sense), inv, psy, *
-   and menu, top to bottom. The column's top and bottom are the pad's, and its left is the
-   screen's margin; a wide gap keeps it away from the pad's arm. Pressed is inverse video,
-   in one step. */
+   and menu, top to bottom. The column is as tall as the space on the right is wide, and
+   its left is the screen's margin; a wide gap keeps it away from that space. Pressed is
+   inverse video, in one step. The d-pad is gone: tap the map to go somewhere. */
 
 #controls {
-  --btn-w: calc(100 - 2 * var(--side) - var(--pad) - var(--pad-gap));
-  --btn-h: calc((var(--pad) - 4 * var(--btn-gap)) / 5);
+  --btn-w: calc(100 - 2 * var(--side) - var(--right) - var(--col-gap));
+  --btn-h: calc((var(--right) - 4 * var(--btn-gap)) / 5);
   display: grid;
-  /* the column of boxes, the gap, the pad */
-  grid-template-columns: calc(var(--u) * var(--btn-w)) calc(var(--u) * var(--pad));
-  column-gap: calc(var(--u) * var(--pad-gap));
-  /* five boxes: as tall as the pad */
+  /* the column of boxes, the gap, the space on the right */
+  grid-template-columns: calc(var(--u) * var(--btn-w)) calc(var(--u) * var(--right));
+  column-gap: calc(var(--u) * var(--col-gap));
+  /* five boxes: as tall as the space is wide */
   grid-template-rows: repeat(5, calc(var(--u) * var(--btn-h)));
   row-gap: calc(var(--u) * var(--btn-gap));
   /* clear of the phone's home bar */
@@ -902,12 +952,17 @@ button:focus-visible {
 #btn-sys {
   grid-area: 5 / 1;
 }
-#dpad {
+/* wait sits in the middle of the space on the right, a third of it across. The rest of the
+   space is empty for now. */
+#btn-wait {
   grid-area: 1 / 2 / 6 / 3;
+  place-self: center;
+  width: calc(var(--u) * var(--right) * 0.335);
+  height: calc(var(--u) * var(--right) * 0.335);
 }
 
 /* on the inventory screen: inspect, use, back, a space, and menu. No psy, no *.
-   The pad stays, to move through the list; its middle is blank, as there is no waiting. */
+   Wait's place is blank, as there is no waiting (the arrow keys move through the list). */
 #btn-use {
   display: none;
   grid-area: 2 / 1;
@@ -924,7 +979,7 @@ button:focus-visible {
 }
 
 /* a menu: four options, two by two, across the whole width above menu's box (the top four
-   rows). The pad goes while it is up (the arrow keys still move between the options). */
+   rows). Wait goes while it is up (the arrow keys move between the options). */
 #options {
   display: none;
   grid-area: 1 / 1 / 5 / 3;
@@ -938,12 +993,11 @@ button:focus-visible {
 #controls[data-menu] #buttons {
   display: none;
 }
-#controls[data-menu] #dpad {
+#controls[data-menu] #btn-wait {
   visibility: hidden;
 }
 
-.btn,
-.pad {
+.btn {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1067,164 +1121,43 @@ button:focus-visible {
   box-shadow: none;
 }
 
-/* ---------- the d-pad: a plus, with wait in the middle ---------- */
+/* ---------- wait ("..."), alone where the middle of the pad was ----------
+   No box of its own (decision 108), in either look and at any outlines setting. In the
+   paper look it is a pale square, as the pad's middle was; in the dark look, just the mark.
+   Pressed, it fills. */
 
-#dpad {
-  position: relative;
-  width: calc(var(--u) * var(--pad));
-  height: calc(var(--u) * var(--pad));
-}
-
-/* Each arm is the whole quarter of the square on its side (cut along the diagonals), so a
-   thumb that lands in a corner still moves you. What is drawn is the plate (::before) and
-   the mark on it (::after). */
-#dpad .pad[data-dir],
-#dpad .pad[data-dir].down {
-  position: absolute;
-  inset: 0;
-  display: block;
-  margin: 0;
-  border: 0;
-  background: none;
+#btn-wait {
   box-shadow: none;
 }
-#dpad .pad[data-dir="n"] {
-  clip-path: polygon(0 0, 100% 0, 50% 50%);
-}
-#dpad .pad[data-dir="e"] {
-  clip-path: polygon(100% 0, 100% 100%, 50% 50%);
-}
-#dpad .pad[data-dir="s"] {
-  clip-path: polygon(0 100%, 100% 100%, 50% 50%);
-}
-#dpad .pad[data-dir="w"] {
-  clip-path: polygon(0 0, 0 100%, 50% 50%);
-}
-
-#dpad .pad[data-dir]::before {
-  content: "";
-  position: absolute;
-  box-sizing: border-box;
-  width: 33.5%;
-  height: 33.5%;
-  background: var(--btn);
-}
-/* Each plate runs a little past its third toward the middle, where it has no edge, so the
-   arm's diagonal cut mitres the outline where two arms meet. */
-#dpad .pad[data-dir="n"]::before {
-  left: 33.25%;
-  top: 0;
-  height: calc(33.5% + var(--u));
-}
-#dpad .pad[data-dir="e"]::before {
-  right: 0;
-  top: 33.25%;
-  width: calc(33.5% + var(--u));
-}
-#dpad .pad[data-dir="s"]::before {
-  left: 33.25%;
-  bottom: 0;
-  height: calc(33.5% + var(--u));
-}
-#dpad .pad[data-dir="w"]::before {
-  left: 0;
-  top: 33.25%;
-  width: calc(33.5% + var(--u));
-}
-
-/* the mark: a flat triangle */
-#dpad .pad[data-dir]::after {
-  content: "";
-  position: absolute;
-  width: 9%;
-  height: 9%;
-  background: var(--btn-ink);
-  transform: translate(-50%, -50%);
-}
-#dpad .pad[data-dir="n"]::after {
-  left: 50%;
-  top: 16.67%;
-  clip-path: polygon(50% 0, 100% 100%, 0 100%);
-}
-#dpad .pad[data-dir="e"]::after {
-  left: 83.33%;
-  top: 50%;
-  clip-path: polygon(0 0, 100% 50%, 0 100%);
-}
-#dpad .pad[data-dir="s"]::after {
-  left: 50%;
-  top: 83.33%;
-  clip-path: polygon(0 0, 100% 0, 50% 100%);
-}
-#dpad .pad[data-dir="w"]::after {
-  left: 16.67%;
-  top: 50%;
-  clip-path: polygon(100% 0, 100% 100%, 0 50%);
-}
-
-/* pressed: the plate in inverse video */
-#dpad .pad[data-dir].down::before {
-  background: var(--btn-down);
-  box-shadow: inset 0 0 0 calc(var(--u) * 0.45) var(--btn-down-edge);
-}
-#dpad .pad[data-dir].down::after {
-  background: var(--btn-down-ink);
-}
-
-/* the middle is wait ("..."): the whole middle square, over the arms. No box of its own
-   (decision 108): the plus's outline goes round it. Pressed, it fills. */
-#dpad .hub {
-  position: absolute;
-  left: 33.25%;
-  top: 33.25%;
-  z-index: 1;
-  width: 33.5%;
-  height: 33.5%;
-  margin: 0;
-  box-shadow: none;
-}
-#dpad .hub.down {
+#btn-wait.down {
   background: var(--btn-down);
   color: var(--btn-down-ink);
   box-shadow: none;
 }
 /* there is no waiting in the inventory */
-#screen[data-screen="inv"] #dpad .hub {
+#screen[data-screen="inv"] #btn-wait {
   color: transparent;
   pointer-events: none;
 }
 
-/* dark look: the plus is an outline, like the buttons, each arm open toward the middle.
-   Drawn with inset shadows, as the buttons' edges are, so the lines are the same weight. */
-#screen[data-look="dark"] #dpad .pad[data-dir]::before {
-  --e: calc(var(--u) * 0.45);
-  background: transparent;
-}
-#screen[data-look="dark"] #dpad .pad[data-dir="n"]::before {
-  box-shadow: inset 0 var(--e) 0 0 var(--btn-edge), inset var(--e) 0 0 0 var(--btn-edge),
-    inset calc(var(--e) * -1) 0 0 0 var(--btn-edge);
-}
-#screen[data-look="dark"] #dpad .pad[data-dir="e"]::before {
-  box-shadow: inset 0 var(--e) 0 0 var(--btn-edge), inset 0 calc(var(--e) * -1) 0 0 var(--btn-edge),
-    inset calc(var(--e) * -1) 0 0 0 var(--btn-edge);
-}
-#screen[data-look="dark"] #dpad .pad[data-dir="s"]::before {
-  box-shadow: inset 0 calc(var(--e) * -1) 0 0 var(--btn-edge), inset var(--e) 0 0 0 var(--btn-edge),
-    inset calc(var(--e) * -1) 0 0 0 var(--btn-edge);
-}
-#screen[data-look="dark"] #dpad .pad[data-dir="w"]::before {
-  box-shadow: inset 0 var(--e) 0 0 var(--btn-edge), inset 0 calc(var(--e) * -1) 0 0 var(--btn-edge),
-    inset var(--e) 0 0 0 var(--btn-edge);
-}
-#screen[data-look="dark"] #dpad .pad[data-dir].down::before {
-  background: var(--btn-down);
-  box-shadow: none;
-}
-
 /* For someone who has asked for less motion: nothing jumps and nothing slides.
    The flashes on single tiles stay. The sense wave is a thing that travels, so it does not
-   run: render.js flashes only your own square (the wave's first step) and leaves the rest. */
+   run: render.js flashes only your own square (the wave's first step) and leaves the rest.
+   The looked-at cell's box comes once, not twice; the window for a second tap, and the
+   trail, are as long as ever. */
+@keyframes fx-observe-still {
+  0% {
+    box-shadow: inset 0 0 0 calc(var(--u) * 0.5) var(--box), inset 0 0 0 calc(var(--u) * 1) var(--box-in);
+  }
+  33.33%,
+  100% {
+    box-shadow: none;
+  }
+}
 @media (prefers-reduced-motion: reduce) {
+  .c.fx-observe {
+    animation-name: fx-observe-still;
+  }
   #screen.fx-jolt > *,
   #screen.fx-hurt > *,
   .map.in-n,

@@ -4,8 +4,9 @@
 import { CONFIG } from './config.js';
 import { TEXT, isSlot } from './text.js';
 import { makeRng, chance, pick, deriveSeed } from './rng.js';
-import { S, DIRS, STEP, OPP, ARRIVAL, idx, makeLevel, roomDistances, arrivalCells } from './gen.js';
+import { S, DIRS, STEP, OPP, ARRIVAL, idx, walkable, makeLevel, arrivalCells } from './gen.js';
 import { fov, frame, los } from './fov.js';
+import { NEIGHBOURS, chebyshev, cutsCorner, isStep, stepsFrom, walkDown } from './path.js';
 
 const SQUARE_MENUS = ['inv', 'act', 'psy', 'sys'];
 
@@ -51,6 +52,7 @@ function makeState(seed, look, nextLogId, outlines = CONFIG.outlines.start) {
     fresh: nextLogId, // the first line said by the latest action that said anything
     said: 0, //    how many wrapped lines the action under way has said
     busy: false, // resting or digging: a memory waits until it is done
+    going: null, // a fast move under way: where to, { x, y }, or null
   };
   for (const line of TEXT.opening) say(g, line, 'story');
   g.said = 0; // the opening is already behind you: what you arrive in is the status
@@ -137,8 +139,6 @@ function see(g) {
   }
 }
 
-const manhattan = (ax, ay, bx, by) => Math.abs(ax - bx) + Math.abs(ay - by);
-
 // Cells the toad may never stand on: walls, doors, the golden door (locked or open),
 // the bust, arrival cells. The only terrain that changes after a level is made is the
 // golden door opening, and both are blocked, so this is worked out once per room.
@@ -165,7 +165,7 @@ export function mayStand(g, room, x, y, self = null) {
 
 // The free cell nearest (x, y) by walking, for `self` to be put on; null if none.
 function nearestFree(g, room, x, y, self) {
-  const dist = roomDistances(room.t, x, y);
+  const dist = stepsFrom(room.t, [idx(x, y)], (i) => walkable(room.t[i]));
   let best = null;
   for (let i = 0; i < S * S; i++) {
     if (dist[i] < 0 || !mayStand(g, room, i % S, Math.floor(i / S), self)) continue;
@@ -220,7 +220,7 @@ function toadTurn(g, room, toad, ev) {
   if (toad.asleep) return false;
   if (los(room.t, toad.x, toad.y, g.x, g.y)) {
     toad.lastSeen = { x: g.x, y: g.y };
-    if (manhattan(toad.x, toad.y, g.x, g.y) === 1) return toadAttacks(g, ev);
+    if (isStep(room.t, toad.x, toad.y, g.x, g.y)) return toadAttacks(g, ev);
     stepToward(g, room, toad, g.x, g.y);
     return false;
   }
@@ -230,8 +230,8 @@ function toadTurn(g, room, toad, ev) {
     return false;
   }
   if (chance(g.rng, CONFIG.toad.wander)) {
-    const options = DIRS.map((d) => [toad.x + STEP[d][0], toad.y + STEP[d][1]]).filter(([x, y]) =>
-      mayStand(g, room, x, y, toad),
+    const options = NEIGHBOURS.map(([dx, dy]) => [toad.x + dx, toad.y + dy]).filter(
+      ([x, y]) => isStep(room.t, toad.x, toad.y, x, y) && mayStand(g, room, x, y, toad),
     );
     if (options.length) [toad.x, toad.y] = pick(g.rng, options);
   }
@@ -252,17 +252,17 @@ function toadAttacks(g, ev) {
   return true;
 }
 
-// One step along the shortest path to (tx, ty). Returns whether it moved.
+// One step along the shortest path to (tx, ty), eight ways. Returns whether it moved.
 function stepToward(g, room, toad, tx, ty) {
   const blocked = creatureBlocked(room);
-  const dist = roomDistances(room.t, tx, ty, (c, x, y) => !blocked[idx(x, y)]);
+  const dist = stepsFrom(room.t, [idx(tx, ty)], (i) => !blocked[i]);
   let best = null;
   let bestD = dist[idx(toad.x, toad.y)];
   if (bestD < 0) bestD = Infinity;
-  for (const d of DIRS) {
-    const x = toad.x + STEP[d][0];
-    const y = toad.y + STEP[d][1];
-    if (!mayStand(g, room, x, y, toad)) continue;
+  for (const [dx, dy] of NEIGHBOURS) {
+    const x = toad.x + dx;
+    const y = toad.y + dy;
+    if (!isStep(room.t, toad.x, toad.y, x, y) || !mayStand(g, room, x, y, toad)) continue;
     const dd = dist[idx(x, y)];
     if (dd >= 0 && dd < bestD) {
       best = [x, y];
@@ -286,6 +286,7 @@ function die(g, ev) {
   g.y = e.y;
   g.menu = null;
   g.inv = null;
+  g.going = null;
   // The toad goes back to sleep where it slept.
   const tr = g.level.toadRoom;
   if (tr !== null && tr !== undefined && g.level.rooms[tr].toad) toadSleeps(g, g.level.rooms[tr]);
@@ -303,11 +304,18 @@ function toadSleeps(g, room) {
 
 // ---- your actions ------------------------------------------------------
 
+// The arrows: a straight step.
 function move(g, dir, ev) {
+  step(g, STEP[dir][0], STEP[dir][1], ev);
+}
+
+// One step by (dx, dy), any of the eight ways: by arrow or by travel, the same thing.
+// A diagonal that cuts a corner is no step at all.
+function step(g, dx, dy, ev) {
   const room = currentRoom(g);
-  const x = g.x + STEP[dir][0];
-  const y = g.y + STEP[dir][1];
-  if (x < 0 || y < 0 || x >= S || y >= S) return;
+  const x = g.x + dx;
+  const y = g.y + dy;
+  if (!isStep(room.t, g.x, g.y, x, y)) return;
   const c = room.t[idx(x, y)];
   if (c === 'wall') return; // no turn, nothing
   if (c === 'statue') return openBust(g, ev); // into the bust, never onto it: its event, no turn
@@ -316,6 +324,9 @@ function move(g, dir, ev) {
   if (toad) {
     attack(g, room, toad, ev);
   } else if (c === 'door') {
+    // a door is in the wall's ring: only a straight step reaches it
+    const dir = DIRS.find((d) => STEP[d][0] === dx && STEP[d][1] === dy);
+    if (!dir) return;
     g.room = room.nb[dir];
     [g.x, g.y] = ARRIVAL[OPP[dir]];
     ev.push({ type: 'room', dir });
@@ -381,7 +392,7 @@ function context(g, ev) {
 
 function besideStatue(g) {
   const s = currentRoom(g).statue;
-  return !!s && manhattan(g.x, g.y, s.x, s.y) === 1;
+  return !!s && chebyshev(g.x, g.y, s.x, s.y) === 1;
 }
 
 // An item that still holds a memory you have not got back.
@@ -393,7 +404,7 @@ function holdsMemory(g, it) {
 // Stepping beside the bust with an item that holds a memory: sounds, once each time you come near.
 function hearSounds(g) {
   const s = currentRoom(g).statue;
-  if (!s || Math.max(Math.abs(g.x - s.x), Math.abs(g.y - s.y)) > 1) {
+  if (!s || chebyshev(g.x, g.y, s.x, s.y) > 1) {
     g.heardSounds = false; // away from it: the next approach is a new one
     return;
   }
@@ -437,6 +448,7 @@ function descend(g, ev) {
   g.y = e.y;
   g.menu = null;
   g.inv = null;
+  g.going = null;
   sayDescend(g);
   ev.push({ type: 'descend' });
   g.turn++; // nothing acts this turn
@@ -456,8 +468,8 @@ function senseLines(g) {
 // cell it can go, which is anything you could walk on, and through the toad. What stands
 // in its way (a wall, the locked golden door, the bust) takes it in and passes it no
 // further. Returns [{ x, y, d, absorb }] in the order it gets there: d is the step it
-// arrives on (you are 0); absorb, the cell takes it in. Steps go four ways; a cell that
-// takes it in is reached from any of the eight round it, so a room's corners are too.
+// arrives on (you are 0); absorb, the cell takes it in. Steps go eight ways, and never
+// cut a corner; a cell that takes it in is reached from any of the eight round it.
 const SENSE_STOPS = new Set(['wall', 'golddoor', 'statue']);
 function senseWave(g) {
   const room = currentRoom(g);
@@ -471,11 +483,11 @@ function senseWave(g) {
     const x = i % S;
     const y = (i - x) / S;
     wave.push({ x, y, d: d[i], absorb: false });
-    for (const dir of DIRS) {
-      const [nx, ny] = [x + STEP[dir][0], y + STEP[dir][1]];
+    for (const [dx, dy] of NEIGHBOURS) {
+      const [nx, ny] = [x + dx, y + dy];
       if (nx < 0 || ny < 0 || nx >= S || ny >= S) continue;
       const n = idx(nx, ny);
-      if (d[n] >= 0 || SENSE_STOPS.has(room.t[n])) continue;
+      if (d[n] >= 0 || SENSE_STOPS.has(room.t[n]) || cutsCorner(room.t, x, y, dx, dy)) continue;
       d[n] = d[i] + 1;
       queue.push(n);
     }
@@ -542,7 +554,7 @@ function noticeIdly(g) {
     if (!vis[idx(x, y)]) continue;
     const near = isNear(g, x, y);
     if (!observations(room, name, near).some((o) => !g.observed[o.id])) continue;
-    if (chance(g.noticeRng, noticeChance(manhattan(x, y, g.x, g.y)))) noticedIn(room)[kind] = true;
+    if (chance(g.noticeRng, noticeChance(chebyshev(x, y, g.x, g.y)))) noticedIn(room)[kind] = true;
   }
   // a secret of the room, unbidden: the same next line sensing would tell
   const line = senseLines(g).find((l) => !g.sensed[l.id]);
@@ -862,7 +874,7 @@ function observations(room, name, near) {
   return list;
 }
 
-const isNear = (g, x, y) => manhattan(x, y, g.x, g.y) <= CONFIG.observeClose;
+const isNear = (g, x, y) => chebyshev(x, y, g.x, g.y) <= CONFIG.observeClose;
 
 // The units: what can blink, once sensed, when it has something new to observe.
 const UNITS = new Set(['toad', 'toadAsleep', 'statue', 'statueLifeless']);
@@ -1146,6 +1158,102 @@ function chooseSlot(g, i, ev) {
   }
 }
 
+// ---- travel: a fast move, as Brogue's ----------------------------------------
+// Tap a cell to look at it and see the way there; tap again to go. Each step is a real
+// turn, taken as a step by arrow is. The way goes only over cells you have seen, never
+// through a door (one can only be its end), and around any toad you can see. Into what
+// you bump rather than step on (the bust, the locked golden door, a toad you can see)
+// it never steps: it stops beside it, and from there a travel to it is the bump.
+
+const PATH_STOPS = new Set(['wall', 'statue', 'golddoor']);
+
+// The way to (tx, ty): { bump, path }. bump: (tx, ty) is a bump one legal step away.
+// path: [{ x, y }] from the first step to where it stops; [] if there is no way, or you
+// are already there; for a cell that can't be stood on, it stops at the nearest cell
+// beside it (by a legal step, for a bump).
+function plan(g, tx, ty) {
+  const { room, vis, shown, sensed } = sight(g);
+  const t = room.t;
+  const there = idx(tx, ty);
+  if (tx === g.x && ty === g.y) return { bump: false, path: [] };
+  const drawnToad = (i) => thingAt(g, room, i, vis, shown, sensed)?.kind === 'toad';
+  const pass = (i) => room.seen[i] && !PATH_STOPS.has(t[i]) && t[i] !== 'door' && !drawnToad(i);
+  const isBump = t[there] === 'statue' || t[there] === 'golddoor' || drawnToad(there);
+  if (isBump && isStep(t, g.x, g.y, tx, ty)) return { bump: true, path: [] };
+  let goals;
+  if (pass(there) || (t[there] === 'door' && room.seen[there])) {
+    goals = [there];
+  } else {
+    // beside it: one legal step from it for a bump, any of the eight round a wall
+    goals = [];
+    for (const [dx, dy] of NEIGHBOURS) {
+      const [x, y] = [tx + dx, ty + dy];
+      if (x < 0 || y < 0 || x >= S || y >= S) continue;
+      if (!pass(idx(x, y)) && !(x === g.x && y === g.y)) continue;
+      if (isBump && !isStep(t, x, y, tx, ty)) continue;
+      goals.push(idx(x, y));
+    }
+  }
+  const dist = stepsFrom(t, goals, (i) => pass(i) || i === idx(g.x, g.y));
+  return { bump: false, path: walkDown(t, dist, g.x, g.y, tx, ty) ?? [] };
+}
+
+function toadInView(g) {
+  const room = currentRoom(g);
+  const t = room.toad;
+  return !!t && fov(room.t, g.x, g.y)[idx(t.x, t.y)];
+}
+
+// One step of a travel to (tx, ty). `first`: the tap that starts it, which may wait
+// (your own cell) or bump; a continuing travel only ever steps.
+function travel(g, tx, ty, ev, first) {
+  g.going = null;
+  if (first && tx === g.x && ty === g.y) {
+    endTurn(g, ev); // a wait
+    return;
+  }
+  const way = plan(g, tx, ty);
+  if (way.bump) {
+    if (first) step(g, tx - g.x, ty - g.y, ev);
+    return;
+  }
+  const next = way.path[0];
+  const room = currentRoom(g);
+  // never into a toad, seen or not: travel only bumps what it was sent to
+  if (!next || toadAt(room, next.x, next.y)) return;
+  const before = { hp: g.hp, room: g.room, turn: g.turn, saw: toadInView(g), ...noticedIn(room) };
+  step(g, next.x - g.x, next.y - g.y, ev);
+  const now = currentRoom(g);
+  const marks = noticedIn(now);
+  const stopped =
+    g.turn === before.turn ||
+    g.hp < before.hp ||
+    ev.some((e) => e.type === 'death') ||
+    g.room !== before.room ||
+    !!g.event ||
+    g.said > 0 ||
+    (!before.saw && toadInView(g)) ||
+    awakeInSight(g) ||
+    (marks.toad && !before.toad) ||
+    (marks.statue && !before.statue);
+  const path = stopped ? [] : plan(g, tx, ty).path;
+  ev.push({ type: 'travel', x: tx, y: ty, path });
+  if (path.length) g.going = { x: tx, y: ty };
+}
+
+// Looking at a cell: the way a travel there would walk. Free.
+function look(g, x, y) {
+  return [{ type: 'look', x, y, path: plan(g, x, y).path }];
+}
+
+// Can a cell be looked at or travelled to? Not under a menu, the inventory or an event,
+// and not a cell you have never seen (the same test as observe's).
+function canTarget(g, a) {
+  if (g.menu || g.inv || g.event || !inRoom(a.x) || !inRoom(a.y)) return false;
+  const { room, vis, shown, sensed } = sight(g);
+  return thingAt(g, room, idx(a.x, a.y), vis, shown, sensed) !== undefined;
+}
+
 // ---- the API -----------------------------------------------------------
 
 const inRoom = (n) => Number.isInteger(n) && n >= 0 && n < S;
@@ -1154,6 +1262,10 @@ export function act(g, a) {
   if (!a || typeof a !== 'object') return [];
   const ev = [];
   g.said = 0;
+  // anything but going on with it ends a travel
+  const going = g.going;
+  if (a.type !== 'continue') g.going = null;
+  if (a.type === 'stop') return going ? [{ type: 'stop' }] : [];
   if (g.event) return eventAct(g, a, ev) ? ev : [];
   switch (a.type) {
     case 'move':
@@ -1191,6 +1303,16 @@ export function act(g, a) {
     case 'observe':
       if (g.menu || g.inv || !inRoom(a.x) || !inRoom(a.y)) return [];
       observe(g, a.x, a.y, ev);
+      break;
+    case 'look':
+      return canTarget(g, a) ? look(g, a.x, a.y) : [];
+    case 'travel':
+      if (!canTarget(g, a)) return [];
+      travel(g, a.x, a.y, ev, true);
+      break;
+    case 'continue':
+      if (!g.going) return [];
+      travel(g, g.going.x, g.going.y, ev, false);
       break;
     default:
       return [];
@@ -1253,6 +1375,7 @@ export function view(g) {
     seed: g.seed,
     depth: g.depth,
     turn: g.turn,
+    going: !!g.going, // a travel is under way: the screen sends continue, or stop
     look: g.look,
     outlines: g.outlines,
     room: { id: g.room, key: room.key },

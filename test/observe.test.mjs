@@ -210,8 +210,11 @@ test('sensing spreads a step at a time to every cell it can go, and walls take i
   room.t[idx(9, 3)] = 'floor';
   const wave = waveOf(g);
   assert.deepEqual(at(wave, 5, 5), { x: 5, y: 5, d: 0, absorb: false }, 'it starts from you');
-  assert.equal(at(wave, 7, 6).d, 3, 'four ways, a step at a time');
-  assert.equal(at(wave, 5, 2).d, 4 + 2 + 4 + 1, 'round through the gap: right, up, then back along');
+  assert.equal(at(wave, 7, 6).d, 2, 'eight ways, a step at a time');
+  // to (9, 4) in 4, then straight up through the gap (a diagonal would cut the wall's
+  // corner) to (9, 2), then back along
+  assert.equal(at(wave, 5, 2).d, 4 + 2 + 4, 'round through the gap, never cutting a corner');
+  assert.equal(at(wave, 8, 2).d, 7, 'not diagonally out of the gap');
   assert.equal(at(wave, 9, 3).absorb, false, 'the gap passes it on');
   const wall = at(wave, 5, 3);
   assert.equal(wall.absorb, true, 'the wall takes it in');

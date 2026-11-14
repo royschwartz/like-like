@@ -1,26 +1,30 @@
 // Keys, touches and clicks become contract Actions. Acts at once; never waits on animations.
+// The one exception is a tap on the map: it becomes a `tap`, and main.js decides what that
+// is (a look, then an observation when the blink is done, or a fast move if tapped again).
+// A press that means nothing becomes an `interrupt`: it does nothing but stop a fast move.
 
 import { CONFIG } from './config.js';
 
 const S = CONFIG.roomSize;
-const REPEAT_FIRST_MS = 260;
-const REPEAT_EVERY_MS = 110;
 
-// The arrow keys or w a s d move, and move the cursor in a list, a menu or an event.
+// The four arrow keys move, and move the cursor in a list, a menu or an event. No letters.
 const KEY_DIRS = { ArrowUp: 'n', ArrowRight: 'e', ArrowDown: 's', ArrowLeft: 'w' };
-const LETTER_DIRS = { w: 'n', a: 'w', s: 's', d: 'e' };
-// a is a direction, so * is x (or * itself)
-const KEY_MENUS = { i: 'inv', x: 'act', '*': 'act', p: 'psy', m: 'sys' };
+// keys that are only held with others: pressing one alone is not a press
+const MODIFIERS = new Set(['Shift', 'Control', 'Alt', 'Meta', 'CapsLock', 'Fn', 'AltGraph', 'OS']);
 
 export function bindInput(root, dispatch) {
   const doc = root.ownerDocument || root;
-  const held = new Map(); // pointerId -> { el: pressed element or null, pad, timer }
+  const held = new Map(); // pointerId -> the pressed button
 
   function onKey(e) {
     if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (MODIFIERS.has(e.key)) return;
     if ((e.key === 'Enter' || e.key === ' ') && e.target.closest?.('button')) return;
     const action = keyAction(e.key);
-    if (!action) return;
+    if (!action) {
+      dispatch({ type: 'interrupt' });
+      return;
+    }
     e.preventDefault();
     dispatch(action);
     // When tab focus is on a choice, arrow navigation must move that focus with
@@ -32,60 +36,21 @@ export function bindInput(root, dispatch) {
 
   function onPointerDown(e) {
     if (e.button != null && e.button !== 0) return;
-    const el = e.target && e.target.closest ? e.target.closest('.btn, .pad, .link, [data-cell], [data-pick]') : null;
-    if (!el || !root.contains(el) || el.disabled) return;
-    const action = elementAction(el);
-    if (!action) return;
-    e.preventDefault(); // no focus, no emulated mouse events
-    if (action.type === 'observe' || action.type === 'pick') {
+    const el = e.target && e.target.closest ? e.target.closest('.btn, .link, [data-cell], [data-pick]') : null;
+    const action = el && root.contains(el) && !el.disabled ? elementAction(el) : null;
+    if (!action) {
+      dispatch({ type: 'interrupt' });
+      return;
+    }
+    e.preventDefault(); // no focus, no emulated mouse events, no selecting on a double tap
+    if (action.type === 'tap' || action.type === 'pick') {
       dispatch(action); // a map cell or an inventory row: not a button, nothing to hold
       return;
     }
     release(e.pointerId);
-    // Touch pointers are captured to the first element; free them so a thumb can slide.
-    try {
-      if (el.releasePointerCapture) el.releasePointerCapture(e.pointerId);
-    } catch (err) {
-      // not captured: nothing to release
-    }
-    const hold = { el: null, pad: action.type === 'move', timer: null };
-    held.set(e.pointerId, hold);
-    if (hold.pad) return pressPad(hold, el);
     el.classList.add('down');
-    hold.el = el;
+    held.set(e.pointerId, el);
     dispatch(action);
-  }
-
-  // Press a d-pad arm: move at once, then repeat until it is let go.
-  function pressPad(hold, el) {
-    unpress(hold);
-    const dir = el.dataset.dir;
-    el.classList.add('down');
-    hold.el = el;
-    hold.timer = setTimeout(function repeat() {
-      dispatch({ type: 'move', dir });
-      hold.timer = setTimeout(repeat, REPEAT_EVERY_MS);
-    }, REPEAT_FIRST_MS);
-    dispatch({ type: 'move', dir });
-  }
-
-  function unpress(hold) {
-    clearTimeout(hold.timer);
-    hold.timer = null;
-    if (hold.el) hold.el.classList.remove('down');
-    hold.el = null;
-  }
-
-  // A pointer that went down on the d-pad follows the thumb from arm to arm.
-  function onPointerMove(e) {
-    const hold = held.get(e.pointerId);
-    if (!hold || !hold.pad || !doc.elementFromPoint) return;
-    const under = doc.elementFromPoint(e.clientX, e.clientY);
-    const pad = under && under.closest ? under.closest('.pad') : null;
-    const arm = pad && root.contains(pad) && pad.dataset.dir ? pad : null;
-    if (arm === hold.el) return;
-    if (arm) pressPad(hold, arm);
-    else unpress(hold);
   }
 
   function onPointerEnd(e) {
@@ -93,9 +58,9 @@ export function bindInput(root, dispatch) {
   }
 
   function release(id) {
-    const hold = held.get(id);
-    if (!hold) return;
-    unpress(hold);
+    const el = held.get(id);
+    if (!el) return;
+    el.classList.remove('down');
     held.delete(id);
   }
 
@@ -103,7 +68,6 @@ export function bindInput(root, dispatch) {
     for (const id of [...held.keys()]) release(id);
   }
 
-  // pointerleave does not bubble, so listen in the capture phase.
   root.addEventListener('pointerdown', onPointerDown);
   root.addEventListener('pointerup', onPointerEnd);
   root.addEventListener('pointercancel', onPointerEnd);
@@ -116,16 +80,13 @@ export function bindInput(root, dispatch) {
     const action = elementAction(el);
     if (action) dispatch(action);
   });
-  // A d-pad pointer leaving its arm lets go of it but is still followed.
+  // A pointer leaving the button it pressed lets go of it. pointerleave does not bubble,
+  // so listen in the capture phase.
   root.addEventListener('pointerleave', (e) => {
-    const hold = held.get(e.pointerId);
-    if (!hold || e.target !== hold.el) return;
-    if (hold.pad) unpress(hold);
-    else release(e.pointerId);
+    if (held.get(e.pointerId) === e.target) release(e.pointerId);
   }, true);
   root.addEventListener('contextmenu', (e) => e.preventDefault());
   doc.addEventListener('keydown', onKey);
-  doc.addEventListener('pointermove', onPointerMove);
   if (doc !== root) {
     doc.addEventListener('pointerup', onPointerEnd);
     doc.addEventListener('pointercancel', onPointerEnd);
@@ -139,27 +100,20 @@ function keyAction(key) {
   if (KEY_DIRS[key]) return { type: 'move', dir: KEY_DIRS[key] };
   if (key === 'Enter' || key === ' ' || key === 'Spacebar') return { type: 'context' };
   if (key === 'Escape' || key === 'Backspace') return { type: 'back' };
-  if (key && key.length === 1) {
-    const k = key.toLowerCase();
-    if (LETTER_DIRS[k]) return { type: 'move', dir: LETTER_DIRS[k] };
-    if (k === 'e') return { type: 'context' }; // the wide button, beside w a s d
-    if (k === '.' || k === 'z' || k === 'q') return { type: 'wait' };
-    if (k === 'u') return { type: 'use' };
-    if (KEY_MENUS[k]) return { type: 'menu', id: KEY_MENUS[k] };
-    if (k >= '1' && k <= '9') return { type: 'choose', index: Number(k) - 1 };
-  }
+  if (key === '.') return { type: 'wait' };
+  if (key === '*') return { type: 'menu', id: 'act' };
+  if (key && key.length === 1 && key >= '1' && key <= '9') return { type: 'choose', index: Number(key) - 1 };
   return null;
 }
 
 function elementAction(el) {
   const d = el.dataset || {};
-  if (d.dir) return { type: 'move', dir: d.dir };
   if (d.action === 'context') return { type: 'context' };
   if (d.action === 'wait') return { type: 'wait' };
   if (d.action === 'use') return { type: 'use' };
   if (d.cell != null && d.cell !== '') {
     const i = Number(d.cell);
-    return { type: 'observe', x: i % S, y: Math.floor(i / S) };
+    return { type: 'tap', x: i % S, y: Math.floor(i / S) };
   }
   if (d.pick != null && d.pick !== '') return { type: 'pick', index: Number(d.pick) };
   if (d.choose != null && d.choose !== '') return { type: 'choose', index: Number(d.choose) };

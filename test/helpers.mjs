@@ -8,7 +8,12 @@ import { currentRoom, toadAt } from '../src/game.js';
 // A random action, weighted toward moves and the wide button.
 export function randomAction(r) {
   const roll = float(r);
-  if (roll < 0.5) return { type: 'move', dir: pick(r, DIRS) };
+  if (roll < 0.42) return { type: 'move', dir: pick(r, DIRS) };
+  // tapping cells: look, travel, and going on with it
+  if (roll < 0.44) return { type: 'look', x: int(r, 0, S - 1), y: int(r, 0, S - 1) };
+  if (roll < 0.47) return { type: 'travel', x: int(r, 0, S - 1), y: int(r, 0, S - 1) };
+  if (roll < 0.495) return { type: 'continue' };
+  if (roll < 0.5) return { type: 'stop' };
   if (roll < 0.65) return { type: 'context' };
   if (roll < 0.73) return { type: 'menu', id: pick(r, ['inv', 'act', 'psy', 'sys']) };
   if (roll < 0.81) return { type: 'choose', index: int(r, 0, 4) };
@@ -28,6 +33,9 @@ export function randomAction(r) {
     { type: 'observe', x: -1, y: 3 },
     { type: 'observe', x: 2.5, y: 3 },
     { type: 'pick', index: 99 },
+    { type: 'look', x: -1, y: 3 },
+    { type: 'travel', x: 3, y: 11 },
+    { type: 'travel', x: 2.5, y: 3 },
   ]);
 }
 

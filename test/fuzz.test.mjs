@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { makeRng } from '../src/rng.js';
 import { newGame, act, view, currentRoom } from '../src/game.js';
 import { CONFIG } from '../src/config.js';
+import { isStep } from '../src/path.js';
 import { randomAction, isLegalToadCell, logLines, idx, DIRS, STEP } from './helpers.mjs';
 
 const SEEDS = 60;
@@ -59,6 +60,8 @@ function check(g, v, lastId) {
     const at = v.menu.options[v.menu.cursor];
     assert.ok(at && !at.disabled, 'cursor on a choosable slot');
   }
+  assert.equal(typeof v.going, 'boolean');
+  if (v.going) assert.ok(!v.menu && !v.inv && !v.event, 'no travel under a menu, the inventory or an event');
   assert.deepEqual(view(g), v, 'view is pure');
 }
 
@@ -70,6 +73,7 @@ test('fuzz: random play never breaks the rules', () => {
   let used = 0;
   let events = 0;
   let mostSaid = 0;
+  let travelled = 0;
   for (let seed = 1; seed <= SEEDS; seed++) {
     const g = newGame({ seed: seed * 7919 });
     const r = makeRng(seed);
@@ -93,8 +97,24 @@ test('fuzz: random play never breaks the rules', () => {
     for (let k = 0; k < STEPS; k++) {
       const action = randomAction(r);
       const from = g.nextLogId;
+      const turn = g.turn;
       const ev = act(g, action);
       assert.ok(Array.isArray(ev));
+      // a way shown or left to walk: legal steps over seen cells you could stand on
+      for (const e of ev) {
+        // (the menu's change of look is a 'look' event too, with no path)
+        if (!(e.type === 'look' && e.path) && e.type !== 'travel') continue;
+        if (e.type === 'look') assert.equal(g.turn, turn, 'look is free');
+        const room = currentRoom(g);
+        let [x, y] = [g.x, g.y];
+        for (const c of e.path) {
+          const i = idx(c.x, c.y);
+          assert.ok(room.seen[i] && !['wall', 'statue', 'golddoor'].includes(room.t[i]), `path over ${room.t[i]}`);
+          assert.ok(isStep(room.t, x, y, c.x, c.y), 'path: legal steps');
+          [x, y] = [c.x, c.y];
+        }
+        if (e.type === 'travel') assert.equal(view(g).going, e.path.length > 0);
+      }
       // Two wrapped lines in all. The opening is historical text, never fresh.
       const said = g.log.filter((l) => l.id >= from);
       assert.ok(said.length <= CONFIG.saysAtMost, `${JSON.stringify(action)} said ${said.length}: ${said.map((l) => l.text).join(' | ')}`);
@@ -110,6 +130,7 @@ test('fuzz: random play never breaks the rules', () => {
       if (ev.some((e) => e.type === 'restart')) restarts++;
       if (ev.some((e) => e.type === 'death')) deaths++;
       if (ev.some((e) => e.type === 'observe')) observed++;
+      if (ev.some((e) => e.type === 'travel' && e.path.length)) travelled++;
       if (ev.some((e) => e.type === 'event')) events++;
       if (action && action.type === 'use' && g.inv) used++;
       check(g, view(g), 0);
@@ -121,6 +142,7 @@ test('fuzz: random play never breaks the rules', () => {
   assert.ok(restarts > 0, 'restarted');
   assert.ok(deaths > 0, 'died');
   assert.ok(observed > 0, 'observed');
+  assert.ok(travelled > 0, 'travelled more than a step');
   assert.ok(used > 0, 'used an item');
   assert.ok(events > 0, 'opened an event');
   assert.equal(mostSaid, CONFIG.saysAtMost, 'some action said two lines');

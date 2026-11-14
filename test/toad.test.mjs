@@ -4,13 +4,14 @@ import { CONFIG } from '../src/config.js';
 import { TEXT } from '../src/text.js';
 import { los } from '../src/fov.js';
 import { newGame, act, view, currentRoom } from '../src/game.js';
+import { chebyshev } from '../src/path.js';
 import { putToad, openRoom, DIRS, STEP, S, idx } from './helpers.mjs';
 
 const texts = (g, from) => g.log.filter((l) => l.id >= from).map((l) => l.text);
 const open = (c) => c === 'floor' || c === 'grass';
 const manhattan = (ax, ay, bx, by) => Math.abs(ax - bx) + Math.abs(ay - by);
 
-// A game in the toad's room, you `dist` steps from the toad and in its sight.
+// A game in the toad's room, you `dist` steps (eight ways) from the toad and in its sight.
 function atToad(seed = 21, dist = 1) {
   const g = newGame({ seed });
   g.hp = g.maxHp = 100000;
@@ -21,7 +22,10 @@ function atToad(seed = 21, dist = 1) {
   for (let i = 0; i < S * S && !spot; i++) {
     const x = i % S;
     const y = Math.floor(i / S);
-    if (open(room.t[i]) && manhattan(x, y, t.x, t.y) === dist && los(room.t, x, y, t.x, t.y)) spot = [x, y];
+    // steps count diagonals; one step away is a straight one, so an arrow reaches it
+    if (!open(room.t[i]) || chebyshev(x, y, t.x, t.y) !== dist || !los(room.t, x, y, t.x, t.y)) continue;
+    if (dist === 1 && manhattan(x, y, t.x, t.y) !== 1) continue;
+    spot = [x, y];
   }
   assert.ok(spot, 'a spot by the toad');
   [g.x, g.y] = spot;

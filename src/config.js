@@ -16,7 +16,8 @@ export const CONFIG = {
   // Chance a level's entrance is in grass; otherwise it is on dirt (plain floor).
   entranceInGrass: 0.5,
 
-  // Observe says more about a thing this many steps from you, or nearer.
+  // Observe says more about a thing this many steps from you, or nearer (steps go eight
+  // ways, so a diagonal counts as one; the same for noticing and being beside the bust).
   observeClose: 2,
 
   player: { hp: 3, str: 10, love: 10, will: 10 },
@@ -64,7 +65,7 @@ export const CONFIG = {
   restTurns: 10,
   restHeal: 1,
 
-  // The lines round the buttons and the d-pad in the dark look, set in the menu:
+  // The lines round the buttons in the dark look, set in the menu:
   // 0 is none, then `levels` steps of grey up to white. A new game starts at `start`.
   outlines: { levels: 8, start: 0 },
 

@@ -50,6 +50,10 @@ export function createRenderer(root = document) {
   const fx = createFx();
   let slide = null; // { ghost, dirClass, timer }
   let wave = null; // the sense wave while it is going: { els, timer }
+  // The trail: the cells of the way a fast move would walk (or is walking), and whether it
+  // is a fast move's way ahead (route) rather than a look's. lookEl blinks while hot.
+  const trail = { els: [], route: false, lookEl: null, timer: null };
+  let lastTurn = null;
   const win = screen.ownerDocument.defaultView;
   const style = win.getComputedStyle(screen);
   const num = (name, fallback) => {
@@ -59,6 +63,13 @@ export function createRenderer(root = document) {
   const frameMs = num('--f', 70);
   const blinkMs = frameMs * num('--blink-on', 2);
   const blinkEveryMs = frameMs * num('--blink-every', 28);
+  // The times a tap on the map runs by. main.js waits on these too, so there is one clock.
+  const timing = {
+    frameMs,
+    lookMs: frameMs * num('--look-on', 6), // the observing blink, the bright trail, the window for a second tap
+    stepMs: frameMs * num('--travel-step', 1), // a fast move's step
+    slideMs: (frameMs / 2) * SIZE, // a room sliding in: --slide-step, half a frame, a tile
+  };
   // The blink: white for a couple of frames, about every two seconds, all in step.
   // Nothing blinks while a sense wave is going; when the wave ends the blinking starts
   // again from there, so the first blink comes just after the wave and never during it.
@@ -82,8 +93,10 @@ export function createRenderer(root = document) {
     events = Array.isArray(events) ? events : [];
 
     const nextRoom = `${view.depth}:${view.room?.id}:${view.room?.key}`;
-    if (nextRoom !== roomKey || events.some((e) => e.type === 'death' || e.type === 'restart')) {
+    const fresh = nextRoom !== roomKey || events.some((e) => e.type === 'death' || e.type === 'restart');
+    if (fresh) {
       stopWave();
+      clearTrail();
       for (const cell of cells) for (const cls of CELL_FX) fx.stop(cell, cls);
       endSlide();
       roomKey = nextRoom;
@@ -117,6 +130,8 @@ export function createRenderer(root = document) {
       if (!died) cellEffect(e, view);
       screenEffect(e);
     }
+    if (!died) drawTrail(view, events);
+    lastTurn = view.turn;
   }
 
   // --- map ---
@@ -195,9 +210,9 @@ export function createRenderer(root = document) {
     if (e.type === 'sense') return startWave(e, view);
     if (!inRoom(e.x, e.y)) return;
     const el = cells[e.y * SIZE + e.x];
+    // An observation does not blink its cell: the look before it already did (drawTrail).
     if (e.type === 'attack') fx.play(el, e.hit ? 'fx-hit' : 'fx-miss', CELL_FX);
     else if (e.type === 'kill') fx.play(el, 'fx-kill', CELL_FX);
-    else if (e.type === 'observe') fx.play(el, 'fx-observe', CELL_FX);
     else if (e.type === 'dig') fx.play(el, 'fx-dig', CELL_FX);
     else if (e.type === 'unlock') fx.play(el, 'fx-unlock', CELL_FX);
   }
@@ -262,6 +277,73 @@ export function createRenderer(root = document) {
   function endWave() {
     stopWave();
     blinkLoop(frameMs * 2);
+  }
+
+  // --- the trail, as Brogue draws its travel route ---
+  // A look lights the way to the looked-at cell, bright for --look-on frames while that
+  // cell blinks, then dim. A fast move keeps the way still ahead drawn dim, shorter each
+  // step. Anything else that takes a turn, or takes the map away, clears it. Only classes
+  // change here (style.css draws the wash), so drawMap's painting never fights it.
+  function drawTrail(view, events) {
+    if (view.event || view.inv || view.menu) return clearTrail();
+    const look = events.find((e) => e && e.type === 'look' && inRoom(e.x, e.y));
+    let travel = null;
+    for (const e of events) if (e && e.type === 'travel') travel = e;
+    if (look) return startLook(look, view);
+    if (travel) {
+      dropLook();
+      setTrail(travel.path, view);
+      trail.route = true;
+      return;
+    }
+    const turned = lastTurn != null && view.turn !== lastTurn;
+    if (turned || (trail.route && !view.going)) clearTrail();
+  }
+
+  function startLook(e, view) {
+    clearTrail();
+    setTrail(e.path, view);
+    const el = cells[e.y * SIZE + e.x];
+    fx.play(el, 'fx-observe', CELL_FX);
+    trail.lookEl = el;
+    map.classList.add('trail-hot');
+    trail.timer = setTimeout(cool, timing.lookMs);
+  }
+
+  // The blink is over: the trail steps down to dim, and stays.
+  function cool() {
+    clearTimeout(trail.timer);
+    trail.timer = null;
+    map.classList.remove('trail-hot');
+    trail.lookEl = null;
+  }
+
+  // A look cut short: its cell stops blinking and its trail goes dim at once.
+  function dropLook() {
+    if (trail.lookEl) fx.stop(trail.lookEl, 'fx-observe');
+    cool();
+  }
+
+  function setTrail(path, view) {
+    for (const el of trail.els) el.classList.remove('trail');
+    trail.els = [];
+    trail.route = false;
+    for (const c of Array.isArray(path) ? path : []) {
+      if (!c || !inRoom(c.x, c.y)) continue;
+      const i = c.y * SIZE + c.x;
+      // never over a cell you know nothing of
+      const seen = view.cells && view.cells[i];
+      if (!seen || seen.state === 'unknown') continue;
+      cells[i].classList.add('trail');
+      trail.els.push(cells[i]);
+    }
+  }
+
+  function clearTrail() {
+    dropLook();
+    for (const el of trail.els) el.classList.remove('trail');
+    trail.els = [];
+    trail.route = false;
   }
 
   function screenEffect(e) {
@@ -485,8 +567,9 @@ export function createRenderer(root = document) {
     });
   }
 
-  return { draw, destroy() {
+  return { draw, timing, dropLook, destroy() {
     clearTimeout(blinkNext);
+    clearTrail();
     clearTimeout(blinkOff);
     stopWave();
     map.removeEventListener('animationend', onWaveCellEnd);
@@ -562,7 +645,8 @@ function createFx() {
   function onEnd(el, e, group) {
     const mine = running.get(el);
     if (!mine || mine.size === 0) return;
-    const name = e.animationName;
+    // a quieter version of an effect (for less motion) is named after it, with -still
+    const name = String(e.animationName || '').replace(/-still$/, '');
     if (mine.has(name)) return stop(el, name);
     // Screen effects bubble from children and must match by name; an element's own
     // animation with another name ends its only running effect.

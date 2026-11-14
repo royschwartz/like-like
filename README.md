@@ -20,16 +20,18 @@ Then go to `http://localhost:5173`. Add `?seed=7` to the address to play the sam
 
 | | Phone | Keyboard |
 |---|---|---|
-| Move, or hit what's in the way | d-pad: an arm, or the corner beside it (hold to keep going) | arrow keys or `w` `a` `s` `d` |
-| The wide button: `sense`, or `corpse` on a corpse, or `stairs` on the stairs | tap | Enter, Space or `e` |
-| Observe a thing on the map | tap it | click it |
-| `inv` what you carry: the inventory screen | tap | `i` |
-| In the inventory: `inspect` an item, `use` it, `back` | wide button, `use`, `back` | Enter or `e`, `u`, Esc |
-| `*` rest, or dig for worms once you know of them | tap | `x` or `*` |
-| `psy` what you know of your mind | tap | `p` |
-| `...` wait a turn | the middle of the d-pad | `.`, `z` or `q` |
-| The menu (a square): restart, the paper or dark look, and the outlines round the buttons (off, or 1 to 8, grey up to white) | tap | `m` |
-| Pick an option | tap | `1` to `4`, or arrows or `w` `a` `s` `d` and Enter |
+| Look at a thing on the map: it blinks, the way there lights up, then you observe it. Takes no time | tap it once | click it once |
+| Go there, step by step (or hit what's there, if it's beside you) | tap it twice | double-click it |
+| Stop going | tap anywhere | any key |
+| Move a step, or hit what's in the way | | arrow keys |
+| The wide button: `sense`, or `corpse` on a corpse, or `stairs` on the stairs | tap | Enter or Space |
+| `inv` what you carry: the inventory screen | tap | |
+| In the inventory: `inspect` an item, `use` it, `back` | wide button, `use`, `back` | Enter, Esc |
+| `*` rest, or dig for worms once you know of them | tap | `*` |
+| `psy` what you know of your mind | tap | |
+| `...` wait a turn | tap | `.` |
+| The menu (a square): restart, the paper or dark look, and the outlines round the buttons (off, or 1 to 8, grey up to white) | tap | |
+| Pick an option | tap | `1` to `4`, or arrows and Enter |
 | Back | `back` | Esc |
 | In an event: take a link | tap it | arrows and Enter, or `1` to `9`; Esc for `back` |
 
@@ -37,7 +39,7 @@ Then go to `http://localhost:5173`. Add `?seed=7` to the address to play the sam
 
 - A level is one to four rooms. A room is 11 by 11 characters, walls included, and fills the screen. Walk through a door (`+`) and the next room slides in.
 - The log at the top says what happens. Its newest lines are bright; older ones are dimmer. One action adds at most two wrapped lines of text. The opening is kept in full above the arrival status.
-- Tap or click a thing on the map to observe it. It takes no time and gives one observation. Click again and it may say something new; come closer and there may be more. Nothing blinks for being there to look at. Once you've noticed a thing, by sensing or now and then without trying (the nearer, the likelier), it blinks white while it has something you haven't observed. In the inventory, an item you haven't inspected blinks.
+- Tap or click a thing on the map to observe it: it blinks while the way there lights up, then the observation comes. It takes no time and gives one observation. Tap it again while it blinks to go there instead, a step at a time; the way still ahead stays lit, and any press stops you. Click again and it may say something new; come closer and there may be more. Nothing blinks for being there to look at. Once you've noticed a thing, by sensing or now and then without trying (the nearer, the likelier), it blinks white while it has something you haven't observed. In the inventory, an item you haven't inspected blinks.
 - `inv` replaces the map with what you carry. Move up and down to choose an item.
 - You see what's in your line of sight. `sense` takes a turn: it spreads out from you through everywhere you could walk, and the walls take it in; it shows you your own numbers for a while, shows the whole room, and reveals at most one observation. Combat messages take priority; an observation that cannot fit waits for a later sensing. Now and then a secret of the room comes to you without sensing.
 - Stand on the stairs (`>`) and the wide button says `stairs`.
