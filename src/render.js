@@ -379,6 +379,9 @@ export function createRenderer(root = document) {
     if (view.inv) setText(menuButtons.inv, TEXT.menu.back ?? '');
     setText(btnWait, TEXT.button.wait ?? '');
     setText(btnUse, TEXT.button.use ?? '');
+    // the two labels that are marks, not words: their ink in the middle of the button
+    centreInk(menuButtons.act);
+    centreInk(btnWait);
     const ctx = view.context || {};
     btnContext.classList.toggle('more', !!ctx.more);
     setText(btnContext, ctx.label == null ? '' : ctx.label);
@@ -505,6 +508,29 @@ function inRoom(x, y) {
 
 function setText(el, text) {
   if (el && el.textContent !== text) el.textContent = text;
+}
+
+// Put the ink of a short mark ("*", "...") in the middle of its button. A line of type is
+// centred by its line, not its ink: Monaco draws "*" high and Menlo near the middle, and
+// "..." sits on the baseline in both. So measure the mark in the font the device actually
+// uses and give the button --ink-y, how far to move it, in em (style.css pads it by that).
+let inkCanvas = null;
+function centreInk(el) {
+  if (!el) return;
+  const cs = el.ownerDocument.defaultView.getComputedStyle(el);
+  const key = `${el.textContent}|${cs.fontFamily}`;
+  if (el.dataset.ink === key) return;
+  el.dataset.ink = key;
+  if (!el.textContent) return;
+  inkCanvas = inkCanvas || el.ownerDocument.createElement('canvas').getContext('2d');
+  if (!inkCanvas) return;
+  inkCanvas.font = `${cs.fontStyle} ${cs.fontWeight} 100px ${cs.fontFamily}`;
+  const m = inkCanvas.measureText(el.textContent);
+  const parts = [m.fontBoundingBoxAscent, m.fontBoundingBoxDescent, m.actualBoundingBoxAscent, m.actualBoundingBoxDescent];
+  if (!parts.every(Number.isFinite)) return; // an old browser: leave it on its line
+  // where the ink's middle is, below the middle of the line, in em
+  const below = (parts[0] - parts[1] + parts[3] - parts[2]) / 2 / 100;
+  el.style.setProperty('--ink-y', `${(-below).toFixed(3)}em`);
 }
 
 // A button drawn as a picture (the menu's square): its word is its name, not its text.

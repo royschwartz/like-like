@@ -58,9 +58,14 @@ body {
   --slide-step: calc(var(--f) / 2); /* changing rooms: the map moves a tile each this long */
   --ev-every: 4; /*     an event's new paragraphs come this many frames apart */
 
-  /* the controls, in u. Layout b of the interface study (decisions 99 to 102). */
+  /* type on buttons is the size of an event screen's: "the same size as the text screen font" */
+  --text-size: calc(var(--u) * 4.2);
+
+  /* the controls, in u. Layout b of the interface study (decisions 99 to 102, 107 to 110). */
   --pad: 58; /*         the d-pad, across */
-  --btn-scale: 0.8; /*  each button against its cell in the study: "smaller ... by 20%" */
+  --gap: 3; /*          between the small buttons, and between them and the pad */
+  --wide-h: 13.9; /*    the wide button's height */
+  --small-h: 12; /*     inv, psy, * and the menu: as wide as they can be, and less tall */
   --side: 4; /*         the margin at the sides */
   --top: 3; /*          above the controls */
   --bot: 4; /*          below them (more if the phone's home bar needs it) */
@@ -632,7 +637,7 @@ body {
   --ev-link: #99a3ff; /*  hypertext */
   --ev-link-quiet: #666da6; /* the way back */
   --ev-side: calc(var(--u) * 8);
-  --ev-size: calc(var(--u) * 4.2);
+  --ev-size: var(--text-size);
   --ev-gap: calc(var(--u) * 6.7); /*   between paragraphs: a line */
   --ev-inner: calc(var(--u) * 2.5); /* inside a paragraph, between a line and the next */
   --ev-indent: calc(var(--u) * 6); /*  a song */
@@ -816,28 +821,24 @@ button:focus-visible {
 }
 
 /* ---------- the controls: a block of buttons on the left, the d-pad on the right ----------
-   Layout b of the interface study, which he chose (decision 99). The block keeps the
-   study's outer edges: the screen's margin on the left, the pad's top and bottom above and
-   below. It has three rows and two columns, and each button is --btn-scale of the cell it
-   had in the study (101), pinned to the block's outer edges, so the room it gives up goes
-   between the buttons and their alignment stays (102). Pressed is inverse video, in one step. */
+   Layout b of the interface study, which he chose (decision 99). The block's top and bottom
+   are the pad's, and its left is the screen's margin (102). The wide button runs across the
+   top; under it the four small buttons share the width the pad leaves, wider than they are
+   tall (110), with the rows spaced evenly down to the pad's bottom. Pressed is inverse
+   video, in one step. */
 
 #controls {
-  /* a cell of the study's b, before the buttons shrank, and a button now */
-  --cell-w: calc((100 - 2 * var(--side) - var(--pad) - 7) / 2);
-  --cell-h: calc((var(--pad) - 6) / 3);
-  --bw: calc(var(--cell-w) * var(--btn-scale));
-  --bh: calc(var(--cell-h) * var(--btn-scale));
-  --row-gap: calc((var(--pad) - 3 * var(--bh)) / 2);
+  --small-w: calc((100 - 2 * var(--side) - var(--pad) - 2 * var(--gap)) / 2);
+  --row-gap: calc((var(--pad) - var(--wide-h) - 2 * var(--small-h)) / 2);
   display: grid;
-  /* button, the room between, button, 4u, the pad */
+  /* small button, gap, small button, gap, the pad */
   grid-template-columns:
-    calc(var(--u) * var(--bw)) minmax(0, 1fr) calc(var(--u) * var(--bw))
-    calc(var(--u) * 4) calc(var(--u) * var(--pad));
-  /* button, room, button, room, button: as tall as the pad */
+    calc(var(--u) * var(--small-w)) calc(var(--u) * var(--gap)) calc(var(--u) * var(--small-w))
+    calc(var(--u) * var(--gap)) calc(var(--u) * var(--pad));
+  /* the wide button, room, a row of small ones, room, a row of small ones: as tall as the pad */
   grid-template-rows:
-    calc(var(--u) * var(--bh)) calc(var(--u) * var(--row-gap)) calc(var(--u) * var(--bh))
-    calc(var(--u) * var(--row-gap)) calc(var(--u) * var(--bh));
+    calc(var(--u) * var(--wide-h)) calc(var(--u) * var(--row-gap)) calc(var(--u) * var(--small-h))
+    calc(var(--u) * var(--row-gap)) calc(var(--u) * var(--small-h));
   /* clear of the phone's home bar */
   padding: calc(var(--u) * var(--top)) calc(var(--u) * var(--side))
     max(calc(var(--u) * var(--bot)), env(safe-area-inset-bottom, 0px));
@@ -916,16 +917,19 @@ button:focus-visible {
   color: var(--btn-ink);
   box-shadow: inset 0 0 0 calc(var(--u) * 0.45) var(--btn-edge);
   font-family: var(--mono);
-  font-size: calc(var(--u) * 4.3);
+  font-size: var(--text-size);
   line-height: 1.1;
   cursor: pointer;
   touch-action: none;
   outline: none;
 }
-/* the block's buttons are smaller, and so is their type, so "back" fits */
-#buttons .btn,
-#btn-sys {
-  font-size: calc(var(--u) * 3.9);
+
+/* A mark, not a word (the * and the "..."): render.js measures where its ink sits in the
+   font the device uses and sets --ink-y, and this moves it there, so it is in the middle. */
+#btn-act,
+#btn-wait {
+  padding-top: max(0em, calc(var(--ink-y, 0em) * 2));
+  padding-bottom: max(0em, calc(var(--ink-y, 0em) * -2));
 }
 
 .btn.down {
@@ -997,7 +1001,6 @@ button:focus-visible {
 }
 
 .opt {
-  font-size: calc(var(--u) * 3.7);
   padding: 0 calc(var(--u) * 1);
 }
 .opt.empty {
@@ -1074,21 +1077,27 @@ button:focus-visible {
   height: 33.5%;
   background: var(--btn);
 }
+/* Each plate runs a little past its third toward the middle, where it has no edge, so the
+   arm's diagonal cut mitres the outline where two arms meet. */
 #dpad .pad[data-dir="n"]::before {
   left: 33.25%;
   top: 0;
+  height: calc(33.5% + var(--u));
 }
 #dpad .pad[data-dir="e"]::before {
   right: 0;
   top: 33.25%;
+  width: calc(33.5% + var(--u));
 }
 #dpad .pad[data-dir="s"]::before {
   left: 33.25%;
   bottom: 0;
+  height: calc(33.5% + var(--u));
 }
 #dpad .pad[data-dir="w"]::before {
   left: 0;
   top: 33.25%;
+  width: calc(33.5% + var(--u));
 }
 
 /* the mark: a flat triangle */
@@ -1130,21 +1139,22 @@ button:focus-visible {
   background: var(--btn-down-ink);
 }
 
-/* the middle is wait ("..."): a button of its own over the arms, a little apart from them */
+/* the middle is wait ("..."): the whole middle square, over the arms. No box of its own
+   (decision 108): the plus's outline goes round it. Pressed, it fills. */
 #dpad .hub {
   position: absolute;
-  left: calc(33.25% + var(--u) * 1.2);
-  top: calc(33.25% + var(--u) * 1.2);
+  left: 33.25%;
+  top: 33.25%;
   z-index: 1;
-  width: calc(33.5% - var(--u) * 2.4);
-  height: calc(33.5% - var(--u) * 2.4);
+  width: 33.5%;
+  height: 33.5%;
   margin: 0;
-  padding: 0;
+  box-shadow: none;
 }
 #dpad .hub.down {
   background: var(--btn-down);
   color: var(--btn-down-ink);
-  box-shadow: inset 0 0 0 calc(var(--u) * 0.45) var(--btn-down-edge);
+  box-shadow: none;
 }
 /* there is no waiting in the inventory */
 #screen[data-screen="inv"] #dpad .hub {
