@@ -1,4 +1,6 @@
 // Boot: make a game, draw it, and from then on: action -> act -> draw.
+// A press on the map is a gesture that input.js follows; here it becomes rules actions:
+// a tap goes there, a hold looks and then observes, a drag shows the way and letting go goes.
 
 import { newGame, act, view } from './game.js';
 import { createRenderer } from './render.js';
@@ -51,15 +53,14 @@ const renderer = createRenderer(document);
 renderer.draw(view(game));
 const timing = renderer.timing;
 
-// What the screen is waiting on. Only one at a time, and either is dropped by any input.
-let pending = null; // a looked-at cell, observed when its blink is done: { x, y, timer }
 let stepTimer = null; // the next step of a fast move
+let aim = null; // a drag on the map: the cell letting go would go to, { x, y }, or null
 
 // act, draw, and keep a fast move going
 function run(action) {
   const events = act(game, action) || [];
   for (const e of events) {
-    // the paper or dark look (a tapped cell's look event has no look of that kind)
+    // the paper or dark look (a looked-at cell's look event has no look of that kind)
     if (e && e.type === 'look' && typeof e.look === 'string') saveLook(e.look);
     if (e && e.type === 'outlines') save(OUTLINES_KEY, e.outlines);
   }
@@ -93,54 +94,86 @@ function stop() {
   renderer.draw(view(game), events);
 }
 
-function dropPending() {
-  if (!pending) return;
-  clearTimeout(pending.timer);
-  pending = null;
-  renderer.dropLook();
+// Can (x, y) be looked at? Its look event (with the way there), or null. Looking is free
+// and changes nothing on the screen, so nothing is drawn.
+function lookAt(x, y) {
+  const events = act(game, { type: 'look', x, y }) || [];
+  return events.find((e) => e && e.type === 'look' && e.x === x && e.y === y) || null;
 }
 
-// A tap on the map. Once: look (the cell blinks, the way there lights up), and when the
-// blink is done, observe. Again on the same cell while it blinks: go there instead.
-function tap(x, y) {
-  if (pending && pending.x === x && pending.y === y) {
-    clearTimeout(pending.timer);
-    pending = null;
-    run({ type: 'travel', x, y });
+const isPlayer = (x, y) => {
+  const p = view(game).player;
+  return !!p && p.x === x && p.y === y;
+};
+
+// A drag is over the cell `at` (null: off the map). Its way is drawn, bright, and the
+// cell is marked; over your own cell or one never seen there is nothing to go to.
+function aimAt(at) {
+  renderer.dropLook();
+  const seen = at ? lookAt(at.x, at.y) : null;
+  if (!seen || isPlayer(at.x, at.y)) {
+    aim = null;
+    renderer.clearAim();
     return;
   }
-  dropPending();
-  const events = run({ type: 'look', x, y });
-  if (!events.some((e) => e && e.type === 'look' && e.x === x && e.y === y)) return;
-  pending = {
-    x,
-    y,
-    timer: setTimeout(() => {
-      pending = null;
-      run({ type: 'observe', x, y });
-    }, timing.lookMs),
-  };
+  aim = { x: at.x, y: at.y };
+  renderer.showAim(at.x, at.y, seen.path);
+}
+
+// Let go after a drag: go to the cell aimed at, if it is still one to go to.
+function drop() {
+  const at = aim;
+  aim = null;
+  renderer.clearAim();
+  if (!at || isPlayer(at.x, at.y) || !lookAt(at.x, at.y)) return;
+  run({ type: 'travel', x: at.x, y: at.y });
 }
 
 // Every press comes here. During a fast move a press only stops it.
+// A press on the map is a gesture (see input.js); its later parts come only if it started.
 function dispatch(action) {
-  if (stepTimer || view(game).going) {
-    dropPending();
-    stop();
-    return;
+  switch (action.type) {
+    case 'aim':
+      return aimAt(action.at);
+    case 'drop':
+      return drop();
+    case 'cancel':
+      aim = null;
+      renderer.dropLook();
+      renderer.clearAim();
+      return;
   }
-  if (action.type === 'tap') return tap(action.x, action.y);
-  dropPending();
-  if (action.type === 'interrupt') return;
+  if (stepTimer || view(game).going) {
+    stop();
+    return false;
+  }
+  switch (action.type) {
+    case 'press':
+      return true;
+    case 'blink': {
+      // held a moment: the cell blinks, if it can be looked at
+      if (!lookAt(action.x, action.y)) return false;
+      renderer.showLook(action.x, action.y);
+      return true;
+    }
+    case 'hold':
+      // held through the blink: observe
+      return run({ type: 'observe', x: action.x, y: action.y });
+    case 'tap':
+      // let go before the blink was done: go there (or hit what's there, or wait)
+      renderer.dropLook();
+      return run({ type: 'travel', x: action.x, y: action.y });
+    case 'interrupt':
+      return;
+  }
   run(action);
 }
 
-bindInput(document.getElementById('screen'), dispatch);
+bindInput(document.getElementById('screen'), dispatch, { graceMs: timing.graceMs, lookMs: timing.lookMs });
 
-// Hidden, nothing goes on by itself: no fast move, no observation still to come.
+// Hidden, nothing goes on by itself: no fast move. (input.js drops a gesture under way.)
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden) return;
-  dropPending();
   if (stepTimer || view(game).going) stop();
 });
 

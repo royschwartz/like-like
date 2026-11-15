@@ -50,9 +50,11 @@ export function createRenderer(root = document) {
   const fx = createFx();
   let slide = null; // { ghost, dirClass, timer }
   let wave = null; // the sense wave while it is going: { els, timer }
-  // The trail: the cells of the way a fast move would walk (or is walking), and whether it
-  // is a fast move's way ahead (route) rather than a look's. lookEl blinks while hot.
-  const trail = { els: [], route: false, lookEl: null, timer: null };
+  // The trail: the cells of the way a fast move would walk (or is walking), whether it is a
+  // fast move's way ahead (route) rather than a drag's, and the cell a drag is aimed at.
+  const trail = { els: [], route: false, aimEl: null };
+  let lookEl = null; // the cell doing its observing blink
+  let shown = null; // the view last drawn
   let lastTurn = null;
   const win = screen.ownerDocument.defaultView;
   const style = win.getComputedStyle(screen);
@@ -63,10 +65,12 @@ export function createRenderer(root = document) {
   const frameMs = num('--f', 70);
   const blinkMs = frameMs * num('--blink-on', 2);
   const blinkEveryMs = frameMs * num('--blink-every', 28);
-  // The times a tap on the map runs by. main.js waits on these too, so there is one clock.
+  // The times a press on the map runs by. input.js and main.js wait on these, so there is
+  // one clock.
   const timing = {
     frameMs,
-    lookMs: frameMs * num('--look-on', 6), // the observing blink, the bright trail, the window for a second tap
+    graceMs: frameMs * num('--hold-grace', 2), // held this long, the observing blink starts
+    lookMs: frameMs * num('--look-on', 4), // the observing blink; held through it, you observe
     stepMs: frameMs * num('--travel-step', 1), // a fast move's step
     slideMs: (frameMs / 2) * SIZE, // a room sliding in: --slide-step, half a frame, a tile
   };
@@ -91,12 +95,14 @@ export function createRenderer(root = document) {
   function draw(view, events = []) {
     if (!view) return;
     events = Array.isArray(events) ? events : [];
+    shown = view;
 
     const nextRoom = `${view.depth}:${view.room?.id}:${view.room?.key}`;
     const fresh = nextRoom !== roomKey || events.some((e) => e.type === 'death' || e.type === 'restart');
     if (fresh) {
       stopWave();
       clearTrail();
+      dropLook();
       for (const cell of cells) for (const cls of CELL_FX) fx.stop(cell, cls);
       endSlide();
       roomKey = nextRoom;
@@ -210,7 +216,7 @@ export function createRenderer(root = document) {
     if (e.type === 'sense') return startWave(e, view);
     if (!inRoom(e.x, e.y)) return;
     const el = cells[e.y * SIZE + e.x];
-    // An observation does not blink its cell: the look before it already did (drawTrail).
+    // An observation does not blink its cell: the hold before it already did (showLook).
     if (e.type === 'attack') fx.play(el, e.hit ? 'fx-hit' : 'fx-miss', CELL_FX);
     else if (e.type === 'kill') fx.play(el, 'fx-kill', CELL_FX);
     else if (e.type === 'dig') fx.play(el, 'fx-dig', CELL_FX);
@@ -280,18 +286,15 @@ export function createRenderer(root = document) {
   }
 
   // --- the trail, as Brogue draws its travel route ---
-  // A look lights the way to the looked-at cell, bright for --look-on frames while that
-  // cell blinks, then dim. A fast move keeps the way still ahead drawn dim, shorter each
-  // step. Anything else that takes a turn, or takes the map away, clears it. Only classes
-  // change here (style.css draws the wash), so drawMap's painting never fights it.
+  // A drag lights the way to the cell under the finger, bright, and marks that cell; main.js
+  // says which (showAim, clearAim). A fast move keeps the way still ahead drawn dim, shorter
+  // each step. Anything else that takes a turn, or takes the map away, clears it. Only
+  // classes change here (style.css draws the wash), so drawMap's painting never fights it.
   function drawTrail(view, events) {
     if (view.event || view.inv || view.menu) return clearTrail();
-    const look = events.find((e) => e && e.type === 'look' && inRoom(e.x, e.y));
     let travel = null;
     for (const e of events) if (e && e.type === 'travel') travel = e;
-    if (look) return startLook(look, view);
     if (travel) {
-      dropLook();
       setTrail(travel.path, view);
       trail.route = true;
       return;
@@ -300,34 +303,22 @@ export function createRenderer(root = document) {
     if (turned || (trail.route && !view.going)) clearTrail();
   }
 
-  function startLook(e, view) {
-    clearTrail();
-    setTrail(e.path, view);
-    const el = cells[e.y * SIZE + e.x];
-    fx.play(el, 'fx-observe', CELL_FX);
-    trail.lookEl = el;
+  // A drag over (x, y): the way there bright, and the cell marked steady.
+  function showAim(x, y, path) {
+    if (!shown || shown.event || shown.inv || shown.menu || !inRoom(x, y)) return clearTrail();
+    setTrail(path, shown);
     map.classList.add('trail-hot');
-    trail.timer = setTimeout(cool, timing.lookMs);
+    trail.aimEl = cells[y * SIZE + x];
+    trail.aimEl.classList.add('aim');
   }
 
-  // The blink is over: the trail steps down to dim, and stays.
-  function cool() {
-    clearTimeout(trail.timer);
-    trail.timer = null;
-    map.classList.remove('trail-hot');
-    trail.lookEl = null;
-  }
-
-  // A look cut short: its cell stops blinking and its trail goes dim at once.
-  function dropLook() {
-    if (trail.lookEl) fx.stop(trail.lookEl, 'fx-observe');
-    cool();
+  // The drag has nothing to go to: no way, no mark. A fast move's way is left alone.
+  function clearAim() {
+    if (!trail.route) clearTrail();
   }
 
   function setTrail(path, view) {
-    for (const el of trail.els) el.classList.remove('trail');
-    trail.els = [];
-    trail.route = false;
+    clearTrail();
     for (const c of Array.isArray(path) ? path : []) {
       if (!c || !inRoom(c.x, c.y)) continue;
       const i = c.y * SIZE + c.x;
@@ -340,10 +331,27 @@ export function createRenderer(root = document) {
   }
 
   function clearTrail() {
-    dropLook();
     for (const el of trail.els) el.classList.remove('trail');
     trail.els = [];
     trail.route = false;
+    if (trail.aimEl) trail.aimEl.classList.remove('aim');
+    trail.aimEl = null;
+    map.classList.remove('trail-hot');
+  }
+
+  // --- the observing blink: a held cell blinks, and when it is done you observe ---
+
+  function showLook(x, y) {
+    dropLook();
+    if (!inRoom(x, y)) return;
+    lookEl = cells[y * SIZE + x];
+    fx.play(lookEl, 'fx-observe', CELL_FX);
+  }
+
+  // Let go early, or dragged away: the blink stops at once.
+  function dropLook() {
+    if (lookEl) fx.stop(lookEl, 'fx-observe');
+    lookEl = null;
   }
 
   function screenEffect(e) {
@@ -567,9 +575,10 @@ export function createRenderer(root = document) {
     });
   }
 
-  return { draw, timing, dropLook, destroy() {
+  return { draw, timing, showAim, clearAim, showLook, dropLook, destroy() {
     clearTimeout(blinkNext);
     clearTrail();
+    dropLook();
     clearTimeout(blinkOff);
     stopWave();
     map.removeEventListener('animationend', onWaveCellEnd);

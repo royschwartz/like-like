@@ -819,8 +819,8 @@ function use(g) {
 }
 
 // ---- observe -------------------------------------------------------------
-// One click, one observation ("in single instances, not many stacked"). A thing can
-// have several: each click says the next one you have not had, and when there is
+// One hold, one observation ("in single instances, not many stacked"). A thing can
+// have several: each hold says the next one you have not had, and when there is
 // nothing new it says the last one again. Coming close can add more. Nothing blinks
 // for being there to look at (decision 112): a unit blinks only once you have noticed it,
 // by sensing or without trying, and then while it has one you have not had (view: cell.more).
@@ -849,7 +849,7 @@ const TERRAIN_NAME = {
   entrance: 'entrance',
 };
 
-// The name, in TEXT.observe, of what a click on cell i observes.
+// The name, in TEXT.observe, of what holding on cell i observes.
 function nameAt(room, i, thing) {
   if (thing) {
     if (thing.kind === 'player') return 'you';
@@ -1159,8 +1159,8 @@ function chooseSlot(g, i, ev) {
 }
 
 // ---- travel: a fast move, as Brogue's ----------------------------------------
-// Tap a cell to look at it and see the way there; tap again to go. Each step is a real
-// turn, taken as a step by arrow is. The way goes only over cells you have seen, never
+// Tap a cell to go there, or drag to see the way there and let go to go. Each step is a
+// real turn, taken as a step by arrow is. The way goes only over cells you have seen, never
 // through a door (one can only be its end), and around any toad you can see. Into what
 // you bump rather than step on (the bust, the locked golden door, a toad you can see)
 // it never steps: it stops beside it, and from there a travel to it is the bump.
@@ -1204,7 +1204,7 @@ function toadInView(g) {
   return !!t && fov(room.t, g.x, g.y)[idx(t.x, t.y)];
 }
 
-// One step of a travel to (tx, ty). `first`: the tap that starts it, which may wait
+// One step of a travel to (tx, ty). `first`: the press that starts it, which may wait
 // (your own cell) or bump; a continuing travel only ever steps.
 function travel(g, tx, ty, ev, first) {
   g.going = null;
