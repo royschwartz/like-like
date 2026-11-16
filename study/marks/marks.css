@@ -1,0 +1,66 @@
+/* The marks study: an overlay on the map for what a finger hides. Plain flat rectangles in
+   the look cursor's two colours, --box and --box-in. No rounding, no shadows, no transitions:
+   marks.js swaps them in hard steps. Above the cells (they go up to z-index 2), under the
+   sheet the map is covered with for dying and going down (5). Never takes a touch. */
+
+.marks {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  overflow: hidden;
+  pointer-events: none;
+}
+.marks-dest,
+.marks-look {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.marks div {
+  pointer-events: none;
+}
+
+/* a line, and the contrasting edge laid under it */
+.marks-line {
+  position: absolute;
+  background: var(--box);
+}
+.marks-edge {
+  position: absolute;
+  background: var(--box-in);
+}
+
+/* arrows: a tile in each neighbour, in the map's own font and size */
+.marks-arrow {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  font-family: var(--mono);
+  font-size: calc(var(--u) * 6.7);
+  line-height: 1;
+  color: var(--box);
+  background: var(--box-in);
+}
+
+/* lift: the tile again, half as big again, clear of the finger. marks.js sets its ink, its
+   ground and its border's width. */
+.marks-lift {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  box-sizing: border-box;
+  border-style: solid;
+  border-color: var(--box);
+  font-family: var(--mono);
+  font-size: calc(var(--u) * 6.7 * 1.5);
+  line-height: 1;
+  background-color: var(--unknown, #000);
+}
+/* Monaco has no bold: the same thin stroke the map uses */
+.marks-lift.b {
+  -webkit-text-stroke: 0.045em currentColor;
+}

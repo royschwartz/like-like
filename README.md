@@ -62,6 +62,7 @@ Then go to `http://localhost:5173`. Add `?seed=7` to the address to play the sam
 | `src/game.js`, `src/gen.js`, `src/fov.js`, `src/rng.js` | the simulation: rules, level making, line of sight, seeded chance. No screen code. |
 | `src/render.js`, `src/input.js`, `src/main.js` | drawing, keys and touches, start-up. No rules. |
 | `test/` | tests for the simulation |
+| `study/marks/` | a study, not the game: ways of marking the squares beside the one under your finger. [Play it](https://royschwartz.github.io/like-like/study/marks/) |
 
 The same seed and the same presses always give the same game.
 

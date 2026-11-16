@@ -23,7 +23,8 @@ const KEY_DIRS = { ArrowUp: 'n', ArrowRight: 'e', ArrowDown: 's', ArrowLeft: 'w'
 // keys that are only held with others: pressing one alone is not a press
 const MODIFIERS = new Set(['Shift', 'Control', 'Alt', 'Meta', 'CapsLock', 'Fn', 'AltGraph', 'OS']);
 
-export function bindInput(root, dispatch, { graceMs = 140, lookMs = 280 } = {}) {
+// timing: { graceMs, lookMs }. The times are read when used, so a caller can change them later.
+export function bindInput(root, dispatch, timing = {}) {
   const doc = root.ownerDocument || root;
   const held = new Map(); // pointerId -> the pressed button
   // The one gesture on the map, while a pointer is down on it:
@@ -81,7 +82,7 @@ export function bindInput(root, dispatch, { graceMs = 140, lookMs = 280 } = {}) 
 
   function startGesture(e, cell, el) {
     gesture = { id: e.pointerId, from: cell, x0: e.clientX, y0: e.clientY, held: false, drag: false, over: null, el };
-    gesture.timer = setTimeout(onGrace, graceMs);
+    gesture.timer = setTimeout(onGrace, timing.graceMs ?? 140);
     // Keep the pointer's moves and its release coming here, wherever it goes. (A touch is
     // held by what it pressed anyway; the cell under it is found by where it is.)
     try {
@@ -97,7 +98,7 @@ export function bindInput(root, dispatch, { graceMs = 140, lookMs = 280 } = {}) 
     if (!gesture) return;
     gesture.timer = null;
     if (dispatch({ type: 'blink', x: gesture.from.x, y: gesture.from.y }) === false) return;
-    gesture.timer = setTimeout(onHold, lookMs);
+    gesture.timer = setTimeout(onHold, timing.lookMs ?? 280);
   }
 
   function onHold() {

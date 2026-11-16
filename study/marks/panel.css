@@ -1,0 +1,174 @@
+/* The study's settings. Flat, hard-edged, mono, like the game: no rounding, no shadows,
+   no transitions. panel.js places both pieces from the slab as it is drawn. */
+
+#study {
+  --st-bg: #000;
+  --st-ink: #c9c3b4;
+  --st-quiet: #6f6a5f;
+  --st-line: #4a463e;
+  --st-bright: #ffffff;
+  font-family: var(--mono);
+  font-variant-ligatures: none;
+  font-size: 12px;
+  line-height: 1.25;
+  color: var(--st-ink);
+}
+
+#study button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  border-radius: 0;
+  -webkit-appearance: none;
+  appearance: none;
+  cursor: pointer;
+}
+
+/* the button that opens it: small and quiet, over the log, with a thumb's worth to hit */
+.study-toggle {
+  position: fixed;
+  z-index: 11;
+  top: 0;
+  left: 0;
+  min-width: 44px;
+  height: 44px;
+  padding: 0 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  touch-action: manipulation;
+}
+.study-toggle span {
+  display: block;
+  padding: 2px 4px;
+  font-size: 11px;
+  color: var(--st-quiet);
+  border: 1px solid var(--st-line);
+  background: var(--st-bg);
+}
+.study-toggle.on span {
+  color: var(--st-bg);
+  background: var(--st-ink);
+  border-color: var(--st-ink);
+}
+
+.study-panel {
+  position: fixed;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 10px 12px;
+  background: var(--st-bg);
+  border-top: 1px solid var(--st-ink);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+}
+.study-panel[hidden] {
+  display: none;
+}
+
+.study-label {
+  margin-bottom: 4px;
+  color: var(--st-quiet);
+}
+
+.study-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+#study .study-btn {
+  flex: 1 0 auto;
+  min-height: 36px;
+  padding: 0 7px;
+  border: 1px solid var(--st-line);
+  color: var(--st-ink);
+}
+#study .study-btn.on {
+  background: var(--st-ink);
+  border-color: var(--st-ink);
+  color: var(--st-bg);
+}
+
+.study-slider {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+}
+.study-name {
+  flex: none;
+  width: 9ch;
+  color: var(--st-quiet);
+}
+.study-value {
+  flex: none;
+  width: 10ch;
+  text-align: right;
+}
+
+/* the sliders: a 1px line and a square thumb */
+#study input[type="range"] {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 36px;
+  margin: 0;
+  background: transparent;
+  -webkit-appearance: none;
+  appearance: none;
+  touch-action: pan-y;
+  cursor: pointer;
+}
+#study input[type="range"]:focus {
+  outline: none;
+}
+#study input[type="range"]::-webkit-slider-runnable-track {
+  height: 1px;
+  background: var(--st-ink);
+  border: 0;
+}
+#study input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px;
+  height: 22px;
+  margin-top: -11px;
+  background: var(--st-ink);
+  border: 0;
+  border-radius: 0;
+}
+#study input[type="range"]:focus::-webkit-slider-thumb {
+  background: var(--st-bright);
+}
+#study input[type="range"]::-moz-range-track {
+  height: 1px;
+  background: var(--st-ink);
+  border: 0;
+}
+#study input[type="range"]::-moz-range-thumb {
+  width: 16px;
+  height: 22px;
+  background: var(--st-ink);
+  border: 0;
+  border-radius: 0;
+}
+
+/* every setting on one line: brighter, and it can be selected */
+.study-readout {
+  padding: 6px 0;
+  border-top: 1px solid var(--st-line);
+  border-bottom: 1px solid var(--st-line);
+  color: var(--st-bright);
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
+}
+
+.study-end {
+  display: flex;
+  gap: 8px;
+}
