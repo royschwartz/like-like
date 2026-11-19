@@ -257,16 +257,17 @@ test('travel stops when something is said', () => {
 });
 
 test('travel stops when it notices a unit', () => {
-  // noticing: the bust unnoticed in sight is noticed sooner or later
+  // noticing: a toad in sight, with a find you have not observed but unmarked here, is
+  // noticed sooner or later (its default observation alone is nothing to notice)
   const { g, room } = openGame(1, 1);
-  room.t[idx(9, 9)] = 'statue';
-  room.statue = { x: 9, y: 9, spoke: false };
+  putToad(g, 9, 9, true);
+  g.sensed['unit.toad.large'] = true;
   room.noticed = {};
   let stops = 0;
-  for (let k = 0; k < 20 && !room.noticed.statue; k++) {
+  for (let k = 0; k < 20 && !room.noticed.toad; k++) {
     const before = at(g);
     go(g, before[0] === 1 ? 8 : 1, 1);
-    if (!room.noticed.statue) continue;
+    if (!room.noticed.toad) continue;
     stops++;
     assert.equal(view(g).going, false);
   }

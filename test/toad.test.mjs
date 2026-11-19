@@ -54,6 +54,29 @@ function intoToad(g, t) {
 }
 
 // Move into the sleeping toad: its event.
+// As if sensing had found its chain: you know of its key, so you can go for it.
+function knowsKey(g) {
+  g.sensed['unit.toad.chain'] = true;
+}
+
+test('go for the key only once sensing has found the chain', () => {
+  const { g, t } = atToad();
+  const labels = () => view(g).event.options.map((o) => o.label);
+  openItsEvent(g, t);
+  assert.ok(!labels().includes('go for the key'), 'nothing has told you of a key');
+  act(g, { type: 'back' });
+  // up close, sensing finds it is large, stronger than you, then its chain
+  const found = [];
+  for (let k = 0; k < 3; k++) {
+    const from = g.nextLogId;
+    act(g, { type: 'context' });
+    found.push(...g.log.filter((l) => l.id >= from).map((l) => l.text));
+  }
+  assert.ok(found.includes(TEXT.toadFinds.chain));
+  openItsEvent(g, t);
+  assert.deepEqual(labels(), ['listen more', 'go for the key', 'attack!', 'back']);
+});
+
 function openItsEvent(g, t) {
   intoToad(g, t);
   assert.equal(view(g).event.id, 'toad');
@@ -120,9 +143,9 @@ test('moving into the sleeping toad opens its song: no turn, no blow; in again, 
     { text: 'and she pulled out my tongue', song: true, slot: false, passage: 1 },
   ]);
   assert.equal(v.event.now, 0);
+  // nothing has told you of its key yet, so there is no going for it
   assert.deepEqual(v.event.options, [
     { label: 'listen more', kind: 'action', slot: false },
-    { label: 'go for the key', kind: 'action', slot: false },
     { label: 'attack!', kind: 'action', slot: false },
     { label: 'back', kind: 'back', slot: false },
   ]);
@@ -268,6 +291,7 @@ test('the event: listen more three times, the toad stirs, then wakes; each choic
 
 test('in an event, other actions do nothing; the arrows move down and up the links; back closes it', () => {
   const { g, t } = atToad();
+  knowsKey(g);
   openItsEvent(g, t);
   const before = view(g);
   for (const a of [{ type: 'wait' }, { type: 'menu', id: 'inv' }, { type: 'observe', x: t.x, y: t.y }, { type: 'use' }, { type: 'pick', index: 0 }, { type: 'choose', index: 4 }, { type: 'choose', index: -1 }, { type: 'choose', index: 1.5 }, { type: 'move', dir: 'q' }]) {
@@ -361,6 +385,7 @@ test('go for the key: CONFIG.keyChance, calm and stirred, from the seeded chance
     CONFIG.keyChance.calm = 1;
     CONFIG.keyChance.stirred = 0;
     let { g, t } = atToad();
+    knowsKey(g);
     openItsEvent(g, t);
     act(g, { type: 'choose', index: 1 });
     let v = view(g);
@@ -385,6 +410,7 @@ test('go for the key: CONFIG.keyChance, calm and stirred, from the seeded chance
 
     // Once stirred, the stirred chance: here, sure failure.
     ({ g, t } = atToad());
+    knowsKey(g);
     openItsEvent(g, t);
     act(g, { type: 'choose', index: 0 }); // listen: it stirs
     act(g, { type: 'choose', index: 1 });
@@ -401,6 +427,7 @@ test('go for the key: CONFIG.keyChance, calm and stirred, from the seeded chance
   for (let seed = 1; seed <= 40; seed++) {
     const runs = [0, 1].map(() => {
       const { g, t } = atToad(seed);
+      knowsKey(g);
       openItsEvent(g, t);
       act(g, { type: 'choose', index: 1 });
       return g.items.some((it) => it.key === 'key');
@@ -413,6 +440,7 @@ test('go for the key: CONFIG.keyChance, calm and stirred, from the seeded chance
 
 test('attack! closes the event and strikes the toad, which wakes; a turn passes', () => {
   const { g, t } = atToad();
+  knowsKey(g);
   openItsEvent(g, t);
   const turn = g.turn;
   const from = g.nextLogId;

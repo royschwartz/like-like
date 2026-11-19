@@ -137,14 +137,14 @@ test('moving into the bust: no turn, never onto it; the first time it speaks, in
   });
 });
 
-test('observing the bust never opens its event: a short line, then lifeless; it blinks while one is new', () => {
+test('observing the bust never opens its event: a short line, then lifeless; default lines never blink', () => {
   withNoise(0, () => {
     assert.ok(logLines(TEXT.observe.statue) <= 2 && logLines(LIFELESS) <= 2, 'the statue description is short');
     for (const dist of [1, CONFIG.observeClose, CONFIG.observeClose + 1]) {
       const { g, s } = atBust(dist);
       assert.equal(view(g).cells[idx(s.x, s.y)].more, false, 'not until it is sensed');
       currentRoom(g).noticed = { statue: true }; // as noticing it leaves it
-      assert.equal(view(g).cells[idx(s.x, s.y)].more, true);
+      assert.equal(view(g).cells[idx(s.x, s.y)].more, false, 'its line is a default observation');
       const r = observeBust(g, s);
       assert.deepEqual(r.said, ['[bust]'], `dist ${dist}`);
       assert.deepEqual(r.ev, [{ type: 'observe', x: s.x, y: s.y }]);
@@ -157,7 +157,7 @@ test('observing the bust never opens its event: a short line, then lifeless; it 
     intoBust(g, s);
     act(g, { type: 'context' }); // what you say
     act(g, { type: 'back' });
-    assert.equal(view(g).cells[idx(s.x, s.y)].more, true, 'it has spoken: something new to see');
+    assert.equal(view(g).cells[idx(s.x, s.y)].more, false, 'it has spoken: a new default line, no blink');
     for (let k = 0; k < 2; k++) {
       const r = observeBust(g, s);
       assert.deepEqual(r.said, [LIFELESS]);

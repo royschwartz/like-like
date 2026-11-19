@@ -850,9 +850,9 @@ function use(g) {
 // One hold, one observation ("in single instances, not many stacked"). What a thing has
 // goes round: each hold says the first one you have not had, and once you have had them
 // all, the one after the last it said. A unit's are its plain line and then what sensing has
-// found about it (decision 152). Nothing blinks for being there to look at (decision 112):
-// a unit blinks only once you have noticed it, by sensing or without trying, and then while
-// it has one you have not had (view: cell.more).
+// found about it (decision 152). Nothing blinks for being there to look at (decision 112),
+// nor for its default observation: a unit blinks only once you have noticed it, and then
+// while sensing has found something about it you have not had (view: cell.more).
 
 // What is drawn on a cell, by the same sight rules as view():
 // 'player', 'toad', 'corpse', or null; undefined for a cell never seen.
@@ -884,20 +884,23 @@ const sayings = (name) => [].concat(TEXT.observe[name]).map((text, k) => ({ id: 
 // The toad's plain line, as Brogue's: who, doing what, on what ground. Its id is by what it
 // is doing, so a toad that wakes has a new line to observe.
 function toadLine(room, toad) {
-  if (!toad.asleep) return { id: 'unit.toad.awake', text: TEXT.observe.toad };
+  if (!toad.asleep) return { id: 'unit.toad.awake', text: TEXT.observe.toad, plain: true };
   const u = TEXT.unit;
   const ground = u.ground[room.t[idx(toad.x, toad.y)]];
-  return { id: 'unit.toad.asleep', text: ground ? u.line(u.who.toad, u.doing.asleep, ground) : u.elsewhere.toad };
+  return { id: 'unit.toad.asleep', text: ground ? u.line(u.who.toad, u.doing.asleep, ground) : u.elsewhere.toad, plain: true };
 }
 
 // What observing a unit goes round, in order: [{ id, text }]. The toad: its plain line, then
 // what sensing has found about it that still holds, at any distance. The bust: its line.
+// plain: a default observation, there without sensing, which never makes a unit blink.
 function unitCycle(g, room, kind) {
   if (kind === 'toad') return [toadLine(room, room.toad), ...toadFinds(room.toad).filter((f) => g.sensed[f.id])];
-  return sayings(room.statue?.spoke ? 'statueLifeless' : 'statue');
+  return sayings(room.statue?.spoke ? 'statueLifeless' : 'statue').map((o) => ({ ...o, plain: true }));
 }
 
-const hasNew = (g, list) => list.some((o) => !g.observed[o.id]);
+// Something found that you have not observed: a default observation never counts
+// ("default observations should not cause them to blink").
+const hasNew = (g, list) => list.some((o) => !o.plain && !g.observed[o.id]);
 
 // What holding on cell i observes: { key, unit, list }. key: what the last one said is kept
 // by; unit: the kind of unit, which can blink, or null.
@@ -1009,7 +1012,8 @@ function eventOptions(g) {
     const toad = currentRoom(g).toad;
     const o = TEXT.toad.options;
     list.push({ label: o.listen, kind: 'action', run: 'listen' });
-    if (toad && toad.key) list.push({ label: o.key, kind: 'action', run: 'key' });
+    // only once you know of the key: sensing has found its chain
+    if (toad && toad.key && g.sensed['unit.toad.chain']) list.push({ label: o.key, kind: 'action', run: 'key' });
     list.push({ label: o.attack, kind: 'action', run: 'attack' });
   }
   const label = { toad: TEXT.toad.options.back, dee: TEXT.dee.back, bust: TEXT.dee.back }[e.id] ?? TEXT.menu.back;

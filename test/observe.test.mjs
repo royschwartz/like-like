@@ -131,7 +131,7 @@ test('the toad awake; on a corpse, the toad is what you see', () => {
   assert.deepEqual(look(g, 8, 5).texts, [PLAIN]);
 });
 
-test('once sensed, units blink while they have something you have not observed', () => {
+test('once sensed, units blink while sensing has found something you have not observed', () => {
   const { g, room } = openGame();
   const far = [5 + NEAR + 1, 5];
   putToad(g, ...far, true);
@@ -140,37 +140,37 @@ test('once sensed, units blink while they have something you have not observed',
   const more = () => view(g).cells.map((c, i) => (c.more ? i : -1)).filter((i) => i >= 0);
   assert.deepEqual(more(), [], 'nothing blinks just for being there to look at');
   assert.deepEqual(sense(g), [LARGE]);
-  assert.deepEqual(more(), [idx(5, 2), idx(...far)], 'the bust and the toad; never the ground');
-  look(g, ...far); // its plain line
-  assert.ok(more().includes(idx(...far)), 'and what sensing found');
+  assert.deepEqual(more(), [idx(...far)], 'the toad, for what sensing found; never the bust, never the ground');
+  look(g, ...far); // its plain line, which is not what it blinks for
+  assert.deepEqual(more(), [idx(...far)], 'still: what sensing found');
   look(g, ...far); // large
-  assert.deepEqual(more(), [idx(5, 2)]);
+  assert.deepEqual(more(), []);
   look(g, ...far); // round again: nothing new
-  assert.deepEqual(more(), [idx(5, 2)]);
+  assert.deepEqual(more(), []);
   // Each new find makes it blink again.
   assert.deepEqual(sense(g), [STRONGER]);
-  assert.deepEqual(more(), [idx(5, 2), idx(...far)]);
+  assert.deepEqual(more(), [idx(...far)]);
   look(g, ...far);
-  assert.deepEqual(more(), [idx(5, 2)]);
+  assert.deepEqual(more(), []);
   // Closer, it blinks only once sensing finds more.
   room.toad.x = 5 + NEAR;
   const near = [5 + NEAR, 5];
-  assert.deepEqual(more(), [idx(5, 2)]);
+  assert.deepEqual(more(), []);
   assert.deepEqual(sense(g), [CHAIN]);
-  assert.deepEqual(more(), [idx(5, 2), idx(...near)]);
+  assert.deepEqual(more(), [idx(...near)]);
   look(g, ...near); // the chain
-  assert.deepEqual(more(), [idx(5, 2)]);
-  // The bust: one short line; once it has spoken, a new one.
+  assert.deepEqual(more(), []);
+  // The bust: its default observations never make it blink, before it speaks or after.
   assert.deepEqual(look(g, 5, 2).texts, [TEXT.observe.statue]);
   assert.deepEqual(more(), []);
   room.statue.spoke = true;
-  assert.deepEqual(more(), [idx(5, 2)]);
+  assert.deepEqual(more(), [], 'a new default line, and still no blink');
   assert.deepEqual(look(g, 5, 2).texts, [TEXT.observe.statueLifeless]);
   assert.deepEqual(more(), []);
   assert.deepEqual(look(g, 5, 2).texts, [TEXT.observe.statueLifeless], 'one line, again');
-  // Awake, the toad is new to look at; out of sight, nothing blinks.
+  // Awake, its new plain line is a default observation: no blink.
   room.toad.asleep = false;
-  assert.deepEqual(more(), [idx(...near)]);
+  assert.deepEqual(more(), []);
   for (let x = 1; x < S - 1; x++) room.t[idx(x, 4)] = 'wall';
   room.toad.y = 2;
   room.toad.x = 8;
@@ -276,7 +276,7 @@ test('what sensing cannot reach is not marked, and does not blink', () => {
   room.toad.asleep = true;
   [room.toad.x, room.toad.y] = [7, 1];
   const more = view(g).cells.map((c, i) => (c.more ? i : -1)).filter((i) => i >= 0);
-  assert.deepEqual(more, [idx(3, 1), idx(7, 1)]);
+  assert.deepEqual(more, [idx(7, 1)], 'the toad, for what sensing found; the bust has only its default line');
 });
 
 // ---- noticing without trying, as Brogue searches (decisions 116 to 119) ----
@@ -299,12 +299,16 @@ test('without trying, the nearer a unit, the likelier you notice it; none past i
   assert.equal(noticeChance(reach + 1), 0);
 });
 
-test('a unit in sight is noticed without sensing; one out of sight is not', () => {
+test('a unit in sight is noticed without sensing only for what sensing found; one out of sight is not', () => {
   withNotice({ near: 1, reach: 20, secret: 0 }, () => {
     const { g, room } = openGame();
     putToad(g, 7, 5, true);
     const blinking = () => view(g).cells.map((c, i) => (c.more ? i : -1)).filter((i) => i >= 0);
     assert.deepEqual(blinking(), []);
+    act(g, { type: 'wait' });
+    assert.deepEqual(room.noticed, {}, 'its default observation is nothing to notice');
+    assert.deepEqual(blinking(), []);
+    g.sensed['unit.toad.large'] = true; // found before, unobserved, its mark not kept here
     act(g, { type: 'wait' });
     assert.deepEqual(room.noticed, { toad: true });
     assert.deepEqual(blinking(), [idx(7, 5)]);
@@ -313,12 +317,14 @@ test('a unit in sight is noticed without sensing; one out of sight is not', () =
     const { g, room } = openGame();
     for (let x = 1; x < S - 1; x++) room.t[idx(x, 3)] = 'wall';
     putToad(g, 7, 1, true);
+    g.sensed['unit.toad.large'] = true;
     for (let k = 0; k < 5; k++) act(g, { type: 'wait' });
     assert.deepEqual(room.noticed, {}, 'behind a wall');
   });
   withNotice({ near: 0, reach: 20, secret: 0 }, () => {
     const { g, room } = openGame();
     putToad(g, 6, 5, true);
+    g.sensed['unit.toad.large'] = true;
     for (let k = 0; k < 5; k++) act(g, { type: 'wait' });
     assert.deepEqual(room.noticed, {}, 'no chance, no noticing');
   });
@@ -365,7 +371,7 @@ test('idle noticing never finds what sensing finds about a unit', () => {
     [g.x, g.y] = [5, 5];
     putToad(g, 6, 5, true);
     for (let k = 0; k < 10; k++) act(g, { type: 'wait' });
-    assert.equal(room.noticed.toad, true, 'it is noticed');
+    assert.equal(room.noticed.toad, undefined, 'its default observation is nothing to notice');
     assert.ok(!Object.keys(g.sensed).some((id) => id.startsWith('unit.')), 'but nothing about it is found');
     assert.ok(!g.log.some((l) => Object.values(TEXT.toadFinds).includes(l.text) || l.text === SINGS));
     assert.deepEqual(sense(g), [LARGE]);
