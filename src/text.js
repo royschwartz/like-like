@@ -84,7 +84,7 @@ export const TEXT = {
   // HIS. The toad's event, opened by moving into it while it sleeps (decision 155).
   // "singing" is the event's first line, and the last thing sensing finds about it, up close.
   // "necklace" is the first line instead while you have not been told of its key (decision
-  // 174). All lower case ("lower case everything remember", decision 175).
+  // 176). All lower case ("lower case everything remember", decision 177).
   toad: {
     singing: 'it is singing in its sleep, in an irish style',
     necklace: 'the toad wears a necklace with a golden key around its neck and is singing softly in its sleep, in an irish style',

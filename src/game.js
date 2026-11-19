@@ -957,7 +957,7 @@ function openEvent(g, e, ev, keepMenu = false) {
 }
 
 // Moving into the toad asleep. Each time from the first verse; whether it has stirred is kept.
-// If you have not been told of its key, the first line tells you (decision 174): from then
+// If you have not been told of its key, the first line tells you (decision 176): from then
 // on its chain is one of what observing it goes round, already had, and you can go for it.
 function openToad(g, ev) {
   const toad = currentRoom(g).toad;
