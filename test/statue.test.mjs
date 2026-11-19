@@ -131,7 +131,7 @@ test('observing the bust never opens its event: a short line, then lifeless; it 
       currentRoom(g).noticed = { statue: true }; // as noticing it leaves it
       assert.equal(view(g).cells[idx(s.x, s.y)].more, true);
       const r = observeBust(g, s);
-      assert.deepEqual(r.said, ['bust'], `dist ${dist}`);
+      assert.deepEqual(r.said, ['[bust]'], `dist ${dist}`);
       assert.deepEqual(r.ev, [{ type: 'observe', x: s.x, y: s.y }]);
       assert.equal(s.spoke, false);
       assert.equal(view(g).event, null);
@@ -160,7 +160,7 @@ test('noise: the bust speaking wakes the sleeping toad by CONFIG.noiseWakes, fro
       assert.equal(t.asleep, !wake, `toad, noise ${p}`);
       const said = texts(g, from);
       assert.ok(said.length <= 1, 'the exchange is the event, not the log');
-      if (said.length) assert.deepEqual(said, ['the toad wakes']);
+      if (said.length) assert.deepEqual(said, ['[the toad wakes]']);
     });
   }
   const seen = new Set();
@@ -184,10 +184,10 @@ test('the opening: everything you carry as links, in order, back last', () => {
   const v = view(g);
   assert.deepEqual(v.event.options, [
     { label: 'sword', kind: 'item', slot: false },
-    { label: 'golden key', kind: 'item', slot: true },
-    { label: 'worms', kind: 'item', slot: true },
+    { label: '[golden key]', kind: 'item', slot: true },
+    { label: '[worms]', kind: 'item', slot: true },
     { label: 'sword', kind: 'item', slot: false },
-    { label: 'golden key', kind: 'item', slot: true },
+    { label: '[golden key]', kind: 'item', slot: true },
     { label: 'back', kind: 'back', slot: false },
   ]);
   assert.equal(v.event.cursor, 0);
@@ -208,7 +208,7 @@ test('enchanting through the opening: once each item, the line under the text, t
     assert.deepEqual(ev, [{ type: 'enchant', key: 'sword' }, { type: 'noise' }]);
     assert.deepEqual(texts(g, from), [], 'what it says is in the event, not the log');
     let v = view(g);
-    assert.deepEqual(passages(v), [[LIFELESS], ['the statue enchants it']]);
+    assert.deepEqual(passages(v), [[LIFELESS], ['[the statue enchants it]']]);
     assert.deepEqual(v.event.lines.map((l) => l.slot), [false, true]);
     assert.equal(v.event.now, 1, 'only what it says is new');
     assert.deepEqual(labels(v), ['sword', 'back'], 'another item can go in');
@@ -222,7 +222,7 @@ test('enchanting through the opening: once each item, the line under the text, t
     assert.deepEqual(ev2, []);
     assert.deepEqual(texts(g, from), []);
     v = view(g);
-    assert.deepEqual(passages(v), [[LIFELESS], ['nothing more happens']]);
+    assert.deepEqual(passages(v), [[LIFELESS], ['[nothing more happens]']]);
     assert.equal(playerDamage(g), before + CONFIG.enchant.swordDamage);
     assert.equal(g.turn, turn, 'nothing here takes time');
     act(g, { type: 'back' });
@@ -279,7 +279,7 @@ test('the worms in the opening: their memory at once, back closes everything, an
     intoBust(g, s);
     act(g, { type: 'choose', index: 1 });
     assert.equal(view(g).event.id, 'bust');
-    assert.deepEqual(passages(view(g)), [[LIFELESS], ['nothing more happens']]);
+    assert.deepEqual(passages(view(g)), [[LIFELESS], ['[nothing more happens]']]);
   });
 });
 
@@ -298,7 +298,7 @@ test('the loudest case says two lines: the worms go in, the toad wakes in sight,
       assert.equal(said[said.length - 1], 'you have a memory');
       if (said.length === 2) {
         woke++;
-        assert.equal(said[0], 'the toad wakes');
+        assert.equal(said[0], '[the toad wakes]');
       }
       assert.equal(view(g).event.id, 'memory');
     });
@@ -352,7 +352,7 @@ function straightOut() {
 test('sounds from the opening: stepping beside the bust with a memory in hand, once each approach', () => {
   const { g, s, d, side } = straightOut();
   const [dx, dy] = STEP[d];
-  const sounds = () => g.log.filter((l) => l.text === 'sounds from the opening, dee').length;
+  const sounds = () => g.log.filter((l) => l.text === '[sounds from the opening, dee]').length;
   const walk = (dir) => act(g, { type: 'move', dir });
 
   // Without an item that holds a memory: nothing.
@@ -367,7 +367,7 @@ test('sounds from the opening: stepping beside the bust with a memory in hand, o
   walk(d);
   walk(OPP[d]);
   assert.equal(sounds(), 1);
-  const line = g.log.find((l) => l.text === 'sounds from the opening, dee');
+  const line = g.log.find((l) => l.text === '[sounds from the opening, dee]');
   assert.equal(line.kind, 'slot');
   // Not again while you stay, or walk round it.
   act(g, { type: 'wait' });

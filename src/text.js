@@ -4,15 +4,7 @@
 // Three kinds:
 //   HIS    Roy's own words, kept as he wrote them.
 //   PLAIN  a plain stand-in so the game can be played. Not writing. Waiting for his words.
-//   slot() an empty slot, his to write. Shown without brackets ("all the brackets should be
-//          removed"), in the slot's grey, so the gap is still visible.
-
-// The empty slots, so isSlot() knows them without brackets.
-const SLOTS = new Set();
-function slot(text) {
-  SLOTS.add(text);
-  return text;
-}
+//   [...]  an empty slot. Shown in the game as it is, in square brackets, so the gap is visible.
 
 export const TEXT = {
   // HIS. The first line in the log. He asked for the two lines joined with a period.
@@ -29,35 +21,35 @@ export const TEXT = {
   // HIS. What the wide button says, by where you stand; inspect in the inventory.
   context: { sense: 'sense', corpse: 'corpse', stairs: 'stairs', inspect: 'inspect' },
 
-  // HIS: sword, corpse. slot(): the golden key and the worms, his to name.
-  thing: { sword: 'sword', corpse: 'corpse', key: slot('golden key'), worms: slot('worms') },
+  // HIS: sword, corpse. [...]: the golden key and the worms, his to name.
+  thing: { sword: 'sword', corpse: 'corpse', key: '[golden key]', worms: '[worms]' },
 
-  // What inspect says about an item. slot(): his to write. HIS: the worms.
+  // What inspect says about an item. [...]: his to write. HIS: the worms.
   slot: {
-    sword: slot('sword'),
-    key: slot('golden key, description'),
+    sword: '[sword]',
+    key: '[golden key, description]',
     worms: 'the worms look normal, but you cannot help but imagine them as limbless people',
   },
 
-  // What observe says about a thing you click on. slot(): his to write.
+  // What observe says about a thing you click on. [...]: his to write.
   // One click, one line. A list is what further clicks say, in order.
   // None may run past two lines of the log (see test/log.test.mjs).
   observe: {
-    you: slot('you'),
-    corpse: slot('corpse'),
-    grass: slot('grass'),
-    dirt: slot('dirt'),
-    wall: slot('wall'),
-    door: slot('door'),
-    stairs: slot('stairs'),
-    entrance: slot('entrance'),
+    you: '[you]',
+    corpse: '[corpse]',
+    grass: '[grass]',
+    dirt: '[dirt]',
+    wall: '[wall]',
+    door: '[door]',
+    stairs: '[stairs]',
+    entrance: '[entrance]',
     // HIS.
     toadAsleep: ['a large sleeping toad', 'it seems stronger than you'],
-    toad: slot('toad, awake'),
+    toad: '[toad, awake]',
     // HIS.
     golddoor: 'the door at the far corner of the room is golden',
-    // The bust. "statue description is short": before it has spoken, slot(), his to write.
-    statue: slot('bust'),
+    // The bust. "statue description is short": before it has spoken, [...], his to write.
+    statue: '[bust]',
     // HIS. After it has spoken. It is also the text of its event from then on.
     statueLifeless: 'the lifeless bust of DEE.',
   },
@@ -98,15 +90,15 @@ export const TEXT = {
     ],
     lifeless: 'the statue goes lifeless',
     back: 'back', // from "[back]"; also the last option of its opening
-    // slot(). What the event says when an item goes in the opening, his to write.
-    enchants: slot('the statue enchants it'),
-    nothingMore: slot('nothing more happens'),
+    // [...]. What the event says when an item goes in the opening, his to write.
+    enchants: '[the statue enchants it]',
+    nothingMore: '[nothing more happens]',
   },
 
   // HIS. What sense says in the toad's room: one line each time you sense, in this order.
   // The last is what tells you about the worms.
   senseToad: [
-    'there is the smell of cinnamon in the air',
+    'there is the smell of [cinnamon] in the air',
     'you have a feeling you have been here before',
     'the ground struggles gently beneath your feet',
     'worms are down there you think',
@@ -133,15 +125,15 @@ export const TEXT = {
     // PLAIN. The menu's setting for the lines round the buttons: none, or a step of grey.
     outlines: (n) => (n ? `outlines ${n}` : 'outlines off'),
     dig: 'dig for worms', // HIS
-    memory: slot('memory'), //  a memory you have, under psy: his to name
-    enchanted: slot('enchanted'), // beside an enchanted item in the inventory: his to write
+    memory: '[memory]', //  a memory you have, under psy: his to name
+    enchanted: '[enchanted]', // beside an enchanted item in the inventory: his to write
   },
 
   // Lines in the log. PLAIN unless marked. An action adds at most two wrapped lines
   // in total (see test/log.test.mjs).
   log: {
-    // What you arrive in, by what the entrance stands in. HIS: grass. slot(): dirt, his to write.
-    descend: { grass: 'you descend and find yourself in low, soft grass', dirt: slot('you descend, dirt') },
+    // What you arrive in, by what the entrance stands in. HIS: grass. [...]: dirt, his to write.
+    descend: { grass: 'you descend and find yourself in low, soft grass', dirt: '[you descend, dirt]' },
     // said in place of the blow that kills you
     youDie: 'you die',
     youRest: 'you rest',
@@ -158,25 +150,25 @@ export const TEXT = {
     toadHits: (n) => `the toad strikes you for ${n} damage`,
     toadMisses: 'the toad misses you',
     toadDies: 'the toad dies',
-    // slot(). The golden door, his to write.
-    golddoorOpens: slot('the golden door opens'),
-    golddoorLocked: slot('the golden door is locked'),
-    // slot(). Digging, his to write.
-    dig: slot('you dig'),
-    digFound: slot('you find worms'),
-    digStopped: slot('you stop digging'),
+    // [...]. The golden door, his to write.
+    golddoorOpens: '[the golden door opens]',
+    golddoorLocked: '[the golden door is locked]',
+    // [...]. Digging, his to write.
+    dig: '[you dig]',
+    digFound: '[you find worms]',
+    digStopped: '[you stop digging]',
     // HIS: "you have a memory".
     memory: 'you have a memory',
-    // slot(). Sounds from the bust's opening, his to write.
-    sounds: slot('sounds from the opening, dee'),
-    // slot(). The toad woken by noise, his to write.
-    toadWakes: slot('the toad wakes'),
-    // slot(). Sensing where there is nothing to sense, his to write.
-    senseNothing: slot('you sense nothing'),
+    // [...]. Sounds from the bust's opening, his to write.
+    sounds: '[sounds from the opening, dee]',
+    // [...]. The toad woken by noise, his to write.
+    toadWakes: '[the toad wakes]',
+    // [...]. Sensing where there is nothing to sense, his to write.
+    senseNothing: '[you sense nothing]',
   },
 };
 
-// True for a string that is an empty slot, like slot('sword').
+// True for a string that is wholly an empty slot, like '[sword]'.
 export function isSlot(text) {
-  return typeof text === 'string' && SLOTS.has(text);
+  return typeof text === 'string' && /^\[[^\]]*\]$/.test(text);
 }
