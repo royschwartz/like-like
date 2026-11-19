@@ -34,8 +34,7 @@ function sense(g) {
 
 const NEAR = CONFIG.observeClose;
 const PLAIN = 'a toad sleeping on dirt'; // his, on the plain ground of these rooms
-const { chain: CHAIN } = TEXT.toadFinds;
-const { stronger: STRONGER } = TEXT.toadSeen;
+const { stronger: STRONGER, chain: CHAIN } = TEXT.toadSeen;
 const SINGS = TEXT.toad.singing;
 
 test('observe names each kind of cell in sight, one line a click', () => {
@@ -68,12 +67,15 @@ test('observe names each kind of cell in sight, one line a click', () => {
 test('the sleeping toad says its plain line: who, doing what, on what ground; awake, its own', () => {
   const { g, room } = openGame();
   const t = putToad(g, 7, 5, true);
+  t.key = false; // (no chain, so the round is plain, stronger, the song)
   const r = look(g, 7, 5);
   assert.deepEqual(r.texts, ['a toad sleeping on dirt']);
   assert.deepEqual(r.lines.map((l) => l.kind), ['observe']);
-  look(g, 7, 5); // that it seems stronger: the plain line comes round after it
+  look(g, 7, 5); // that it seems stronger
+  look(g, 7, 5); // its song: the plain line comes round after it
   room.t[idx(7, 5)] = 'grass';
   assert.deepEqual(look(g, 7, 5).texts, ['a toad sleeping on grass']);
+  look(g, 7, 5);
   look(g, 7, 5);
   room.t[idx(7, 5)] = 'stairs'; // ground with no word of its own: the whole-line slot
   assert.deepEqual(look(g, 7, 5).texts, [TEXT.unit.elsewhere.toad]);
@@ -84,16 +86,15 @@ test('the sleeping toad says its plain line: who, doing what, on what ground; aw
   assert.equal(view(g).event, null, 'observing never opens its event');
 });
 
-test('observing the toad goes round: its plain line, that it seems stronger, then what sensing found, at any distance, while it holds', () => {
+test('observing the toad goes round: its plain line, that it seems stronger, and up close its chain and song; once had, at any distance, while it holds', () => {
   const { g } = openGame();
-  const t = putToad(g, 5 + NEAR, 5, true);
+  const t = putToad(g, 5 + NEAR + 1, 5, true);
   const at = () => look(g, t.x, t.y).texts[0];
-  assert.deepEqual([at(), at(), at()], [PLAIN, STRONGER, PLAIN], 'nothing sensed: what observing alone tells');
-  assert.deepEqual([0, 1].map(() => sense(g)[0]), [CHAIN, SINGS]);
-  assert.deepEqual(sense(g), [TEXT.log.senseNothing]);
+  assert.deepEqual([at(), at(), at()], [PLAIN, STRONGER, PLAIN], 'from afar: plain, and that it seems stronger');
+  t.x = 5 + NEAR; // come closer
   assert.deepEqual([at(), at()], [CHAIN, SINGS], 'what is new first, in order');
   assert.deepEqual([at(), at(), at()], [PLAIN, STRONGER, CHAIN], 'then round from the one after the last said');
-  // Far off, what was found up close is still there to observe.
+  // Far off, what you had up close is still there to observe.
   [t.x, t.y] = [9, 9];
   assert.ok(Math.max(9 - g.x, 9 - g.y) > NEAR);
   assert.deepEqual([at(), at(), at()], [SINGS, PLAIN, STRONGER]);
@@ -101,23 +102,22 @@ test('observing the toad goes round: its plain line, that it seems stronger, the
   assert.equal(at(), CHAIN);
   t.key = false;
   assert.deepEqual([at(), at(), at(), at()], [PLAIN, STRONGER, SINGS, PLAIN]);
-  // Awake: its awake line is new, and it still seems stronger.
+  // Awake: its awake line, and it still seems stronger; no song.
   t.asleep = false;
   t.lastSeen = null;
   assert.deepEqual([at(), at(), at(), at()], [TEXT.observe.toad, STRONGER, TEXT.observe.toad, STRONGER]);
   assert.equal(view(g).event, null);
 });
 
-test('from afar, sensing finds nothing about the toad; up close, it finds the chain and the song', () => {
+test('sensing never finds anything about the toad, near or far: what is about it is observed', () => {
   const { g, room } = openGame();
   putToad(g, 5 + NEAR + 1, 5, true);
-  const at = () => look(g, room.toad.x, room.toad.y).texts[0];
-  assert.deepEqual(sense(g), [TEXT.log.senseNothing], 'from afar, nothing about it');
-  assert.deepEqual([at(), at(), at()], [PLAIN, STRONGER, PLAIN]);
+  assert.deepEqual(sense(g), [TEXT.log.senseNothing], 'from afar');
   room.toad.x = 5 + NEAR;
-  assert.equal(at(), STRONGER, 'coming closer is not enough: nothing new to observe');
-  assert.deepEqual(sense(g), [CHAIN]);
-  assert.equal(at(), CHAIN);
+  assert.deepEqual(sense(g), [TEXT.log.senseNothing], 'up close');
+  room.toad.x = 6;
+  assert.deepEqual(sense(g), [TEXT.log.senseNothing], 'beside it');
+  assert.ok(!Object.keys(g.sensed).some((id) => id.startsWith('unit.')));
 });
 
 test('the toad awake; on a corpse, the toad is what you see', () => {
@@ -132,7 +132,7 @@ test('the toad awake; on a corpse, the toad is what you see', () => {
   assert.deepEqual(look(g, 8, 5).texts, [PLAIN]);
 });
 
-test('once sensed, units blink while sensing has found something you have not observed', () => {
+test('nothing you observe makes a unit blink, sensed or not', () => {
   const { g, room } = openGame();
   const far = [5 + NEAR + 1, 5];
   putToad(g, ...far, true);
@@ -141,38 +141,16 @@ test('once sensed, units blink while sensing has found something you have not ob
   const more = () => view(g).cells.map((c, i) => (c.more ? i : -1)).filter((i) => i >= 0);
   assert.deepEqual(more(), [], 'nothing blinks just for being there to look at');
   assert.deepEqual(sense(g), [TEXT.log.senseNothing]);
-  assert.deepEqual(more(), [], 'sensed from afar: nothing found about it, so no blink');
-  assert.deepEqual(look(g, ...far).texts, [PLAIN]);
-  assert.deepEqual(look(g, ...far).texts, [STRONGER]);
-  assert.deepEqual(more(), [], 'what observing alone tells never makes it blink');
-  // Closer, it blinks once sensing finds something.
+  assert.deepEqual(room.noticed, { toad: true, statue: true }, 'the wave notices them');
+  assert.deepEqual(more(), [], 'but sensing found nothing about them, so no blink');
+  // Closer, with the chain and the song unobserved: still no blink.
   room.toad.x = 5 + NEAR;
-  const near = [5 + NEAR, 5];
-  assert.deepEqual(sense(g), [CHAIN]);
-  assert.deepEqual(more(), [idx(...near)]);
-  look(g, ...near); // the chain
   assert.deepEqual(more(), []);
-  // Each new find makes it blink again.
-  assert.deepEqual(sense(g), [SINGS]);
-  assert.deepEqual(more(), [idx(...near)]);
-  look(g, ...near);
+  assert.deepEqual(sense(g), [TEXT.log.senseNothing]);
   assert.deepEqual(more(), []);
-  look(g, ...near); // round again: nothing new
-  assert.deepEqual(more(), []);
-  // The bust: its default observations never make it blink, before it speaks or after.
-  assert.deepEqual(look(g, 5, 2).texts, [TEXT.observe.statue]);
-  assert.deepEqual(more(), []);
+  // The bust, before it speaks or after; the toad awake.
   room.statue.spoke = true;
-  assert.deepEqual(more(), [], 'a new default line, and still no blink');
-  assert.deepEqual(look(g, 5, 2).texts, [TEXT.observe.statueLifeless]);
-  assert.deepEqual(more(), []);
-  assert.deepEqual(look(g, 5, 2).texts, [TEXT.observe.statueLifeless], 'one line, again');
-  // Awake, its new plain line is a default observation: no blink.
   room.toad.asleep = false;
-  assert.deepEqual(more(), []);
-  for (let x = 1; x < S - 1; x++) room.t[idx(x, 4)] = 'wall';
-  room.toad.y = 2;
-  room.toad.x = 8;
   assert.deepEqual(more(), []);
 });
 
@@ -270,13 +248,14 @@ test('what sensing cannot reach is not marked, and does not blink', () => {
   room.toad.asleep = true;
   [room.toad.x, room.toad.y] = [7, 1];
   assert.ok(view(g).cells.every((c) => !c.more));
-  // sense again, the toad close enough for sensing to find its chain, and it blinks
+  // sense again: now the wave reaches them
   [room.toad.x, room.toad.y] = [6, 4];
   waveOf(g);
   room.toad.asleep = true;
   [room.toad.x, room.toad.y] = [6, 4];
   const more = view(g).cells.map((c, i) => (c.more ? i : -1)).filter((i) => i >= 0);
-  assert.deepEqual(more, [idx(6, 4)], 'the toad, for what sensing found; the bust has only its default line');
+  assert.deepEqual(room.noticed, { toad: true, statue: true }, 'reached, and marked');
+  assert.deepEqual(more, [], 'but sensing finds nothing about a unit, so nothing blinks');
 });
 
 // ---- noticing without trying, as Brogue searches (decisions 116 to 119) ----
@@ -299,34 +278,14 @@ test('without trying, the nearer a unit, the likelier you notice it; none past i
   assert.equal(noticeChance(reach + 1), 0);
 });
 
-test('a unit in sight is noticed without sensing only for what sensing found; one out of sight is not', () => {
+test('without sensing, a unit in sight is never noticed: there is nothing found about it to show', () => {
   withNotice({ near: 1, reach: 20, secret: 0 }, () => {
     const { g, room } = openGame();
     putToad(g, 7, 5, true);
     const blinking = () => view(g).cells.map((c, i) => (c.more ? i : -1)).filter((i) => i >= 0);
-    assert.deepEqual(blinking(), []);
-    act(g, { type: 'wait' });
-    assert.deepEqual(room.noticed, {}, 'its default observation is nothing to notice');
-    assert.deepEqual(blinking(), []);
-    g.sensed['unit.toad.chain'] = true; // found before, unobserved, its mark not kept here
-    act(g, { type: 'wait' });
-    assert.deepEqual(room.noticed, { toad: true });
-    assert.deepEqual(blinking(), [idx(7, 5)]);
-  });
-  withNotice({ near: 1, reach: 20, secret: 0 }, () => {
-    const { g, room } = openGame();
-    for (let x = 1; x < S - 1; x++) room.t[idx(x, 3)] = 'wall';
-    putToad(g, 7, 1, true);
-    g.sensed['unit.toad.chain'] = true;
     for (let k = 0; k < 5; k++) act(g, { type: 'wait' });
-    assert.deepEqual(room.noticed, {}, 'behind a wall');
-  });
-  withNotice({ near: 0, reach: 20, secret: 0 }, () => {
-    const { g, room } = openGame();
-    putToad(g, 6, 5, true);
-    g.sensed['unit.toad.chain'] = true;
-    for (let k = 0; k < 5; k++) act(g, { type: 'wait' });
-    assert.deepEqual(room.noticed, {}, 'no chance, no noticing');
+    assert.deepEqual(room.noticed, {});
+    assert.deepEqual(blinking(), []);
   });
 });
 
@@ -363,7 +322,7 @@ test('the worms never come without sensing: idle noticing stops before them', ()
   });
 });
 
-test('idle noticing never finds what sensing finds about a unit', () => {
+test('idle noticing never tells anything about a unit', () => {
   withNotice({ near: 1, reach: 20, secret: 1 }, () => {
     const g = newGame({ seed: 21 });
     g.room = g.level.toadRoom;
@@ -371,10 +330,8 @@ test('idle noticing never finds what sensing finds about a unit', () => {
     [g.x, g.y] = [5, 5];
     putToad(g, 6, 5, true);
     for (let k = 0; k < 10; k++) act(g, { type: 'wait' });
-    assert.equal(room.noticed.toad, undefined, 'its default observation is nothing to notice');
-    assert.ok(!Object.keys(g.sensed).some((id) => id.startsWith('unit.')), 'but nothing about it is found');
-    assert.ok(!g.log.some((l) => Object.values(TEXT.toadFinds).includes(l.text) || l.text === SINGS));
-    assert.deepEqual(sense(g), [CHAIN]);
+    assert.equal(room.noticed.toad, undefined);
+    assert.ok(!g.log.some((l) => Object.values(TEXT.toadSeen).includes(l.text) || l.text === SINGS));
   });
 });
 

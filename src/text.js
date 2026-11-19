@@ -67,22 +67,19 @@ export const TEXT = {
     elsewhere: { toad: '[toad, asleep]' },
   },
 
-  // HIS. What observing the toad says after its plain line, with no sensing, asleep or
-  // awake (decision 172).
+  // HIS. What observing the toad says after its plain line, never sensing (decision 180:
+  // sense is ambient, what is about a thing is observed). "stronger" at any distance, asleep
+  // or awake (172); the chain only within 2 steps, while it has the key ("when you come
+  // closer you can get additional observations"). The song, TEXT.toad.singing, comes after
+  // them, within 2 steps, while it sleeps. Once had, each stays in the round at any distance
+  // while it holds. "a large sleeping toad" is gone (173).
   toadSeen: {
     stronger: 'it seems stronger than you',
-  },
-
-  // HIS. What sensing finds about the toad, in this order, one a sensing (decision 150),
-  // both only within 2 steps: the chain only while it has the key, the song only while it
-  // sleeps. Once found, each is one of what observing it goes round (152). The song is
-  // TEXT.toad.singing. "a large sleeping toad" is gone (decision 173).
-  toadFinds: {
     chain: 'it wears a chain with a golden key around its neck',
   },
 
   // HIS. The toad's event, opened by moving into it while it sleeps (decision 155).
-  // "singing" is the event's first line, and the last thing sensing finds about it, up close.
+  // "singing" is the event's first line, and the last thing observing it tells, up close.
   // "necklace" is the first line instead while you have not been told of its key (decision
   // 176). All lower case ("lower case everything remember", decision 177).
   toad: {

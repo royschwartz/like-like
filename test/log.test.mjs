@@ -119,7 +119,6 @@ function statuses() {
   add(TEXT.observe);
   add(TEXT.slot);
   add(TEXT.senseToad);
-  add(TEXT.toadFinds);
   add(TEXT.toadSeen);
   add(TEXT.toad.singing);
   // a unit's plain line, on each ground that has a word, and where none has
@@ -150,42 +149,6 @@ test('logLines wraps as the page does', () => {
   assert.equal(logLines('aaaa bbbb cc', 7), 2);
 });
 
-test('a sense interrupted by combat leaves its two-line find unread', () => {
-  const chain = TEXT.toadFinds.chain;
-  assert.equal(logLines(chain), 2, 'the chain is two lines');
-  const hits = CONFIG.toad.hits;
-  try {
-    for (const outcome of ['hit', 'miss', 'death']) {
-      CONFIG.toad.hits = outcome === 'miss' ? 0 : 1;
-      const g = newGame({ seed: 51 });
-      g.room = g.level.toadRoom;
-      openRoom(g);
-      [g.x, g.y] = [3, 3];
-      const toad = putToad(g, 4, 3, false);
-      // what it finds before the chain is found already
-      g.sensed['unit.toad.large'] = g.sensed['unit.toad.stronger'] = true;
-      g.hp = outcome === 'death' ? 1 : 3;
-      const from = g.nextLogId;
-      const ev = act(g, { type: 'context' });
-      assert.ok(ev.some((e) => e.type === 'attack'));
-      assert.equal(saidSince(g, from).length, 1, outcome);
-      assert.equal(g.sensed['unit.toad.chain'], undefined, 'the unsaid find remains unfound');
-      assert.ok(saidSince(g, from).reduce((sum, s) => sum + logLines(s), 0) <= 2);
-      if (outcome === 'death') {
-        assert.deepEqual(saidSince(g, from), [TEXT.log.youDie]);
-        assert.notEqual(g.sensedTurn, g.turn, 'no sensing glow in the respawn room');
-      } else {
-        toad.asleep = true;
-        const next = g.nextLogId;
-        act(g, { type: 'context' });
-        assert.deepEqual(saidSince(g, next), [chain], 'the next quiet sense finds it');
-      }
-    }
-  } finally {
-    CONFIG.toad.hits = hits;
-  }
-});
-
 // The first sense line, cinnamon, fits on one line now its brackets are gone, so this
 // test puts a two-line one of his in its place.
 const twoLineSense = (fn) => {
@@ -197,6 +160,40 @@ const twoLineSense = (fn) => {
     TEXT.senseToad[0] = first;
   }
 };
+
+test('a sense interrupted by combat leaves its two-line find unread', () => twoLineSense(() => {
+  const line = TEXT.senseToad[0];
+  assert.equal(logLines(line), 2, 'the room line is two lines');
+  const hits = CONFIG.toad.hits;
+  try {
+    for (const outcome of ['hit', 'miss', 'death']) {
+      CONFIG.toad.hits = outcome === 'miss' ? 0 : 1;
+      const g = newGame({ seed: 51 });
+      g.room = g.level.toadRoom;
+      openRoom(g);
+      [g.x, g.y] = [3, 3];
+      const toad = putToad(g, 4, 3, false);
+      g.hp = outcome === 'death' ? 1 : 3;
+      const from = g.nextLogId;
+      const ev = act(g, { type: 'context' });
+      assert.ok(ev.some((e) => e.type === 'attack'));
+      assert.equal(saidSince(g, from).length, 1, outcome);
+      assert.equal(g.sensed['toad.0'], undefined, 'the unsaid find remains unfound');
+      assert.ok(saidSince(g, from).reduce((sum, s) => sum + logLines(s), 0) <= 2);
+      if (outcome === 'death') {
+        assert.deepEqual(saidSince(g, from), [TEXT.log.youDie]);
+        assert.notEqual(g.sensedTurn, g.turn, 'no sensing glow in the respawn room');
+      } else {
+        toad.asleep = true;
+        const next = g.nextLogId;
+        act(g, { type: 'context' });
+        assert.deepEqual(saidSince(g, next), [line], 'the next quiet sense finds it');
+      }
+    }
+  } finally {
+    CONFIG.toad.hits = hits;
+  }
+}));
 
 test('a due memory waits until after a two-line sense or arrival', () => twoLineSense(() => {
   const grassChance = CONFIG.entranceInGrass;

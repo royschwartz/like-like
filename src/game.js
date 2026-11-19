@@ -471,27 +471,11 @@ function roomLines(g) {
 // Within CONFIG.observeClose steps of you (eight ways).
 const isNear = (g, x, y) => chebyshev(x, y, g.x, g.y) <= CONFIG.observeClose;
 
-// What sensing can find about the toad as it is now, in order: [{ id, text, near }].
-// near: found only within CONFIG.observeClose steps of you. Once found, each is one of what
-// observing it goes round, at any distance, while it still holds (decisions 150, 152).
-function toadFinds(toad) {
-  const f = TEXT.toadFinds;
-  const out = [];
-  if (toad.key) out.push({ id: 'unit.toad.chain', text: f.chain, near: true });
-  if (toad.asleep) out.push({ id: 'unit.toad.sings', text: TEXT.toad.singing, near: true });
-  return out;
-}
-
-// Everything a sensing could find now, in the order it finds them: about each unit its wave
-// reaches, the nearest first, and then the room's own lines.
-function senseFinds(g, wave) {
-  const room = currentRoom(g);
-  const out = [];
-  for (const c of wave) {
-    const t = toadAt(room, c.x, c.y);
-    if (t) out.push(...toadFinds(t).filter((f) => !f.near || isNear(g, c.x, c.y)));
-  }
-  return out.concat(roomLines(g));
+// Everything a sensing could find now, in order: the room's own lines. Sense is ambient: the
+// air, a feeling, the ground and what is under it. What is about a thing you can point at is
+// observed, never sensed (decision 180).
+function senseFinds(g) {
+  return roomLines(g);
 }
 
 // How sensing goes out (decision 113, "for now"): from you, a step at a time, to every
@@ -602,7 +586,7 @@ function sense(g, ev) {
   }
   const wave = senseWave(g);
   noticeSensed(g, wave);
-  const find = senseFinds(g, wave).find((f) => !g.sensed[f.id]);
+  const find = senseFinds(g).find((f) => !g.sensed[f.id]);
   ev.push({ type: 'sense', wave });
   const here = g.room;
   // A blow or a death has priority over a discovery. An unsaid discovery stays
@@ -889,13 +873,21 @@ function toadLine(room, toad) {
 }
 
 // What observing a unit goes round, in order: [{ id, text }]. The toad: its plain line and
-// what observing alone tells (decision 172), then what sensing has found about it that still
-// holds, at any distance. The bust: its line.
-// plain: there without sensing, which never makes a unit blink.
+// what else observing it tells: that it seems stronger, at any distance (172); and within
+// CONFIG.observeClose steps, its chain while it has the key and its song while it sleeps.
+// One you have had stays at any distance while it holds (decision 180). The bust: its line.
+// plain: from observing, not found by sensing, so it never makes a unit blink. Everything
+// is, for now: sensing finds nothing about a unit (180).
 function unitCycle(g, room, kind) {
   if (kind === 'toad') {
-    const seen = { id: 'unit.toad.stronger', text: TEXT.toadSeen.stronger, plain: true };
-    return [toadLine(room, room.toad), seen, ...toadFinds(room.toad).filter((f) => g.sensed[f.id])];
+    const t = room.toad;
+    const s = TEXT.toadSeen;
+    const close = isNear(g, t.x, t.y);
+    const out = [toadLine(room, t), { id: 'unit.toad.stronger', text: s.stronger, plain: true }];
+    const near = (id, text) => (close || g.observed[id]) && out.push({ id, text, plain: true });
+    if (t.key) near('unit.toad.chain', s.chain);
+    if (t.asleep) near('unit.toad.sings', TEXT.toad.singing);
+    return out;
   }
   return sayings(room.statue?.spoke ? 'statueLifeless' : 'statue').map((o) => ({ ...o, plain: true }));
 }
@@ -962,9 +954,8 @@ function openEvent(g, e, ev, keepMenu = false) {
 function openToad(g, ev) {
   const toad = currentRoom(g).toad;
   let first = TEXT.toad.singing;
-  if (toad.key && !g.sensed['unit.toad.chain']) {
+  if (toad.key && !g.observed['unit.toad.chain']) {
     first = TEXT.toad.necklace;
-    g.sensed['unit.toad.chain'] = true;
     g.observed['unit.toad.chain'] = true;
   }
   const passages = [[prose(first)], TEXT.toad.verses[0].map(sung)];
@@ -1023,8 +1014,8 @@ function eventOptions(g) {
     const toad = currentRoom(g).toad;
     const o = TEXT.toad.options;
     list.push({ label: o.listen, kind: 'action', run: 'listen' });
-    // only once you know of the key: sensing has found its chain
-    if (toad && toad.key && g.sensed['unit.toad.chain']) list.push({ label: o.key, kind: 'action', run: 'key' });
+    // only once you know of the key: you have observed its chain, or been told of it here
+    if (toad && toad.key && g.observed['unit.toad.chain']) list.push({ label: o.key, kind: 'action', run: 'key' });
     list.push({ label: o.attack, kind: 'action', run: 'attack' });
   }
   const label = { toad: TEXT.toad.options.back, dee: TEXT.dee.back, bust: TEXT.dee.back }[e.id] ?? TEXT.menu.back;

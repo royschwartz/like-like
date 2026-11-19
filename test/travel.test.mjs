@@ -291,24 +291,6 @@ test('travel stops when something is said', () => {
   assert.equal(view(g).going, false);
 });
 
-test('travel stops when it notices a unit', () => {
-  // noticing: a toad in sight, with a find you have not observed but unmarked here, is
-  // noticed sooner or later (its default observation alone is nothing to notice)
-  const { g, room } = openGame(1, 1);
-  putToad(g, 9, 9, true);
-  g.sensed['unit.toad.chain'] = true;
-  room.noticed = {};
-  let stops = 0;
-  for (let k = 0; k < 20 && !room.noticed.toad; k++) {
-    const before = at(g);
-    go(g, before[0] === 1 ? 8 : 1, 1);
-    if (!room.noticed.toad) continue;
-    stops++;
-    assert.equal(view(g).going, false);
-  }
-  assert.equal(stops, 1, 'noticed, and that stopped it');
-});
-
 test('any other action ends a travel; stop says so once', () => {
   for (const other of [{ type: 'wait' }, { type: 'look', x: 3, y: 3 }, { type: 'observe', x: 3, y: 3 }, { type: 'menu', id: 'inv' }, { type: 'dance' }]) {
     const { g } = openGame(1, 1);
