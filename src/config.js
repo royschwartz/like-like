@@ -16,8 +16,8 @@ export const CONFIG = {
   // Chance a level's entrance is in grass; otherwise it is on dirt (plain floor).
   entranceInGrass: 0.5,
 
-  // Observe says more about a thing this many steps from you, or nearer (steps go eight
-  // ways, so a diagonal counts as one; the same for noticing and being beside the bust).
+  // Sensing finds more about a unit this many steps from you, or nearer: the toad's chain
+  // and its song (steps go eight ways, so a diagonal counts as one).
   observeClose: 2,
 
   player: { hp: 3, str: 10, love: 10, will: 10 },

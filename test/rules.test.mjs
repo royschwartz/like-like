@@ -61,7 +61,7 @@ test('fighting the toad to death leaves a corpse with its key; the wide button t
   tough(g);
   const [x, y] = standWithFloorEast(g);
   const room = currentRoom(g);
-  putToad(g, x + 1, y, true);
+  putToad(g, x + 1, y, false); // awake: moving into it strikes it (asleep, it would sing)
   let killed = false;
   for (let k = 0; k < 200 && !killed; k++) {
     const from = g.nextLogId;
@@ -177,8 +177,10 @@ test('sense: your numbers for a while, the whole room, and one line each time', 
   v = view(g);
   assert.deepEqual([v.stats.str, v.stats.love, v.stats.will], [null, null, null]);
 
-  // The toad's room: his lines, one each time you sense; the last tells you of the worms.
+  // The toad's room, its toad elsewhere: his lines, one each time you sense; the last tells
+  // you of the worms.
   g.room = g.level.toadRoom;
+  currentRoom(g).toad = null;
   [g.x, g.y] = findSpot(g, (x, y, r) => plainFloor(r, x, y));
   const lines = TEXT.senseToad;
   for (let k = 0; k < lines.length; k++) {
@@ -191,10 +193,12 @@ test('sense: your numbers for a while, the whole room, and one line each time', 
   }
   assert.equal(g.knowsWorms, true);
   assert.equal(view(g).context.more, false);
-  // Nothing new: the last line again.
-  from = g.nextLogId;
-  act(g, { type: 'context' });
-  assert.deepEqual(saidSince(g, from), [lines[lines.length - 1]]);
+  // Nothing new: it says so, every time.
+  for (let k = 0; k < 2; k++) {
+    from = g.nextLogId;
+    act(g, { type: 'context' });
+    assert.deepEqual(saidSince(g, from), [TEXT.log.senseNothing]);
+  }
 });
 
 test('sense shows the toad behind a wall until your next action', () => {

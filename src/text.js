@@ -32,7 +32,8 @@ export const TEXT = {
   },
 
   // What observe says about a thing you click on. [...]: his to write.
-  // One click, one line. A list is what further clicks say, in order.
+  // One click, one line. A list is what further clicks say, going round.
+  // A unit (the toad) says its plain line instead (TEXT.unit), and what sensing found.
   // None may run past two lines of the log (see test/log.test.mjs).
   observe: {
     you: '[you]',
@@ -43,24 +44,41 @@ export const TEXT = {
     door: '[door]',
     stairs: '[stairs]',
     entrance: '[entrance]',
-    // HIS.
-    toadAsleep: ['a large sleeping toad', 'it seems stronger than you'],
+    // The awake toad's plain line, his to write: what it is doing.
     toad: '[toad, awake]',
     // HIS.
     golddoor: 'the door at the far corner of the room is golden',
     // The bust. "statue description is short": before it has spoken, [...], his to write.
     statue: '[bust]',
     // HIS. After it has spoken. It is also the text of its event from then on.
-    statueLifeless: 'the lifeless bust of DEE.',
-  },
-  // What further clicks say once you are close. HIS: the toad's chain.
-  // (Close to the sleeping toad, the click after this one is TEXT.toad.singing, and its event.)
-  observeClose: {
-    toadAsleep: 'it wears a chain with a golden key around its neck',
+    // No period at the end: "as a rule we should limit periods".
+    statueLifeless: 'the lifeless bust of DEE',
   },
 
-  // HIS. The toad's event. "singing" is both an observation and the event's first line
-  // (his "O,E"): it is what a click on the sleeping toad says, up close, once the rest is said.
+  // The plain line of a unit, as Brogue's (decision 152): who, doing what, on what ground.
+  // HIS: "a toad sleeping on grass" ("unit type / activity / what terrain they're on").
+  // "dirt" is his word for the bare ground (decision 52). Ground with no word here, or a
+  // toad awake, says the whole-line slot instead.
+  unit: {
+    line: (who, doing, ground) => `${who} ${doing} on ${ground}`,
+    who: { toad: 'a toad' },
+    doing: { asleep: 'sleeping' },
+    ground: { grass: 'grass', floor: 'dirt' },
+    elsewhere: { toad: '[toad, asleep]' },
+  },
+
+  // HIS. What sensing finds about the toad, in this order, one a sensing (decision 150).
+  // The chain and the song only within 2 steps; "a large sleeping toad" and the song only
+  // while it sleeps, the chain only while it has the key. Once found, each is one of what
+  // observing it goes round (152). The song is TEXT.toad.singing.
+  toadFinds: {
+    large: 'a large sleeping toad',
+    stronger: 'it seems stronger than you',
+    chain: 'it wears a chain with a golden key around its neck',
+  },
+
+  // HIS. The toad's event, opened by moving into it while it sleeps (decision 155).
+  // "singing" is the event's first line, and the last thing sensing finds about it, up close.
   // Song lines keep his capital I and Irish.
   toad: {
     singing: 'it is singing in its sleep, in an Irish style',
@@ -78,13 +96,18 @@ export const TEXT = {
   },
 
   // HIS. The bust's event, opened by moving into it the first time. Each line is a paragraph.
+  // Two pages: "it should end at the question", and then "do we know each other" is
+  // "something you say", the only option for now (decision 157).
   dee: {
-    // what you see as you walk into it; too long for the log, so it is only here
-    bust: 'on a pedestal, the granite bust of a man of young or middle age, bushy hair sprouting at the sides, with a ravenous expression. underneath the bust is an opening where items might be placed',
+    // what you see as you walk into it; too long for the log, so it is only here.
+    // His November 19 version.
+    bust: 'on a pedestal, the granite bust of a man of young or middle age, bushy hair sprouting at the sides, wearing a ravenous expression',
     speaks: 'suddenly the empty eyes begin to glow and the statue speaks',
+    greets: '"long time no see, compadre"',
+    // what you say: the first page's one option
+    ask: 'do we know each other?',
+    // the second page
     lines: [
-      '"long time no see, compadre."',
-      'you: "do we know each other?"',
       '"are you on one? it\'s your old friend DEE. we used to stack boxes together"',
       'he winks at you. "now we\'re doing other things"',
     ],
@@ -95,8 +118,9 @@ export const TEXT = {
     nothingMore: '[nothing more happens]',
   },
 
-  // HIS. What sense says in the toad's room: one line each time you sense, in this order.
-  // The last is what tells you about the worms.
+  // HIS. What sense says in the toad's room: one line each time you sense, in this order,
+  // after what it finds about the toad. The last is what tells you about the worms, and only
+  // sensing tells it ("no worms are down there only happen when you sense").
   senseToad: [
     'there is the smell of cinnamon in the air',
     'you have a feeling you have been here before',
@@ -163,8 +187,8 @@ export const TEXT = {
     sounds: '[sounds from the opening, dee]',
     // [...]. The toad woken by noise, his to write.
     toadWakes: '[the toad wakes]',
-    // [...]. Sensing where there is nothing to sense, his to write.
-    senseNothing: '[you sense nothing]',
+    // HIS. Sensing when there is nothing new to find: "it should always say you sense nothing new".
+    senseNothing: 'you sense nothing new',
   },
 };
 

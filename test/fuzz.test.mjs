@@ -46,8 +46,10 @@ function check(g, v, lastId) {
   if (v.event) {
     const opts = v.event.options;
     assert.ok(opts.length >= 1 && opts.every((o) => o && typeof o.label === 'string' && o.label.length > 0), 'event options: a plain list');
-    assert.equal(opts[opts.length - 1].kind, 'back');
-    assert.equal(opts.filter((o) => o.kind === 'back').length, 1);
+    // the way back last, once; only DEE's question has none, and one option: what you say
+    const backs = opts.filter((o) => o.kind === 'back').length;
+    if (opts[opts.length - 1].kind === 'back') assert.equal(backs, 1);
+    else assert.ok(v.event.id === 'dee' && opts.length === 1 && backs === 0, 'no way back only at DEE\'s question');
     assert.ok(Number.isInteger(v.event.cursor) && v.event.cursor >= 0 && v.event.cursor < opts.length, 'event cursor on an option');
     assert.ok(v.event.lines.length > 0 && v.event.lines.every((l) => typeof l.text === 'string' && l.text.length > 0));
     assert.ok(v.event.now >= 0 && v.event.now <= Math.max(...v.event.lines.map((l) => l.passage)));

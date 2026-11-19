@@ -12,8 +12,9 @@ const manhattan = (ax, ay, bx, by) => Math.abs(ax - bx) + Math.abs(ay - by);
 const OPP = { n: 's', s: 'n', e: 'w', w: 'e' };
 
 const DESCRIPTION =
-  'on a pedestal, the granite bust of a man of young or middle age, bushy hair sprouting at the sides, with a ravenous expression. underneath the bust is an opening where items might be placed';
-const LIFELESS = 'the lifeless bust of DEE.';
+  'on a pedestal, the granite bust of a man of young or middle age, bushy hair sprouting at the sides, wearing a ravenous expression';
+const LIFELESS = 'the lifeless bust of DEE';
+const ASK = 'do we know each other?';
 
 // Run fn with CONFIG.noiseWakes set to p.
 function withNoise(p, fn) {
@@ -58,11 +59,9 @@ function intoBust(g, s) {
   return act(g, { type: 'move', dir });
 }
 
-const DEE = [
-  [DESCRIPTION],
-  ['suddenly the empty eyes begin to glow and the statue speaks'],
-  ['"long time no see, compadre."'],
-  ['you: "do we know each other?"'],
+// DEE's two pages: it ends at its greeting; what you say back; then what it says.
+const DEE_FIRST = [[DESCRIPTION], ['suddenly the empty eyes begin to glow and the statue speaks'], ['"long time no see, compadre"']];
+const DEE_SECOND = [
   ['"are you on one? it\'s your old friend DEE. we used to stack boxes together"'],
   ['he winks at you. "now we\'re doing other things"'],
   ['the statue goes lifeless'],
@@ -88,7 +87,7 @@ function observeBust(g, s) {
   return { ev, said: texts(g, from) };
 }
 
-test('moving into the bust: no turn, never onto it; the first time it speaks', () => {
+test('moving into the bust: no turn, never onto it; the first time it speaks, in two pages', () => {
   withNoise(0, () => {
     const { g, s } = atBust(1);
     const turn = g.turn;
@@ -98,15 +97,30 @@ test('moving into the bust: no turn, never onto it; the first time it speaks', (
     assert.equal(g.turn, turn, 'no time');
     assert.deepEqual([g.x, g.y], at, 'you stay where you were');
     assert.equal(s.spoke, true);
-    const v = view(g);
+    let v = view(g);
     assert.equal(v.cells[idx(s.x, s.y)].t, 'statue');
-    assert.deepEqual(passages(v), DEE, 'what you see as you walk into it, then what it says');
+    assert.deepEqual(passages(v), DEE_FIRST, 'what you see as you walk into it, then its greeting: it ends at the question');
     assert.equal(v.event.now, 0, 'all of it is new');
     assert.ok(v.event.lines.every((l) => l.song === false && l.slot === false));
+    assert.deepEqual(v.event.options, [{ label: ASK, kind: 'action', slot: false }], 'what you say: the one option, and no way back');
+    assert.equal(v.event.cursor, 0);
+    // Back (escape) does nothing here: it never says the line for you. Nor does anything else.
+    const before = view(g);
+    for (const a of [{ type: 'back' }, { type: 'move', dir: 's' }, { type: 'move', dir: 'n' }, { type: 'choose', index: 1 }, { type: 'wait' }, { type: 'observe', x: s.x, y: s.y }]) {
+      assert.deepEqual(act(g, a), []);
+    }
+    assert.deepEqual(view(g), before);
+    // Say it: the second page, and then only back.
+    assert.deepEqual(act(g, { type: 'context' }), []);
+    v = view(g);
+    assert.deepEqual(passages(v), DEE_SECOND);
+    assert.equal(v.event.now, 0, 'all of it is new');
     assert.deepEqual(v.event.options, [{ label: 'back', kind: 'back', slot: false }]);
     assert.equal(v.event.cursor, 0);
-    act(g, { type: 'context' });
+    assert.equal(g.turn, turn);
+    act(g, { type: 'back' });
     assert.equal(view(g).event, null);
+    assert.ok(!g.log.some((l) => l.text === ASK), 'what you say is in the event, not the log');
 
     // Every time after: its opening, the items you carry, back last.
     const ev2 = intoBust(g, s);
@@ -140,6 +154,7 @@ test('observing the bust never opens its event: a short line, then lifeless; it 
     const { g, s } = atBust(1);
     currentRoom(g).noticed = { statue: true };
     intoBust(g, s);
+    act(g, { type: 'context' }); // what you say
     act(g, { type: 'back' });
     assert.equal(view(g).cells[idx(s.x, s.y)].more, true, 'it has spoken: something new to see');
     for (let k = 0; k < 2; k++) {

@@ -166,7 +166,7 @@ test('travel to the bust from a diagonal it can reach opens it', () => {
   assert.ok(travel(g, 8, 5).some((e) => e.type === 'event' && e.id === 'dee'));
 });
 
-test('travel to the sleeping toad stops beside it without a blow; again, and you strike', () => {
+test('travel to the sleeping toad stops beside it without a blow; again, its song; awake, you strike', () => {
   const { g, room } = openGame(2, 5);
   const t = putToad(g, 8, 5, true);
   const path = pathOf(g, 8, 5);
@@ -177,9 +177,18 @@ test('travel to the sleeping toad stops beside it without a blow; again, and you
   assert.equal(t.asleep, true);
   assert.equal(t.hp, 8);
   assert.equal(room.toad, t);
-  const ev = travel(g, 8, 5);
+  // the bump into it asleep: its event, and no turn
+  const turn = g.turn;
+  let ev = travel(g, 8, 5);
+  assert.deepEqual(ev, [{ type: 'event', id: 'toad' }]);
+  assert.equal(g.turn, turn);
+  assert.equal(t.asleep, true);
+  act(g, { type: 'back' });
+  // awake: the bump is a blow
+  t.asleep = false;
+  ev = travel(g, 8, 5);
   assert.ok(ev.some((e) => e.type === 'attack' && e.by === 'player'));
-  assert.equal(t.asleep, false);
+  assert.equal(g.turn, turn + 1);
 });
 
 test('the way goes round a toad you can see', () => {

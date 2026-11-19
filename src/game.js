@@ -39,6 +39,7 @@ function makeState(seed, look, nextLogId, outlines = CONFIG.outlines.start) {
     inv: null, //  the inventory screen: { cursor }, or null
     event: null, // an event over the whole screen, or null (see "events" below)
     observed: {}, // the observations you have had, by id (see "observe" below)
+    lastObserved: {}, // the id of the last one said, by what was observed: they go round
     sensed: {}, //   the things you have sensed, by id
     inspected: {}, // the items you have inspected, by key: until then one blinks in the inventory
     // noticing without trying has its own chance, so it changes nothing else's luck
@@ -322,6 +323,9 @@ function step(g, dx, dy, ev) {
   if (c === 'golddoor') return goldDoor(g, room, x, y, ev);
   const toad = toadAt(room, x, y);
   if (toad) {
+    // Into the toad asleep: its song, and no turn, as the bust (decision 155). Awake, it is
+    // always hostile for now: a blow.
+    if (toad.asleep) return openToad(g, ev);
     attack(g, room, toad, ev);
   } else if (c === 'door') {
     // a door is in the wall's ring: only a straight step reaches it
@@ -456,12 +460,40 @@ function descend(g, ev) {
   recallDue(g, ev);
 }
 
-// What there is to sense where you are, in order: [{ id, text, worms }].
-// Only the toad's room has anything yet.
-function senseLines(g) {
+// The room's own lines, in order: [{ id, text, worms }]. Only the toad's room has any yet;
+// its last tells of the worms.
+function roomLines(g) {
   if (g.room !== g.level.toadRoom) return [];
   const last = TEXT.senseToad.length - 1;
   return TEXT.senseToad.map((text, k) => ({ id: `toad.${k}`, text, worms: k === last }));
+}
+
+// Within CONFIG.observeClose steps of you (eight ways).
+const isNear = (g, x, y) => chebyshev(x, y, g.x, g.y) <= CONFIG.observeClose;
+
+// What sensing can find about the toad as it is now, in order: [{ id, text, near }].
+// near: found only within CONFIG.observeClose steps of you. Once found, each is one of what
+// observing it goes round, at any distance, while it still holds (decisions 150, 152).
+function toadFinds(toad) {
+  const f = TEXT.toadFinds;
+  const out = [];
+  if (toad.asleep) out.push({ id: 'unit.toad.large', text: f.large });
+  out.push({ id: 'unit.toad.stronger', text: f.stronger });
+  if (toad.key) out.push({ id: 'unit.toad.chain', text: f.chain, near: true });
+  if (toad.asleep) out.push({ id: 'unit.toad.sings', text: TEXT.toad.singing, near: true });
+  return out;
+}
+
+// Everything a sensing could find now, in the order it finds them: about each unit its wave
+// reaches, the nearest first, and then the room's own lines.
+function senseFinds(g, wave) {
+  const room = currentRoom(g);
+  const out = [];
+  for (const c of wave) {
+    const t = toadAt(room, c.x, c.y);
+    if (t) out.push(...toadFinds(t).filter((f) => !f.near || isNear(g, c.x, c.y)));
+  }
+  return out.concat(roomLines(g));
 }
 
 // How sensing goes out (decision 113, "for now"): from you, a step at a time, to every
@@ -517,8 +549,8 @@ function senseWave(g) {
 // What is unknown about a unit is shown once you have noticed it: from then on it blinks
 // while it has something you have not observed. Marks are kept by the room, for good.
 // Sensing is the strong search: every unit its wave reaches or that takes it in is noticed,
-// and it tells the next of the room's secrets. Without trying, each turn, you may notice a
-// unit in sight (the nearer, the likelier), and now and then a secret of the room comes to you.
+// and it finds one new thing. Without trying, each turn, you may notice a unit in sight (the
+// nearer, the likelier), and now and then a secret of the room comes to you.
 const noticedIn = (room) => room.noticed || (room.noticed = {});
 
 function noticeSensed(g, wave) {
@@ -530,14 +562,12 @@ function noticeSensed(g, wave) {
   }
 }
 
-// The units of a room you have not noticed: [kind, x, y, name].
+// The units of a room you have not noticed: [kind, x, y].
 function unnoticed(room) {
   const marks = noticedIn(room);
   const out = [];
-  if (room.toad && !marks.toad) out.push(['toad', room.toad.x, room.toad.y, room.toad.asleep ? 'toadAsleep' : 'toad']);
-  if (room.statue && !marks.statue) {
-    out.push(['statue', room.statue.x, room.statue.y, room.statue.spoke ? 'statueLifeless' : 'statue']);
-  }
+  if (room.toad && !marks.toad) out.push(['toad', room.toad.x, room.toad.y]);
+  if (room.statue && !marks.statue) out.push(['statue', room.statue.x, room.statue.y]);
   return out;
 }
 
@@ -550,45 +580,43 @@ export function noticeChance(steps) {
 function noticeIdly(g) {
   const room = currentRoom(g);
   const vis = fov(room.t, g.x, g.y);
-  for (const [kind, x, y, name] of unnoticed(room)) {
-    if (!vis[idx(x, y)]) continue;
-    const near = isNear(g, x, y);
-    if (!observations(room, name, near).some((o) => !g.observed[o.id])) continue;
+  for (const [kind, x, y] of unnoticed(room)) {
+    if (!vis[idx(x, y)] || !hasNew(g, unitCycle(g, room, kind))) continue;
     if (chance(g.noticeRng, noticeChance(chebyshev(x, y, g.x, g.y)))) noticedIn(room)[kind] = true;
   }
-  // a secret of the room, unbidden: the same next line sensing would tell
-  const line = senseLines(g).find((l) => !g.sensed[l.id]);
-  if (line && chance(g.noticeRng, CONFIG.notice.secret) && canSay(g, line.text)) {
+  // a secret of the room, unbidden: its next line, but never the worms, which only sensing
+  // tells ("worms are down there only happen when you sense"). Never what a unit has to find.
+  const line = roomLines(g).find((l) => !g.sensed[l.id]);
+  if (line && !line.worms && chance(g.noticeRng, CONFIG.notice.secret) && canSay(g, line.text)) {
     say(g, line.text, 'sense');
     g.sensed[line.id] = true;
-    if (line.worms) g.knowsWorms = true;
   }
 }
 
-// One sensing, one line: the next thing you have not sensed here, or, when there
-// is nothing new, the last thing again. The last line of the toad's room is the worms.
+// One sensing, one new thing ("1 thing per sense", decision 150): the first it can find now
+// that you have not sensed, or else that there is nothing new, wherever you are.
+// The last line of the toad's room is the worms.
 function sense(g, ev) {
   const room = currentRoom(g);
-  const lines = senseLines(g);
-  const line = lines.find((l) => !g.sensed[l.id]) ?? lines[lines.length - 1];
   for (let i = 0; i < S * S; i++) {
     room.seen[i] = true;
     room.memCorpse[i] = !!corpseAt(room, i % S, Math.floor(i / S));
   }
   const wave = senseWave(g);
   noticeSensed(g, wave);
+  const find = senseFinds(g, wave).find((f) => !g.sensed[f.id]);
   ev.push({ type: 'sense', wave });
   const here = g.room;
   // A blow or a death has priority over a discovery. An unsaid discovery stays
-  // available (and blinking) for the next sense; a memory waits for spare room.
+  // available for the next sense; a memory waits for spare room.
   const outcome = endTurn(g, ev, false, false);
   if (!outcome.died) {
-    const text = line?.text ?? TEXT.log.senseNothing;
+    const text = find?.text ?? TEXT.log.senseNothing;
     if (canSay(g, text)) {
       say(g, text, 'sense');
-      if (line) {
-        g.sensed[line.id] = true;
-        if (line.worms) g.knowsWorms = true;
+      if (find) {
+        g.sensed[find.id] = true;
+        if (find.worms) g.knowsWorms = true;
       }
     }
     g.selfUntil = g.turn + CONFIG.senseSelfTurns;
@@ -819,11 +847,12 @@ function use(g) {
 }
 
 // ---- observe -------------------------------------------------------------
-// One hold, one observation ("in single instances, not many stacked"). A thing can
-// have several: each hold says the next one you have not had, and when there is
-// nothing new it says the last one again. Coming close can add more. Nothing blinks
-// for being there to look at (decision 112): a unit blinks only once you have noticed it,
-// by sensing or without trying, and then while it has one you have not had (view: cell.more).
+// One hold, one observation ("in single instances, not many stacked"). What a thing has
+// goes round: each hold says the first one you have not had, and once you have had them
+// all, the one after the last it said. A unit's are its plain line and then what sensing has
+// found about it (decision 152). Nothing blinks for being there to look at (decision 112):
+// a unit blinks only once you have noticed it, by sensing or without trying, and then while
+// it has one you have not had (view: cell.more).
 
 // What is drawn on a cell, by the same sight rules as view():
 // 'player', 'toad', 'corpse', or null; undefined for a cell never seen.
@@ -849,36 +878,39 @@ const TERRAIN_NAME = {
   entrance: 'entrance',
 };
 
-// The name, in TEXT.observe, of what holding on cell i observes.
-function nameAt(room, i, thing) {
+// The lines of a name in TEXT.observe, going round: [{ id, text }].
+const sayings = (name) => [].concat(TEXT.observe[name]).map((text, k) => ({ id: `${name}.${k}`, text }));
+
+// The toad's plain line, as Brogue's: who, doing what, on what ground. Its id is by what it
+// is doing, so a toad that wakes has a new line to observe.
+function toadLine(room, toad) {
+  if (!toad.asleep) return { id: 'unit.toad.awake', text: TEXT.observe.toad };
+  const u = TEXT.unit;
+  const ground = u.ground[room.t[idx(toad.x, toad.y)]];
+  return { id: 'unit.toad.asleep', text: ground ? u.line(u.who.toad, u.doing.asleep, ground) : u.elsewhere.toad };
+}
+
+// What observing a unit goes round, in order: [{ id, text }]. The toad: its plain line, then
+// what sensing has found about it that still holds, at any distance. The bust: its line.
+function unitCycle(g, room, kind) {
+  if (kind === 'toad') return [toadLine(room, room.toad), ...toadFinds(room.toad).filter((f) => g.sensed[f.id])];
+  return sayings(room.statue?.spoke ? 'statueLifeless' : 'statue');
+}
+
+const hasNew = (g, list) => list.some((o) => !g.observed[o.id]);
+
+// What holding on cell i observes: { key, unit, list }. key: what the last one said is kept
+// by; unit: the kind of unit, which can blink, or null.
+function observable(g, room, i, thing) {
+  if (thing?.kind === 'toad') return { key: 'toad', unit: 'toad', list: unitCycle(g, room, 'toad') };
   if (thing) {
-    if (thing.kind === 'player') return 'you';
-    if (thing.kind === 'toad') return thing.asleep ? 'toadAsleep' : 'toad';
-    return 'corpse';
+    const name = thing.kind === 'player' ? 'you' : 'corpse';
+    return { key: name, unit: null, list: sayings(name) };
   }
-  if (room.t[i] === 'statue') return room.statue && room.statue.spoke ? 'statueLifeless' : 'statue';
-  return TERRAIN_NAME[room.t[i]];
+  if (room.t[i] === 'statue') return { key: 'statue', unit: 'statue', list: unitCycle(g, room, 'statue') };
+  const name = TERRAIN_NAME[room.t[i]];
+  return { key: name, unit: null, list: sayings(name) };
 }
-
-// What a thing has to observe now, in order: [{ id, text, event }]. `near`: you are close.
-// Close to the sleeping toad the last is its song, which is also its event (his "O,E").
-function observations(room, name, near) {
-  const list = [].concat(TEXT.observe[name]).map((text, k) => ({ id: `${name}.${k}`, text }));
-  if (!near) return list;
-  if (name === 'toadAsleep') {
-    if (room.toad.key) list.push({ id: 'toadAsleep.chain', text: TEXT.observeClose.toadAsleep });
-    list.push({ id: 'toadAsleep.sings', text: TEXT.toad.singing, event: 'toad' });
-  } else {
-    [].concat(TEXT.observeClose[name] ?? []).forEach((text, k) => list.push({ id: `${name}.close.${k}`, text }));
-  }
-  return list;
-}
-
-const isNear = (g, x, y) => chebyshev(x, y, g.x, g.y) <= CONFIG.observeClose;
-
-// The units: what can blink, once sensed, when it has something new to observe.
-const UNITS = new Set(['toad', 'toadAsleep', 'statue', 'statueLifeless']);
-const UNIT_KIND = { toad: 'toad', toadAsleep: 'toad', statue: 'statue', statueLifeless: 'statue' };
 
 function sight(g) {
   const room = currentRoom(g);
@@ -893,12 +925,13 @@ function observe(g, x, y, ev) {
   const i = idx(x, y);
   const thing = thingAt(g, room, i, vis, shown, sensed);
   if (thing === undefined) return;
-  const list = observations(room, nameAt(room, i, thing), isNear(g, x, y));
-  const o = list.find((it) => !g.observed[it.id]) ?? list[list.length - 1];
+  const { key, list } = observable(g, room, i, thing);
+  const last = list.findIndex((it) => it.id === g.lastObserved[key]);
+  const o = list.find((it) => !g.observed[it.id]) ?? list[(last + 1) % list.length];
   g.observed[o.id] = true;
+  g.lastObserved[key] = o.id;
   say(g, o.text, 'observe');
   ev.push({ type: 'observe', x, y });
-  if (o.event === 'toad') openToad(g, ev);
 }
 
 // ---- events ----------------------------------------------------------------
@@ -918,6 +951,7 @@ function openEvent(g, e, ev, keepMenu = false) {
   ev.push({ type: 'event', id: e.id });
 }
 
+// Moving into the toad asleep. Each time from the first verse; whether it has stirred is kept.
 function openToad(g, ev) {
   const passages = [[prose(TEXT.toad.singing)], TEXT.toad.verses[0].map(sung)];
   openEvent(g, { id: 'toad', passages, heard: 1, over: false }, ev);
@@ -930,11 +964,13 @@ function openBust(g, ev) {
   openEvent(g, { id: 'bust', passages: [[prose(TEXT.observe.statueLifeless)]], over: false }, ev);
 }
 
+// The bust's first event, two pages (decision 157). The first ends at its greeting, and its
+// one choice is what you say back; the second is what it answers, and then only back.
 function openDee(g, ev) {
   const t = TEXT.dee;
-  const passages = [t.bust, t.speaks, ...t.lines, t.lifeless].map((l) => [prose(l)]);
+  const passages = [t.bust, t.speaks, t.greets].map((l) => [prose(l)]);
   currentRoom(g).statue.spoke = true;
-  openEvent(g, { id: 'dee', passages, over: true }, ev);
+  openEvent(g, { id: 'dee', passages, over: false }, ev);
   makeNoise(g, ev);
 }
 
@@ -960,8 +996,10 @@ function recall(g, id, ev) {
 }
 
 // The choices of the open event, in order: a plain list, the way back last.
+// DEE's first page has no way back: it ends at its greeting, and you answer.
 function eventOptions(g) {
   const e = g.event;
+  if (!e.over && e.id === 'dee') return [{ label: TEXT.dee.ask, kind: 'action', run: 'ask' }];
   const list = [];
   if (!e.over && e.id === 'bust') {
     // The bust's opening: what you carry, by name.
@@ -989,6 +1027,12 @@ function eventChoose(g, i, ev) {
   switch (o.run) {
     case 'back':
       g.event = null;
+      break;
+    case 'ask':
+      // what you say to DEE: its answer is the second page, and the event is over
+      e.passages = [...TEXT.dee.lines, TEXT.dee.lifeless].map((l) => [prose(l)]);
+      e.now = 0;
+      e.over = true;
       break;
     case 'give': {
       // What it says goes under the bust's text, in place of what it said before.
@@ -1093,7 +1137,8 @@ function eventAct(g, a, ev) {
         return false;
     }
   }
-  const n = eventOptions(g).length;
+  const options = eventOptions(g);
+  const n = options.length;
   switch (a.type) {
     case 'move':
       if (!DIRS.includes(a.dir)) return false;
@@ -1108,6 +1153,8 @@ function eventAct(g, a, ev) {
       eventChoose(g, a.index, ev);
       return true;
     case 'back':
+      // the way back, when there is one: never another choice made for you
+      if (options[n - 1].run !== 'back') return false;
       eventChoose(g, n - 1, ev);
       return true;
   }
@@ -1329,10 +1376,8 @@ export function view(g) {
     // A unit in sight that you have noticed, with something you have not observed, blinks.
     let more = false;
     if (state === 'visible') {
-      const name = nameAt(room, i, thing);
-      if (UNITS.has(name) && noticedIn(room)[UNIT_KIND[name]]) {
-        more = observations(room, name, isNear(g, i % S, Math.floor(i / S))).some((o) => !g.observed[o.id]);
-      }
+      const o = observable(g, room, i, thing);
+      more = !!o.unit && !!noticedIn(room)[o.unit] && hasNew(g, o.list);
     }
     cells.push({ t: room.t[i], state, thing, more });
   }
