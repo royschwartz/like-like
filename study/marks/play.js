@@ -53,7 +53,8 @@ function save(key, value) {
 }
 
 const game = newGame({ seed: readSeed(), look: readLook(), outlines: readOutlines() });
-const renderer = createRenderer(document);
+// the study draws its own marks, so the game's are off
+const renderer = createRenderer(document, { marks: false });
 renderer.draw(view(game));
 // study: a copy, so the panel can change the hold's times while it is played
 const timing = { ...renderer.timing };

@@ -140,7 +140,7 @@ test('observing the golden door, and the awake toad', () => {
   t.asleep = false;
   from = g.nextLogId;
   const ev = act(g, { type: 'observe', x: t.x, y: t.y });
-  assert.deepEqual(texts(g, from), ['[toad, awake]']);
+  assert.deepEqual(texts(g, from), ['toad, awake']);
   assert.equal(g.log[g.log.length - 1].kind, 'slot');
   assert.ok(!ev.some((e) => e.type === 'event'));
 });
@@ -284,11 +284,11 @@ test('go for the key: CONFIG.keyChance, calm and stirred, from the seeded chance
     act(g, { type: 'back' });
     // The inventory: the key's name and description are his to write.
     act(g, { type: 'menu', id: 'inv' });
-    assert.deepEqual(view(g).inv.items.map((it) => it.name), ['sword', '[golden key]']);
+    assert.deepEqual(view(g).inv.items.map((it) => it.name), ['sword', 'golden key']);
     act(g, { type: 'move', dir: 's' });
     const from = g.nextLogId;
     act(g, { type: 'context' });
-    assert.deepEqual(texts(g, from), ['[golden key, description]']);
+    assert.deepEqual(texts(g, from), ['golden key, description']);
 
     // Once stirred, the stirred chance: here, sure failure.
     ({ g, t } = atToad());
@@ -390,7 +390,7 @@ test('the golden door: locked without the key, opens with it, and the stairs are
   const turn = g.turn;
   let from = g.nextLogId;
   assert.deepEqual(act(g, { type: 'move', dir }), []);
-  assert.deepEqual(texts(g, from), ['[the golden door is locked]']);
+  assert.deepEqual(texts(g, from), ['the golden door is locked']);
   assert.equal(g.turn, turn);
   assert.equal(room.t[idx(gd.x, gd.y)], 'golddoor');
 
@@ -398,7 +398,7 @@ test('the golden door: locked without the key, opens with it, and the stairs are
   from = g.nextLogId;
   const ev = act(g, { type: 'move', dir });
   assert.deepEqual(ev[0], { type: 'unlock', x: gd.x, y: gd.y });
-  assert.deepEqual(texts(g, from), ['[the golden door opens]']);
+  assert.deepEqual(texts(g, from), ['the golden door opens']);
   assert.equal(g.turn, turn + 1);
   assert.equal(room.t[idx(gd.x, gd.y)], 'opendoor');
   assert.ok(g.items.some((it) => it.key === 'key'), 'the key is kept');
@@ -410,7 +410,7 @@ test('the golden door: locked without the key, opens with it, and the stairs are
   assert.equal(view(g).cells[idx(st.x, st.y)].state, 'visible');
   from = g.nextLogId;
   act(g, { type: 'observe', x: gd.x, y: gd.y });
-  assert.deepEqual(texts(g, from), ['[door]']);
+  assert.deepEqual(texts(g, from), ['door']);
 });
 
 test('sensing the toad room through to its last line gives you dig for worms', () => {
@@ -419,7 +419,7 @@ test('sensing the toad room through to its last line gives you dig for worms', (
   // Elsewhere: nothing to sense, and only rest under *.
   let from = g.nextLogId;
   act(g, { type: 'context' });
-  assert.deepEqual(texts(g, from), ['[you sense nothing]']);
+  assert.deepEqual(texts(g, from), ['you sense nothing']);
   assert.equal(g.knowsWorms, false);
   const actMenu = () => {
     act(g, { type: 'menu', id: 'act' });
@@ -434,7 +434,7 @@ test('sensing the toad room through to its last line gives you dig for worms', (
   const at = room.t.findIndex((c, i) => c === 'floor' && !(room.toad.x === i % S && room.toad.y === Math.floor(i / S)) && i % S > 0);
   [g.x, g.y] = [at % S, Math.floor(at / S)];
   const want = [
-    'there is the smell of [cinnamon] in the air',
+    'there is the smell of cinnamon in the air',
     'you have a feeling you have been here before',
     'the ground struggles gently beneath your feet',
     'worms are down there you think',
@@ -470,10 +470,10 @@ test('dig for worms: grass or dirt only, three turns, then worms; inspecting the
   const ev = act(g, { type: 'choose', index: 1 });
   assert.deepEqual(ev[ev.length - 1], { type: 'dig', x: g.x, y: g.y });
   assert.equal(g.turn, turn + CONFIG.digTurns);
-  assert.deepEqual(texts(g, from), ['[you dig]', '[you find worms]']);
+  assert.deepEqual(texts(g, from), ['you dig', 'you find worms']);
   assert.equal(view(g).menu, null);
   act(g, { type: 'menu', id: 'inv' });
-  assert.deepEqual(view(g).inv.items.map((it) => it.name), ['sword', '[worms]']);
+  assert.deepEqual(view(g).inv.items.map((it) => it.name), ['sword', 'worms']);
   act(g, { type: 'move', dir: 's' });
   from = g.nextLogId;
   act(g, { type: 'context' });
@@ -504,7 +504,7 @@ test('dig for worms: grass or dirt only, three turns, then worms; inspecting the
   // Under psy: a [memory] that opens it again, and back returns to psy.
   act(g, { type: 'menu', id: 'psy' });
   let pv = view(g);
-  assert.deepEqual(pv.menu.options[2], { label: '[memory]', kind: 'action', disabled: false });
+  assert.deepEqual(pv.menu.options[2], { label: 'memory', kind: 'action', disabled: false });
   assert.equal(pv.menu.cursor, 2);
   const t2 = g.turn;
   act(g, { type: 'context' });
@@ -566,14 +566,14 @@ test('digging stops when something awake is in sight, and never says three lines
   const turn = g.turn;
   dig();
   assert.equal(g.turn, turn, 'it does not begin');
-  assert.deepEqual(texts(g, from), ['[you dig]', '[you stop digging]']);
+  assert.deepEqual(texts(g, from), ['you dig', 'you stop digging']);
   assert.ok(!g.items.some((it) => it.key === 'worms'));
   // Asleep, it lets you dig; a memory that is due waits for the worms.
   toad.asleep = true;
   g.recall = { id: 'worms', turn: g.turn + 1 };
   from = g.nextLogId;
   dig();
-  assert.deepEqual(texts(g, from), ['[you dig]', '[you find worms]']);
+  assert.deepEqual(texts(g, from), ['you dig', 'you find worms']);
   assert.equal(view(g).event, null);
   assert.ok(g.items.some((it) => it.key === 'worms'));
 });

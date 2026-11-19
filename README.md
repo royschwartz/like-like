@@ -40,7 +40,7 @@ Then go to `http://localhost:5173`. Add `?seed=7` to the address to play the sam
 
 - A level is one to four rooms. A room is 11 by 11 characters, walls included, and fills the screen. Walk through a door (`+`) and the next room slides in.
 - The log at the top says what happens. Its newest lines are bright; older ones are dimmer. One action adds at most two wrapped lines of text. The opening is kept in full above the arrival status.
-- Tap or click a square on the map to go there, a step at a time; the way still ahead stays lit, and any press stops you. Tap a thing beside you to hit it or use it. Hold a thing instead and it blinks; held through the blink, you observe it. It takes no time and gives one observation. Hold it again and it may say something new; come closer and there may be more. Drag across the map to see the way to a square, and let go to go there. Nothing blinks for being there to look at. Once you've noticed a thing, by sensing or now and then without trying (the nearer, the likelier), it blinks white while it has something you haven't observed. In the inventory, an item you haven't inspected blinks.
+- Tap or click a square on the map to go there, a step at a time; the way still ahead stays lit, and any press stops you. Tap a thing beside you to hit it or use it. Hold a thing instead and it blinks; held through the blink, you observe it. It takes no time and gives one observation. Hold it again and it may say something new; come closer and there may be more. Drag across the map to see the way to a square, and let go to go there. A finger hides the square it's on, so the squares round it are marked: corners round where a drag would go (a tap flashes them), and a box that closes in on a square while you hold it, reaching it as the hold ends. Nothing blinks for being there to look at. Once you've noticed a thing, by sensing or now and then without trying (the nearer, the likelier), it blinks white while it has something you haven't observed. In the inventory, an item you haven't inspected blinks.
 - `inv` replaces the map with what you carry. Move up and down to choose an item.
 - You see what's in your line of sight. `sense` takes a turn: it spreads out from you through everywhere you could walk, and the walls take it in; it shows you your own numbers for a while, shows the whole room, and reveals at most one observation. Combat messages take priority; an observation that cannot fit waits for a later sensing. Now and then a secret of the room comes to you without sensing.
 - Stand on the stairs (`>`) and the wide button says `stairs`.
@@ -62,7 +62,8 @@ Then go to `http://localhost:5173`. Add `?seed=7` to the address to play the sam
 | `src/game.js`, `src/gen.js`, `src/fov.js`, `src/rng.js` | the simulation: rules, level making, line of sight, seeded chance. No screen code. |
 | `src/render.js`, `src/input.js`, `src/main.js` | drawing, keys and touches, start-up. No rules. |
 | `test/` | tests for the simulation |
-| `study/marks/` | a study, not the game: ways of marking the squares beside the one under your finger. [Play it](https://royschwartz.github.io/like-like/study/marks/) |
+| `src/marks.js` | the marks round the square under your finger |
+| `study/marks/` | a study, not the game: the ways of marking the squares beside the one under your finger that the game's marks were chosen from. [Play it](https://royschwartz.github.io/like-like/study/marks/) |
 
 The same seed and the same presses always give the same game.
 

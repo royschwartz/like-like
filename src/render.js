@@ -4,6 +4,7 @@
 import { paintCell } from './palette.js';
 import { TEXT } from './text.js';
 import { CONFIG } from './config.js';
+import { createMarks } from './marks.js';
 
 const SIZE = CONFIG.roomSize;
 const LOG_KEEP = 12; // lines kept in #log-lines
@@ -17,7 +18,9 @@ const COVER_FX = ['fx-death', 'fx-descend'];
 const WAVE_FX = ['fx-wave', 'fx-absorb'];
 const CELL_FX = ['fx-hit', 'fx-miss', 'fx-kill', 'fx-observe', 'fx-dig', 'fx-unlock', ...WAVE_FX];
 
-export function createRenderer(root = document) {
+// withMarks: draw the marks round a held or aimed square (marks.js). The marks study
+// draws its own, so it turns these off.
+export function createRenderer(root = document, { marks: withMarks = true } = {}) {
   const $ = (id) => root.querySelector('#' + id);
   const screen = $('screen');
   const mapWrap = $('map-wrap');
@@ -74,6 +77,8 @@ export function createRenderer(root = document) {
     stepMs: frameMs * num('--travel-step', 1), // a fast move's step
     slideMs: (frameMs / 2) * SIZE, // a room sliding in: --slide-step, half a frame, a tile
   };
+  // the marks round the square under a finger (--mark-* in style.css)
+  const marks = withMarks ? createMarks(mapWrap, { size: SIZE, frameMs, num }) : null;
   // The blink: white for a couple of frames, about every two seconds, all in step.
   // Nothing blinks while a sense wave is going; when the wave ends the blinking starts
   // again from there, so the first blink comes just after the wave and never during it.
@@ -103,6 +108,7 @@ export function createRenderer(root = document) {
       stopWave();
       clearTrail();
       dropLook();
+      if (marks) marks.clear();
       for (const cell of cells) for (const cls of CELL_FX) fx.stop(cell, cls);
       endSlide();
       roomKey = nextRoom;
@@ -110,6 +116,8 @@ export function createRenderer(root = document) {
     // An event or the inventory takes the map's place: a wave under it is dropped, so
     // none of it is left to finish when the map comes back.
     if (view.event || view.inv) stopWave();
+    // and a menu over it, or either, takes the marks away
+    if (marks && (view.event || view.inv || view.menu)) marks.clear();
     const room = events.find((e) => e && e.type === 'room' && DIRS.includes(e.dir));
     if (room) startSlide(room.dir);
 
@@ -304,17 +312,27 @@ export function createRenderer(root = document) {
   }
 
   // A drag over (x, y): the way there bright, and the cell marked steady.
+  // The square is under the finger, so its corners are marked round it too.
   function showAim(x, y, path) {
-    if (!shown || shown.event || shown.inv || shown.menu || !inRoom(x, y)) return clearTrail();
+    if (!shown || shown.event || shown.inv || shown.menu || !inRoom(x, y)) return clearAim();
     setTrail(path, shown);
     map.classList.add('trail-hot');
     trail.aimEl = cells[y * SIZE + x];
     trail.aimEl.classList.add('aim');
+    if (marks) marks.aim(x, y);
   }
 
   // The drag has nothing to go to: no way, no mark. A fast move's way is left alone.
   function clearAim() {
+    if (marks) marks.aim(null, null);
     if (!trail.route) clearTrail();
+  }
+
+  // A tap, or letting go of a drag, that goes somewhere: the corners flash round where
+  // the finger was, so you see which square it hit.
+  function flashAim(x, y) {
+    if (!marks || !shown || shown.event || shown.inv || shown.menu || !inRoom(x, y)) return;
+    marks.flash(x, y);
   }
 
   function setTrail(path, view) {
@@ -346,12 +364,15 @@ export function createRenderer(root = document) {
     if (!inRoom(x, y)) return;
     lookEl = cells[y * SIZE + x];
     fx.play(lookEl, 'fx-observe', CELL_FX);
+    // the box closing in round it, as long as the blink
+    if (marks) marks.look(x, y, num('--look-on', 4));
   }
 
   // Let go early, or dragged away: the blink stops at once.
   function dropLook() {
     if (lookEl) fx.stop(lookEl, 'fx-observe');
     lookEl = null;
+    if (marks) marks.endLook();
   }
 
   function screenEffect(e) {
@@ -575,8 +596,9 @@ export function createRenderer(root = document) {
     });
   }
 
-  return { draw, timing, showAim, clearAim, showLook, dropLook, destroy() {
+  return { draw, timing, showAim, clearAim, flashAim, showLook, dropLook, destroy() {
     clearTimeout(blinkNext);
+    if (marks) marks.destroy();
     clearTrail();
     dropLook();
     clearTimeout(blinkOff);

@@ -126,6 +126,7 @@ function drop() {
   aim = null;
   renderer.clearAim();
   if (!at || isPlayer(at.x, at.y) || !lookAt(at.x, at.y)) return;
+  renderer.flashAim(at.x, at.y);
   run({ type: 'travel', x: at.x, y: at.y });
 }
 
@@ -158,10 +159,13 @@ function dispatch(action) {
     }
     case 'hold':
       // held through the blink: observe
+      renderer.dropLook();
       return run({ type: 'observe', x: action.x, y: action.y });
     case 'tap':
-      // let go before the blink was done: go there (or hit what's there, or wait)
+      // let go before the blink was done: go there (or hit what's there, or wait).
+      // Somewhere else, its corners flash, to show which square the finger hit.
       renderer.dropLook();
+      if (!isPlayer(action.x, action.y) && lookAt(action.x, action.y)) renderer.flashAim(action.x, action.y);
       return run({ type: 'travel', x: action.x, y: action.y });
     case 'interrupt':
       return;

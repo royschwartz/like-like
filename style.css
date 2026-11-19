@@ -68,6 +68,13 @@ body {
   --look-on: 4; /*      the observing blink. Held through it, you observe; let go before it
                         is done and it is a tap: you go there */
   --travel-step: 1; /*  a fast move takes a step each this long */
+  /* the marks round the square under a finger (marks.js reads these four), as chosen in
+     the marks study: line and edge in hundredths of the map's width; box, how many squares
+     out the marks go; tap, the frames a tap's corners flash. Observing takes --look-on. */
+  --mark-line: 0.7;
+  --mark-edge: 0.25;
+  --mark-box: 1;
+  --mark-tap: 3;
 
   /* type on buttons is the size of an event screen's: "the same size as the text screen font" */
   --text-size: calc(var(--u) * 4.2);
@@ -314,6 +321,34 @@ body {
 .c.aim {
   z-index: 2;
   box-shadow: inset 0 0 0 calc(var(--u) * 0.5) var(--box), inset 0 0 0 calc(var(--u) * 1) var(--box-in);
+}
+
+/* The marks round the square under a finger (marks.js): corners round where a drag would
+   go, and a box closing in on a square held to observe. A finger hides the square itself,
+   so they are drawn in the squares round it, on a layer over the map: plain rectangles in
+   the look cursor's two colours, each line on a thin edge of the other so it reads on any
+   tile. Over the cells and their effects, under the sheet for dying and going down (5).
+   Never takes a touch. */
+.marks,
+.marks-dest,
+.marks-look {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.marks {
+  z-index: 4;
+  overflow: hidden;
+}
+.marks-line,
+.marks-edge {
+  position: absolute;
+}
+.marks-line {
+  background: var(--box);
+}
+.marks-edge {
+  background: var(--box-in);
 }
 
 /* Monaco has no bold. A thin stroke in the same ink does the job. */
