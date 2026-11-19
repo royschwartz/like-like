@@ -139,7 +139,19 @@ test('logLines wraps as the page does', () => {
   assert.equal(logLines('aaaa bbbb cc', 7), 2);
 });
 
-test('a sense interrupted by combat leaves its two-line discovery unread', () => {
+// The first sense line, cinnamon, fits on one line now its brackets are gone, so these two
+// tests put a two-line one of his in its place.
+const twoLineSense = (fn) => {
+  const first = TEXT.senseToad[0];
+  TEXT.senseToad[0] = TEXT.senseToad[2];
+  try {
+    fn();
+  } finally {
+    TEXT.senseToad[0] = first;
+  }
+};
+
+test('a sense interrupted by combat leaves its two-line discovery unread', () => twoLineSense(() => {
   const hits = CONFIG.toad.hits;
   try {
     for (const outcome of ['hit', 'miss', 'death']) {
@@ -169,9 +181,9 @@ test('a sense interrupted by combat leaves its two-line discovery unread', () =>
   } finally {
     CONFIG.toad.hits = hits;
   }
-});
+}));
 
-test('a due memory waits until after a two-line sense or arrival', () => {
+test('a due memory waits until after a two-line sense or arrival', () => twoLineSense(() => {
   const grassChance = CONFIG.entranceInGrass;
   try {
     CONFIG.entranceInGrass = 1;
@@ -199,4 +211,4 @@ test('a due memory waits until after a two-line sense or arrival', () => {
   } finally {
     CONFIG.entranceInGrass = grassChance;
   }
-});
+}));

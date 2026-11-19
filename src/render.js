@@ -399,7 +399,7 @@ export function createRenderer(root = document, { marks: withMarks = true } = {}
       }
       if (!rec) {
         const el = logLines.ownerDocument.createElement('div');
-        el.textContent = line.text == null ? '' : String(line.text);
+        el.textContent = words(line.text);
         rec = { el, text: line.text, turn: line.turn, kind: null };
         logEls.set(line.id, rec);
         el.className = 'line';
@@ -451,10 +451,10 @@ export function createRenderer(root = document, { marks: withMarks = true } = {}
       row.dataset.pick = String(i);
       const name = doc.createElement('span');
       name.className = 'name';
-      name.textContent = it && it.name != null ? String(it.name) : '';
+      name.textContent = words(it && it.name);
       const state = doc.createElement('span');
       state.className = 'state';
-      state.textContent = it && it.state != null ? String(it.state) : '';
+      state.textContent = words(it && it.state);
       row.appendChild(name);
       row.appendChild(state);
       invRows.appendChild(row);
@@ -502,7 +502,7 @@ export function createRenderer(root = document, { marks: withMarks = true } = {}
       for (const l of group || []) {
         const el = doc.createElement('div');
         el.className = l.slot ? 'ev-line slot' : 'ev-line';
-        el.textContent = l.text == null ? '' : String(l.text);
+        el.textContent = words(l.text);
         if (l.song) {
           if (!verse) {
             verse = doc.createElement('div');
@@ -535,7 +535,7 @@ export function createRenderer(root = document, { marks: withMarks = true } = {}
         link.className = 'link';
         link.dataset.choose = String(i);
         link.dataset.kind = o.kind;
-        link.textContent = o.label ?? '';
+        link.textContent = words(o.label);
         link.disabled = !!o.disabled;
         eventLinks.appendChild(link);
       });
@@ -703,7 +703,15 @@ function inRoom(x, y) {
 }
 
 function setText(el, text) {
+  text = words(text);
   if (el && el.textContent !== text) el.textContent = text;
+}
+
+// Words as the player reads them: with no square brackets ("all the brackets should be
+// removed like around cinnamon"). text.js keeps an empty slot in brackets, so the rules can
+// tell it is one (it is still drawn in the slot's grey); the screen leaves them off.
+function words(text) {
+  return text == null ? '' : String(text).replace(/[[\]]/g, '');
 }
 
 // Put the ink of a short mark ("*", "...") in the middle of its button. A line of type is

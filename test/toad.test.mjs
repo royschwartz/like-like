@@ -434,7 +434,7 @@ test('sensing the toad room through to its last line gives you dig for worms', (
   const at = room.t.findIndex((c, i) => c === 'floor' && !(room.toad.x === i % S && room.toad.y === Math.floor(i / S)) && i % S > 0);
   [g.x, g.y] = [at % S, Math.floor(at / S)];
   const want = [
-    'there is the smell of [cinnamon] in the air',
+    'there is the smell of cinnamon in the air',
     'you have a feeling you have been here before',
     'the ground struggles gently beneath your feet',
     'worms are down there you think',

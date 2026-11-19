@@ -98,7 +98,7 @@ export const TEXT = {
   // HIS. What sense says in the toad's room: one line each time you sense, in this order.
   // The last is what tells you about the worms.
   senseToad: [
-    'there is the smell of [cinnamon] in the air',
+    'there is the smell of cinnamon in the air',
     'you have a feeling you have been here before',
     'the ground struggles gently beneath your feet',
     'worms are down there you think',

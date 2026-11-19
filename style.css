@@ -123,8 +123,9 @@ body {
   --blink-box: #0b0a09;
   --hit: #c8281a;
   --hit-ink: #ffffff;
-  --sense: #2b6a8c;
-  --sense-ink: #ffffff;
+  /* sense: a little white over the square (the paper look is light, so a little more) */
+  --sense-wash: rgba(255, 255, 255, 0.3);
+  --sense-wash-held: rgba(255, 255, 255, 0.15);
   --gold: #f0c020;
   --gold-ink: #17130b;
   --dig: #6e4a22;
@@ -188,8 +189,8 @@ body {
   --blink-box: #fff;
   --hit: #f55;
   --hit-ink: #000;
-  --sense: #5ff;
-  --sense-ink: #000;
+  --sense-wash: rgba(255, 255, 255, 0.14);
+  --sense-wash-held: rgba(255, 255, 255, 0.07);
   --gold: #ff5;
   --gold-ink: #000;
   --dig: #a50;
@@ -395,8 +396,10 @@ body {
 
 /* sense: a wave. It starts on your square and spreads a step at a time through every cell
    it can cross. render.js gives each cell --d, the step it arrives on; the cell waits that
-   many steps and is then a solid tile for --sense-on frames, so what you see is a band of
-   flat colour moving out, two rings wide. */
+   many steps and is then lightened for --sense-on frames, so what you see is a band moving
+   out, two rings wide. Only lightened, a little: "sense should not be as radical color
+   wise. square color should only be slightly lightened". A wash of white over the square's
+   own colour (an inset shadow, under its mark), so the mark keeps its colour too. */
 .c.fx-wave {
   z-index: 2;
   animation: fx-wave calc(var(--f) * var(--sense-on)) steps(1, end)
@@ -405,16 +408,14 @@ body {
 @keyframes fx-wave {
   0%,
   100% {
-    color: var(--sense-ink);
-    background-color: var(--sense);
     background-image: none;
+    box-shadow: inset 0 0 0 999px var(--sense-wash);
   }
 }
-/* ...and what stops it takes it in: a wall, the locked door, the bust. Solid like the rest
-   when the wave arrives, but it holds a frame longer, and then for two frames it is the
-   other way round (its own mark in the sense colour) before it is itself again. So the
-   band goes out and the room's edge stays lit behind it for a moment.
-   (--sense-absorb is the four frames this lasts.) */
+/* ...and what stops it takes it in: a wall, the locked door, the bust. Lightened like the
+   rest when the wave arrives, but it holds a frame longer, and then for two frames it is
+   lightened half as much before it is itself again. So the band goes out and the room's
+   edge stays lit behind it for a moment, fading. (--sense-absorb is the four frames.) */
 .c.fx-absorb {
   z-index: 2;
   animation: fx-absorb calc(var(--f) * var(--sense-absorb)) steps(1, end)
@@ -422,15 +423,13 @@ body {
 }
 @keyframes fx-absorb {
   0% {
-    color: var(--sense-ink);
-    background-color: var(--sense);
     background-image: none;
+    box-shadow: inset 0 0 0 999px var(--sense-wash);
   }
   50%,
   100% {
-    color: var(--sense);
-    background-color: var(--sense-ink);
     background-image: none;
+    box-shadow: inset 0 0 0 999px var(--sense-wash-held);
   }
 }
 
