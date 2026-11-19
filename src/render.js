@@ -14,8 +14,9 @@ const SLIDE_SAFETY_MS = 900;
 const DIRS = ['n', 'e', 's', 'w'];
 const JOLT_FX = ['fx-jolt', 'fx-hurt'];
 const COVER_FX = ['fx-death', 'fx-descend'];
-// The two classes of the sense wave: an open cell the front crosses, and one that takes it in.
-const WAVE_FX = ['fx-wave', 'fx-absorb'];
+// The classes of the sense wave: an open cell the front crosses, one that takes it in, and a
+// unit (the toad, the bust), whose icon steps instead: "the individual icon (not the square)".
+const WAVE_FX = ['fx-wave', 'fx-absorb', 'fx-wave-icon'];
 const CELL_FX = ['fx-hit', 'fx-miss', 'fx-kill', 'fx-observe', 'fx-dig', 'fx-unlock', ...WAVE_FX];
 
 // withMarks: draw the marks round a held or aimed square (marks.js). The marks study
@@ -249,6 +250,7 @@ export function createRenderer(root = document, { marks: withMarks = true } = {}
     const step = num('--sense-step', 0.5);
     const on = num('--sense-on', 1);
     const hold = num('--sense-absorb', 4);
+    const stepOn = num('--step-on', 5);
     // Asked for less motion: nothing travels. Only your own square flashes.
     const still = !!win.matchMedia && win.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const todo = [];
@@ -263,13 +265,14 @@ export function createRenderer(root = document, { marks: withMarks = true } = {}
       const el = cells[i];
       for (const cls of CELL_FX) fx.stop(el, cls);
       el.style.setProperty('--d', String(c.d));
-      todo.push([el, c.absorb ? 'fx-absorb' : 'fx-wave']);
-      frames = Math.max(frames, c.d * step + (c.absorb ? hold : on));
+      const unit = seen.thing?.kind === 'toad' || seen.t === 'statue';
+      todo.push([el, unit ? 'fx-wave-icon' : c.absorb ? 'fx-absorb' : 'fx-wave']);
+      frames = Math.max(frames, c.d * step + (unit ? stepOn : c.absorb ? hold : on));
     }
     if (!todo.length) return;
     void map.offsetWidth; // reflow, so a wave that was cut short starts again
     for (const [el, cls] of todo) el.classList.add(cls);
-    screen.classList.remove('blink');
+    screen.classList.remove('blink', 'stepping');
     // The timer is what ends the wave; it is set a frame past the last cell's last frame.
     wave = { els: todo.map((t) => t[0]), timer: setTimeout(endWave, (frames + 1) * f) };
   }
