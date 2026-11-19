@@ -198,7 +198,7 @@ export const TEXT = {
     // HIS: "you have a memory".
     memory: 'you have a memory',
     // [...]. Sounds from the bust's opening, his to write.
-    sounds: '[sounds from the opening, dee]',
+    sounds: '[sounds from the opening, DEE]',
     // [...]. The toad woken by noise, his to write.
     toadWakes: '[the toad wakes]',
     // HIS. Sensing when there is nothing new to find: "it should always say you sense nothing new".

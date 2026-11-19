@@ -368,7 +368,7 @@ function straightOut() {
 test('sounds from the opening: stepping beside the bust with a memory in hand, once each approach', () => {
   const { g, s, d, side } = straightOut();
   const [dx, dy] = STEP[d];
-  const sounds = () => g.log.filter((l) => l.text === '[sounds from the opening, dee]').length;
+  const sounds = () => g.log.filter((l) => l.text === '[sounds from the opening, DEE]').length;
   const walk = (dir) => act(g, { type: 'move', dir });
 
   // Without an item that holds a memory: nothing.
@@ -383,7 +383,7 @@ test('sounds from the opening: stepping beside the bust with a memory in hand, o
   walk(d);
   walk(OPP[d]);
   assert.equal(sounds(), 1);
-  const line = g.log.find((l) => l.text === '[sounds from the opening, dee]');
+  const line = g.log.find((l) => l.text === '[sounds from the opening, DEE]');
   assert.equal(line.kind, 'slot');
   // Not again while you stay, or walk round it.
   act(g, { type: 'wait' });
