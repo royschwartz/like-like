@@ -68,6 +68,7 @@ export function createRenderer(root = document, { marks: withMarks = true } = {}
   const frameMs = num('--f', 70);
   const blinkMs = frameMs * num('--blink-on', 2);
   const blinkEveryMs = frameMs * num('--blink-every', 28);
+  const stepMs = frameMs * num('--step-on', 5); // a unit's icon stepping to white and back
   // The times a press on the map runs by. input.js and main.js wait on these, so there is
   // one clock.
   const timing = {
@@ -79,19 +80,23 @@ export function createRenderer(root = document, { marks: withMarks = true } = {}
   };
   // the marks round the square under a finger (--mark-* in style.css)
   const marks = withMarks ? createMarks(mapWrap, { size: SIZE, frameMs, num }) : null;
-  // The blink: white for a couple of frames, about every two seconds, all in step.
+  // The blink: about every two seconds, all in step. An item in the inventory goes white for
+  // a couple of frames ("blink"); a unit's icon on the map steps to white and back ("stepping").
   // Nothing blinks while a sense wave is going; when the wave ends the blinking starts
   // again from there, so the first blink comes just after the wave and never during it.
   let blinkOff = null;
+  let stepOff = null;
   let blinkNext = null;
   function blinkLoop(wait) {
     clearTimeout(blinkNext);
     blinkNext = setTimeout(() => {
       blinkLoop(blinkEveryMs);
       if (!canBlink || wave || screen.ownerDocument.hidden) return;
-      screen.classList.add('blink');
+      screen.classList.add('blink', 'stepping');
       clearTimeout(blinkOff);
+      clearTimeout(stepOff);
       blinkOff = setTimeout(() => screen.classList.remove('blink'), blinkMs);
+      stepOff = setTimeout(() => screen.classList.remove('stepping'), stepMs);
     }, wait);
   }
   blinkLoop(blinkEveryMs);
@@ -135,7 +140,7 @@ export function createRenderer(root = document, { marks: withMarks = true } = {}
     // an item with something new to inspect. The sense button never blinks.
     const blinkers = view.inv ? view.inv.items : view.cells;
     canBlink = !view.event && !view.menu && Array.isArray(blinkers) && blinkers.some((c) => c && c.more);
-    if (!canBlink) screen.classList.remove('blink');
+    if (!canBlink) screen.classList.remove('blink', 'stepping');
 
     const died = events.some((e) => e.type === 'death');
     for (const e of events) {
@@ -601,6 +606,7 @@ export function createRenderer(root = document, { marks: withMarks = true } = {}
     if (marks) marks.destroy();
     clearTrail();
     dropLook();
+    clearTimeout(stepOff);
     clearTimeout(blinkOff);
     stopWave();
     map.removeEventListener('animationend', onWaveCellEnd);
