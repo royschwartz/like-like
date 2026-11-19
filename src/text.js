@@ -95,6 +95,12 @@ export const TEXT = {
     options: { listen: 'listen more', key: 'go for the key', attack: 'attack!', back: 'back' },
   },
 
+  // HIS. Stock writing for statues: "you may not encounter DEE first so this is stock
+  // writing that can be used for other statues" (decision 163). DEE's is the only one yet.
+  statue: {
+    opens: 'the statue shudders and the face folds back, revealing a flat area. somehow you know this to be an altar where an item might be placed',
+  },
+
   // HIS. The bust's event, opened by moving into it the first time. Each line is a paragraph.
   // Two pages: "it should end at the question", and then "do we know each other" is
   // "something you say", the only option for now (decision 157).
@@ -111,7 +117,9 @@ export const TEXT = {
       '"are you on one? it\'s your old friend DEE. we used to stack boxes together"',
       'he winks at you. "now we\'re doing other things"',
     ],
-    lifeless: 'the statue goes lifeless',
+    // after the stock line of a statue opening (TEXT.statue.opens), the last of the page.
+    // In place of "the statue goes lifeless": "instead of the statue going lifeless" (decision 162).
+    still: 'then all is still',
     back: 'back', // from "[back]"; also the last option of its opening
     // [...]. What the event says when an item goes in the opening, his to write.
     enchants: '[the statue enchants it]',

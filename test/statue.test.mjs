@@ -64,7 +64,8 @@ const DEE_FIRST = [[DESCRIPTION], ['suddenly the empty eyes begin to glow and th
 const DEE_SECOND = [
   ['"are you on one? it\'s your old friend DEE. we used to stack boxes together"'],
   ['he winks at you. "now we\'re doing other things"'],
-  ['the statue goes lifeless'],
+  ['the statue shudders and the face folds back, revealing a flat area. somehow you know this to be an altar where an item might be placed'],
+  ['then all is still'],
 ];
 
 function passages(v) {

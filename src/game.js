@@ -1030,7 +1030,7 @@ function eventChoose(g, i, ev) {
       break;
     case 'ask':
       // what you say to DEE: its answer is the second page, and the event is over
-      e.passages = [...TEXT.dee.lines, TEXT.dee.lifeless].map((l) => [prose(l)]);
+      e.passages = [...TEXT.dee.lines, TEXT.statue.opens, TEXT.dee.still].map((l) => [prose(l)]);
       e.now = 0;
       e.over = true;
       break;
