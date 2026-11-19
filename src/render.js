@@ -348,9 +348,7 @@ export function createRenderer(root = document, { marks: withMarks = true } = {}
     for (const c of Array.isArray(path) ? path : []) {
       if (!c || !inRoom(c.x, c.y)) continue;
       const i = c.y * SIZE + c.x;
-      // never over a cell you know nothing of
-      const seen = view.cells && view.cells[i];
-      if (!seen || seen.state === 'unknown') continue;
+      // dark cells too: the way goes through them as if they were open
       cells[i].classList.add('trail');
       trail.els.push(cells[i]);
     }

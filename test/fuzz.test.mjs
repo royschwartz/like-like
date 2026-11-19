@@ -102,17 +102,19 @@ test('fuzz: random play never breaks the rules', () => {
       const turn = g.turn;
       const ev = act(g, action);
       assert.ok(Array.isArray(ev));
-      // a way shown or left to walk: legal steps over seen cells you could stand on
+      // a way shown or left to walk: legal steps over cells you could stand on, as far as
+      // you know (a cell never seen is open ground)
       for (const e of ev) {
         // (the menu's change of look is a 'look' event too, with no path)
         if (!(e.type === 'look' && e.path) && e.type !== 'travel') continue;
         if (e.type === 'look') assert.equal(g.turn, turn, 'look is free');
         const room = currentRoom(g);
+        const t = room.t.map((c, i) => (room.seen[i] ? c : 'floor'));
         let [x, y] = [g.x, g.y];
         for (const c of e.path) {
           const i = idx(c.x, c.y);
-          assert.ok(room.seen[i] && !['wall', 'statue', 'golddoor'].includes(room.t[i]), `path over ${room.t[i]}`);
-          assert.ok(isStep(room.t, x, y, c.x, c.y), 'path: legal steps');
+          assert.ok(!['wall', 'statue', 'golddoor'].includes(t[i]), `path over ${t[i]}`);
+          assert.ok(isStep(t, x, y, c.x, c.y), 'path: legal steps');
           [x, y] = [c.x, c.y];
         }
         if (e.type === 'travel') assert.equal(view(g).going, e.path.length > 0);

@@ -1224,15 +1224,16 @@ const PATH_STOPS = new Set(['wall', 'statue', 'golddoor']);
 // beside it (by a legal step, for a bump).
 function plan(g, tx, ty) {
   const { room, vis, shown, sensed } = sight(g);
-  const t = room.t;
+  // the room as you know it: what you have never seen is open ground
+  const t = room.t.map((c, i) => (room.seen[i] || shown[i] ? c : 'floor'));
   const there = idx(tx, ty);
   if (tx === g.x && ty === g.y) return { bump: false, path: [] };
   const drawnToad = (i) => thingAt(g, room, i, vis, shown, sensed)?.kind === 'toad';
-  const pass = (i) => room.seen[i] && !PATH_STOPS.has(t[i]) && t[i] !== 'door' && !drawnToad(i);
+  const pass = (i) => !PATH_STOPS.has(t[i]) && t[i] !== 'door' && !drawnToad(i);
   const isBump = t[there] === 'statue' || t[there] === 'golddoor' || drawnToad(there);
   if (isBump && isStep(t, g.x, g.y, tx, ty)) return { bump: true, path: [] };
   let goals;
-  if (pass(there) || (t[there] === 'door' && room.seen[there])) {
+  if (pass(there) || t[there] === 'door') {
     goals = [there];
   } else {
     // beside it: one legal step from it for a bump, any of the eight round a wall
@@ -1297,12 +1298,10 @@ function look(g, x, y) {
   return [{ type: 'look', x, y, path: plan(g, x, y).path }];
 }
 
-// Can a cell be looked at or travelled to? Not under a menu, the inventory or an event,
-// and not a cell you have never seen (the same test as observe's).
+// Can a cell be looked at or travelled to? Any cell of the room, a dark one too, but not
+// under a menu, the inventory or an event.
 function canTarget(g, a) {
-  if (g.menu || g.inv || g.event || !inRoom(a.x) || !inRoom(a.y)) return false;
-  const { room, vis, shown, sensed } = sight(g);
-  return thingAt(g, room, idx(a.x, a.y), vis, shown, sensed) !== undefined;
+  return !g.menu && !g.inv && !g.event && inRoom(a.x) && inRoom(a.y);
 }
 
 // ---- the API -----------------------------------------------------------

@@ -38,14 +38,17 @@ function go(g, x, y) {
   return { turns: g.turn - turn, walked, last: ev };
 }
 
-// Every step of a path is one legal step onto a seen cell you could stand on.
+// The room as you know it: a cell never seen is open ground.
+const known = (room) => room.t.map((c, i) => (room.seen[i] ? c : 'floor'));
+
+// Every step of a path is one legal step onto a cell you could stand on, as far as you know.
 function assertWalkable(room, from, path) {
+  const t = known(room);
   let [x, y] = from;
   for (const c of path) {
     const i = idx(c.x, c.y);
-    assert.ok(room.seen[i], `${c.x},${c.y} seen`);
-    assert.ok(!['wall', 'statue', 'golddoor'].includes(room.t[i]), `${c.x},${c.y} is ${room.t[i]}`);
-    assert.ok(isStep(room.t, x, y, c.x, c.y), `${x},${y} to ${c.x},${c.y} is a legal step`);
+    assert.ok(!['wall', 'statue', 'golddoor'].includes(t[i]), `${c.x},${c.y} is ${t[i]}`);
+    assert.ok(isStep(t, x, y, c.x, c.y), `${x},${y} to ${c.x},${c.y} is a legal step`);
     [x, y] = [c.x, c.y];
   }
 }
@@ -60,12 +63,8 @@ test('look shows the way, straight as it can be, and changes nothing', () => {
   ]);
   assert.equal(JSON.stringify(g), before, 'no turn, no line, no chance used');
   assertWalkable(room, [2, 2], ev[0].path);
-  // your own cell, and a cell never seen
+  // your own cell
   assert.deepEqual(act(g, { type: 'look', x: 2, y: 2 }), [{ type: 'look', x: 2, y: 2, path: [] }]);
-  room.t[idx(8, 8)] = 'wall'; // (9, 9) out of sight behind it
-  room.seen[idx(9, 9)] = false;
-  assert.deepEqual(act(g, { type: 'look', x: 9, y: 9 }), []);
-  assert.deepEqual(act(g, { type: 'travel', x: 9, y: 9 }), []);
   // off the room, or under a menu
   assert.deepEqual(act(g, { type: 'look', x: 11, y: 2 }), []);
   assert.deepEqual(act(g, { type: 'look', x: 2.5, y: 2 }), []);
@@ -74,7 +73,7 @@ test('look shows the way, straight as it can be, and changes nothing', () => {
   assert.deepEqual(act(g, { type: 'travel', x: 8, y: 5 }), []);
 });
 
-test('the way never crosses an unseen cell or a wall, and never cuts a corner', () => {
+test('the way never crosses a wall you know of, and never cuts a corner', () => {
   const { g, room } = openGame(2, 2);
   // a wall down x = 4 with a gap at the bottom
   for (let y = 1; y <= 7; y++) room.t[idx(4, y)] = 'wall';
@@ -87,18 +86,54 @@ test('the way never crosses an unseen cell or a wall, and never cuts a corner', 
     const [a, b] = [path[k - 1], path[k]];
     assert.ok(!cutsCorner(room.t, a.x, a.y, b.x - a.x, b.y - a.y));
   }
-  // with (4, 9) unseen, only (4, 8) is left
-  room.seen[idx(4, 9)] = false;
-  path = pathOf(g, 6, 2);
-  assertWalkable(room, [2, 2], path);
-  assert.ok(path.some((c) => c.x === 4 && c.y === 8));
-  // with the gap unseen, there is no way: no turn, nothing
-  room.seen[idx(4, 8)] = false;
+  // with the gap walled too, there is no way: no turn, nothing
+  room.t[idx(4, 8)] = 'wall';
+  room.t[idx(4, 9)] = 'wall';
   assert.deepEqual(pathOf(g, 6, 2), []);
   const turn = g.turn;
   assert.deepEqual(travel(g, 6, 2), []);
   assert.equal(g.turn, turn);
   assert.equal(view(g).going, false);
+});
+
+test('dark cells are open ground: the way goes into the dark and to a dark cell', () => {
+  const { g, room } = openGame(2, 5);
+  // a wall down x = 4 with a gap at the bottom; past it, nothing seen
+  for (let y = 1; y <= 8; y++) room.t[idx(4, y)] = 'wall';
+  for (let i = 0; i < S * S; i++) if (i % S >= 5) room.seen[i] = false;
+  assert.ok(!view(g).cells[idx(8, 5)] || view(g).cells[idx(8, 5)].state === 'unknown', '(8, 5) is dark');
+  const path = pathOf(g, 8, 5);
+  assert.deepEqual(path[path.length - 1], { x: 8, y: 5 });
+  assert.ok(path.some((c) => c.x === 4 && c.y === 9), 'through the gap');
+  assertWalkable(room, [2, 5], path);
+  // and it is gone to: the first step is taken
+  const turn = g.turn;
+  const ev = travel(g, 8, 5);
+  assert.equal(g.turn, turn + 1);
+  assert.deepEqual({ x: g.x, y: g.y }, path[0]);
+  assert.ok(ev.some((e) => e.type === 'travel'));
+  assert.equal(view(g).going, true);
+});
+
+test('going into the dark, a wall that comes into sight is gone round', () => {
+  const { g, room } = openGame(1, 5);
+  // a wall down x = 5 with a gap at the top, all of it dark at first
+  for (let y = 2; y <= 9; y++) room.t[idx(5, y)] = 'wall';
+  for (let i = 0; i < S * S; i++) if (i % S >= 3) room.seen[i] = false;
+  const r = go(g, 8, 5);
+  assert.deepEqual(at(g), [8, 5], 'it gets there');
+  assert.ok(r.walked.some(([x, y]) => x === 5 && y === 1), 'through the gap it found');
+  assert.ok(!r.walked.some(([x, y]) => room.t[idx(x, y)] === 'wall'), 'never onto a wall');
+});
+
+test('a dark cell that turns out to be a wall: the way ends beside it', () => {
+  const { g, room } = openGame(1, 5);
+  room.t[idx(8, 5)] = 'wall';
+  room.seen[idx(8, 5)] = false;
+  room.seen[idx(8, 4)] = false;
+  room.seen[idx(9, 5)] = false;
+  go(g, 8, 5);
+  assert.deepEqual(at(g), [7, 5]);
 });
 
 test('a wall: the way goes to a cell beside it', () => {
@@ -261,7 +296,7 @@ test('travel stops when it notices a unit', () => {
   // noticed sooner or later (its default observation alone is nothing to notice)
   const { g, room } = openGame(1, 1);
   putToad(g, 9, 9, true);
-  g.sensed['unit.toad.large'] = true;
+  g.sensed['unit.toad.chain'] = true;
   room.noticed = {};
   let stops = 0;
   for (let k = 0; k < 20 && !room.noticed.toad; k++) {

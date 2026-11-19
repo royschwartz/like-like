@@ -3,6 +3,7 @@
 // a tap goes there, a hold looks and then observes, a drag shows the way and letting go goes.
 
 import { newGame, act, view } from './game.js';
+import { CONFIG } from './config.js';
 import { createRenderer } from './render.js';
 import { bindInput } from './input.js';
 
@@ -101,6 +102,12 @@ function lookAt(x, y) {
   return events.find((e) => e && e.type === 'look' && e.x === x && e.y === y) || null;
 }
 
+// Have you ever seen (x, y)? A dark cell can be gone to but not observed.
+const known = (x, y) => {
+  const c = view(game).cells?.[y * CONFIG.roomSize + x];
+  return !!c && c.state !== 'unknown';
+};
+
 const isPlayer = (x, y) => {
   const p = view(game).player;
   return !!p && p.x === x && p.y === y;
@@ -152,8 +159,8 @@ function dispatch(action) {
     case 'press':
       return true;
     case 'blink': {
-      // held a moment: the cell blinks, if it can be looked at
-      if (!lookAt(action.x, action.y)) return false;
+      // held a moment: the cell blinks, if it can be looked at and you have seen it
+      if (!lookAt(action.x, action.y) || !known(action.x, action.y)) return false;
       renderer.showLook(action.x, action.y);
       return true;
     }
