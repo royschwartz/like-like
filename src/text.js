@@ -67,25 +67,31 @@ export const TEXT = {
     elsewhere: { toad: '[toad, asleep]' },
   },
 
-  // HIS. What sensing finds about the toad, in this order, one a sensing (decision 150).
-  // The chain and the song only within 2 steps; "a large sleeping toad" and the song only
-  // while it sleeps, the chain only while it has the key. Once found, each is one of what
-  // observing it goes round (152). The song is TEXT.toad.singing.
-  toadFinds: {
-    large: 'a large sleeping toad',
+  // HIS. What observing the toad says after its plain line, with no sensing, asleep or
+  // awake (decision 172).
+  toadSeen: {
     stronger: 'it seems stronger than you',
+  },
+
+  // HIS. What sensing finds about the toad, in this order, one a sensing (decision 150),
+  // both only within 2 steps: the chain only while it has the key, the song only while it
+  // sleeps. Once found, each is one of what observing it goes round (152). The song is
+  // TEXT.toad.singing. "a large sleeping toad" is gone (decision 173).
+  toadFinds: {
     chain: 'it wears a chain with a golden key around its neck',
   },
 
   // HIS. The toad's event, opened by moving into it while it sleeps (decision 155).
   // "singing" is the event's first line, and the last thing sensing finds about it, up close.
-  // Song lines keep his capital I and Irish.
+  // "necklace" is the first line instead while you have not been told of its key (decision
+  // 174). All lower case ("lower case everything remember", decision 175).
   toad: {
-    singing: 'it is singing in its sleep, in an Irish style',
+    singing: 'it is singing in its sleep, in an irish style',
+    necklace: 'the toad wears a necklace with a golden key around its neck and is singing softly in its sleep, in an irish style',
     verses: [
-      ['when I was small', 'a mischievous girl did I love', 'who I let open my mouth', 'and she pulled out my tongue'],
+      ['when i was small', 'a mischievous girl did i love', 'who i let open my mouth', 'and she pulled out my tongue'],
       ["and she didn't care", 'so she never knew', 'that my tongue grew back'],
-      ['I changed for a long time', "I'm coming back different"],
+      ['i changed for a long time', "i'm coming back different"],
     ],
     stirs: 'the toad stirs momentarily, interrupting the song',
     wakes: 'the toad wakes up',

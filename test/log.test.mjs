@@ -120,6 +120,7 @@ function statuses() {
   add(TEXT.slot);
   add(TEXT.senseToad);
   add(TEXT.toadFinds);
+  add(TEXT.toadSeen);
   add(TEXT.toad.singing);
   // a unit's plain line, on each ground that has a word, and where none has
   const u = TEXT.unit;

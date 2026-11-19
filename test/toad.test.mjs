@@ -59,22 +59,40 @@ function knowsKey(g) {
   g.sensed['unit.toad.chain'] = true;
 }
 
-test('go for the key only once sensing has found the chain', () => {
+test('walking into the toad tells you of its key if nothing has: then you can go for it', () => {
   const { g, t } = atToad();
   const labels = () => view(g).event.options.map((o) => o.label);
+  const more = () => view(g).cells[idx(t.x, t.y)].more;
   openItsEvent(g, t);
-  assert.ok(!labels().includes('go for the key'), 'nothing has told you of a key');
-  act(g, { type: 'back' });
-  // up close, sensing finds it is large, stronger than you, then its chain
-  const found = [];
-  for (let k = 0; k < 3; k++) {
-    const from = g.nextLogId;
-    act(g, { type: 'context' });
-    found.push(...g.log.filter((l) => l.id >= from).map((l) => l.text));
-  }
-  assert.ok(found.includes(TEXT.toadFinds.chain));
-  openItsEvent(g, t);
+  assert.equal(eventTexts(view(g))[0], TEXT.toad.necklace);
   assert.deepEqual(labels(), ['listen more', 'go for the key', 'attack!', 'back']);
+  act(g, { type: 'back' });
+  // told once: after that the plain first line, and the chain is had, not new
+  openItsEvent(g, t);
+  assert.equal(eventTexts(view(g))[0], SINGS);
+  assert.deepEqual(labels(), ['listen more', 'go for the key', 'attack!', 'back']);
+  act(g, { type: 'back' });
+  currentRoom(g).noticed = { toad: true };
+  assert.equal(more(), false, 'what the event told you is not new to observe');
+  assert.deepEqual(lookAtToad(g, t).said.length, 1);
+  // sensing does not find the chain again: it finds the song
+  assert.deepEqual(senseOnce(g), [SINGS]);
+});
+
+test('if sensing found the chain first, walking in says only that it sings', () => {
+  const { g, t } = atToad();
+  assert.deepEqual(senseOnce(g), [FIND.chain]);
+  openItsEvent(g, t);
+  assert.equal(eventTexts(view(g))[0], SINGS);
+  assert.deepEqual(view(g).event.options.map((o) => o.label), ['listen more', 'go for the key', 'attack!', 'back']);
+});
+
+test('without its key, walking in never mentions one', () => {
+  const { g, t } = atToad();
+  t.key = false;
+  openItsEvent(g, t);
+  assert.equal(eventTexts(view(g))[0], SINGS);
+  assert.deepEqual(view(g).event.options.map((o) => o.label), ['listen more', 'attack!', 'back']);
 });
 
 function openItsEvent(g, t) {
@@ -95,7 +113,9 @@ function openToadRoom(x, y, seed = 21) {
 }
 
 const FIND = TEXT.toadFinds;
-const SINGS = 'it is singing in its sleep, in an Irish style';
+const SEEN = TEXT.toadSeen;
+const SINGS = 'it is singing in its sleep, in an irish style';
+const NECKLACE = 'the toad wears a necklace with a golden key around its neck and is singing softly in its sleep, in an irish style';
 
 const labels = (v) => v.event.options.map((o) => o.label);
 const eventTexts = (v) => v.event.lines.map((l) => l.text);
@@ -136,16 +156,17 @@ test('moving into the sleeping toad opens its song: no turn, no blow; in again, 
   assert.deepEqual(texts(g, from), [], 'the event is not the log');
   const v = view(g);
   assert.deepEqual(v.event.lines, [
-    { text: SINGS, song: false, slot: false, passage: 0 },
-    { text: 'when I was small', song: true, slot: false, passage: 1 },
-    { text: 'a mischievous girl did I love', song: true, slot: false, passage: 1 },
-    { text: 'who I let open my mouth', song: true, slot: false, passage: 1 },
+    { text: NECKLACE, song: false, slot: false, passage: 0 },
+    { text: 'when i was small', song: true, slot: false, passage: 1 },
+    { text: 'a mischievous girl did i love', song: true, slot: false, passage: 1 },
+    { text: 'who i let open my mouth', song: true, slot: false, passage: 1 },
     { text: 'and she pulled out my tongue', song: true, slot: false, passage: 1 },
   ]);
   assert.equal(v.event.now, 0);
-  // nothing has told you of its key yet, so there is no going for it
+  // the first line has told you of its key, so you can go for it
   assert.deepEqual(v.event.options, [
     { label: 'listen more', kind: 'action', slot: false },
+    { label: 'go for the key', kind: 'action', slot: false },
     { label: 'attack!', kind: 'action', slot: false },
     { label: 'back', kind: 'back', slot: false },
   ]);
@@ -177,27 +198,22 @@ test('observing the toad never opens its event: its plain line, then what sensin
   const { g, room, t } = atToad();
   const turn = g.turn;
   const plain = `a toad sleeping on ${room.t[idx(t.x, t.y)] === 'grass' ? 'grass' : 'dirt'}`;
-  // nothing sensed: its plain line, again and again
-  for (let k = 0; k < 3; k++) {
+  // nothing sensed: its plain line and that it seems stronger, going round
+  for (const want of [plain, SEEN.stronger, plain, SEEN.stronger]) {
     const r = lookAtToad(g, t);
-    assert.deepEqual(r.said, [plain]);
+    assert.deepEqual(r.said, [want]);
     assert.deepEqual(r.ev, [{ type: 'observe', x: t.x, y: t.y }]);
   }
   assert.equal(g.turn, turn, 'observing takes no time');
-  assert.deepEqual(senseOnce(g), [FIND.large]);
-  assert.deepEqual(senseOnce(g), [FIND.stronger]);
-  // what is new first, in order; then round, from the one after the last said
-  assert.deepEqual(lookAtToad(g, t).said, [FIND.large]);
-  assert.deepEqual(lookAtToad(g, t).said, [FIND.stronger]);
-  assert.deepEqual(lookAtToad(g, t).said, [plain]);
-  assert.deepEqual(lookAtToad(g, t).said, [FIND.large]);
   // beside it, sensing finds the chain and the song
   assert.deepEqual(senseOnce(g), [FIND.chain]);
   assert.deepEqual(senseOnce(g), [SINGS]);
+  // what is new first, in order; then round, from the one after the last said
   assert.deepEqual(lookAtToad(g, t).said, [FIND.chain]);
   assert.deepEqual(lookAtToad(g, t).said, [SINGS]);
   assert.deepEqual(lookAtToad(g, t).said, [plain], 'round to the start');
-  assert.deepEqual(lookAtToad(g, t).said, [FIND.large]);
+  assert.deepEqual(lookAtToad(g, t).said, [SEEN.stronger]);
+  assert.deepEqual(lookAtToad(g, t).said, [FIND.chain]);
   assert.equal(view(g).event, null, 'the song is only observed: it opens nothing');
   assert.ok(g.log.filter((l) => l.kind === 'observe').length > 0);
 });
@@ -206,11 +222,9 @@ test('sensing finds one new thing a time: the toad first, its chain and song onl
   const NEAR = CONFIG.observeClose;
   const { g, t } = openToadRoom(5 + NEAR + 1, 5);
   const lines = (said) => said.map((text) => [text, g.log.find((l) => l.text === text).kind]);
-  assert.deepEqual(lines(senseOnce(g)), [[FIND.large, 'sense']]);
-  assert.deepEqual(senseOnce(g), [FIND.stronger]);
-  assert.deepEqual(senseOnce(g), [TEXT.senseToad[0]], 'from afar, nothing more about it: the room');
+  assert.deepEqual(lines(senseOnce(g)), [[TEXT.senseToad[0], 'sense']], 'from afar, nothing about it: the room');
   t.x = 5 + NEAR; // come closer (it sleeps on)
-  assert.deepEqual(senseOnce(g), [FIND.chain]);
+  assert.deepEqual(lines(senseOnce(g)), [[FIND.chain, 'sense']]);
   assert.deepEqual(senseOnce(g), [SINGS]);
   assert.deepEqual(senseOnce(g), [TEXT.senseToad[1]]);
   assert.deepEqual(senseOnce(g), [TEXT.senseToad[2]]);
@@ -223,17 +237,16 @@ test('sensing finds one new thing a time: the toad first, its chain and song onl
   assert.equal(t.asleep, true);
 });
 
-test('sensing finds only what holds: no chain once its key is gone; awake, only that it seems stronger', () => {
+test('sensing finds only what holds: no chain once its key is gone; awake, nothing about it', () => {
   let { g, t } = openToadRoom(6, 5);
   t.key = false;
-  assert.deepEqual([0, 1, 2, 3].map(() => senseOnce(g)[0]), [FIND.large, FIND.stronger, SINGS, TEXT.senseToad[0]]);
+  assert.deepEqual([0, 1].map(() => senseOnce(g)[0]), [SINGS, TEXT.senseToad[0]]);
   const hits = CONFIG.toad.hits;
   try {
     CONFIG.toad.hits = 0; // it answers each sensing with a miss
     ({ g, t } = openToadRoom(6, 5));
     t.asleep = false;
     t.key = false;
-    assert.deepEqual(senseOnce(g), [TEXT.log.toadMisses, FIND.stronger]);
     assert.deepEqual(senseOnce(g), [TEXT.log.toadMisses, TEXT.senseToad[0]]);
   } finally {
     CONFIG.toad.hits = hits;
@@ -275,7 +288,7 @@ test('the event: listen more three times, the toad stirs, then wakes; each choic
   );
   act(g, { type: 'choose', index: 0 });
   v = view(g);
-  assert.deepEqual(eventTexts(v), ['I changed for a long time', "I'm coming back different"]);
+  assert.deepEqual(eventTexts(v), ['i changed for a long time', "i'm coming back different"]);
   assert.equal(t.asleep, true);
   act(g, { type: 'choose', index: 0 });
   v = view(g);
@@ -396,7 +409,7 @@ test('go for the key: CONFIG.keyChance, calm and stirred, from the seeded chance
     assert.equal(t.asleep, true);
     act(g, { type: 'back' });
     // Without its key: no chain to sense, and no key option.
-    assert.deepEqual([0, 1, 2].map(() => senseOnce(g)[0]), ['a large sleeping toad', 'it seems stronger than you', SINGS]);
+    assert.deepEqual([0].map(() => senseOnce(g)[0]), [SINGS]);
     openItsEvent(g, t);
     assert.deepEqual(labels(view(g)), ['listen more', 'attack!', 'back']);
     act(g, { type: 'back' });
@@ -547,7 +560,7 @@ test('sensing the toad room through to its last line gives you dig for worms', (
     return labels;
   };
   assert.deepEqual(actMenu(), ['rest', null, null, 'back']);
-  // In the toad's room, away from the toad: a line each time, what it finds about the toad first.
+  // In the toad's room, away from the toad: a line each time, nothing about the toad from there.
   g.room = g.level.toadRoom;
   const room = currentRoom(g);
   const t = room.toad;
@@ -557,8 +570,6 @@ test('sensing the toad room through to its last line gives you dig for worms', (
   });
   [g.x, g.y] = [at % S, Math.floor(at / S)];
   const want = [
-    'a large sleeping toad',
-    'it seems stronger than you',
     'there is the smell of cinnamon in the air',
     'you have a feeling you have been here before',
     'the ground struggles gently beneath your feet',

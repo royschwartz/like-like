@@ -477,8 +477,6 @@ const isNear = (g, x, y) => chebyshev(x, y, g.x, g.y) <= CONFIG.observeClose;
 function toadFinds(toad) {
   const f = TEXT.toadFinds;
   const out = [];
-  if (toad.asleep) out.push({ id: 'unit.toad.large', text: f.large });
-  out.push({ id: 'unit.toad.stronger', text: f.stronger });
   if (toad.key) out.push({ id: 'unit.toad.chain', text: f.chain, near: true });
   if (toad.asleep) out.push({ id: 'unit.toad.sings', text: TEXT.toad.singing, near: true });
   return out;
@@ -890,11 +888,15 @@ function toadLine(room, toad) {
   return { id: 'unit.toad.asleep', text: ground ? u.line(u.who.toad, u.doing.asleep, ground) : u.elsewhere.toad, plain: true };
 }
 
-// What observing a unit goes round, in order: [{ id, text }]. The toad: its plain line, then
-// what sensing has found about it that still holds, at any distance. The bust: its line.
-// plain: a default observation, there without sensing, which never makes a unit blink.
+// What observing a unit goes round, in order: [{ id, text }]. The toad: its plain line and
+// what observing alone tells (decision 172), then what sensing has found about it that still
+// holds, at any distance. The bust: its line.
+// plain: there without sensing, which never makes a unit blink.
 function unitCycle(g, room, kind) {
-  if (kind === 'toad') return [toadLine(room, room.toad), ...toadFinds(room.toad).filter((f) => g.sensed[f.id])];
+  if (kind === 'toad') {
+    const seen = { id: 'unit.toad.stronger', text: TEXT.toadSeen.stronger, plain: true };
+    return [toadLine(room, room.toad), seen, ...toadFinds(room.toad).filter((f) => g.sensed[f.id])];
+  }
   return sayings(room.statue?.spoke ? 'statueLifeless' : 'statue').map((o) => ({ ...o, plain: true }));
 }
 
@@ -955,8 +957,17 @@ function openEvent(g, e, ev, keepMenu = false) {
 }
 
 // Moving into the toad asleep. Each time from the first verse; whether it has stirred is kept.
+// If you have not been told of its key, the first line tells you (decision 174): from then
+// on its chain is one of what observing it goes round, already had, and you can go for it.
 function openToad(g, ev) {
-  const passages = [[prose(TEXT.toad.singing)], TEXT.toad.verses[0].map(sung)];
+  const toad = currentRoom(g).toad;
+  let first = TEXT.toad.singing;
+  if (toad.key && !g.sensed['unit.toad.chain']) {
+    first = TEXT.toad.necklace;
+    g.sensed['unit.toad.chain'] = true;
+    g.observed['unit.toad.chain'] = true;
+  }
+  const passages = [[prose(first)], TEXT.toad.verses[0].map(sung)];
   openEvent(g, { id: 'toad', passages, heard: 1, over: false }, ev);
 }
 
@@ -1211,8 +1222,11 @@ function chooseSlot(g, i, ev) {
 
 // ---- travel: a fast move, as Brogue's ----------------------------------------
 // Tap a cell to go there, or drag to see the way there and let go to go. Each step is a
-// real turn, taken as a step by arrow is. The way goes only over cells you have seen, never
-// through a door (one can only be its end), and around any toad you can see. Into what
+// real turn, taken as a step by arrow is. A cell you have never seen is taken to be open
+// ground until you see otherwise, so the way can go into the dark and to a dark cell; it is
+// planned again at each step, from what you know then. It never goes through a wall, the
+// bust or the locked golden door you know of, never through a door (one can only be its
+// end), and around any toad you can see. Into what
 // you bump rather than step on (the bust, the locked golden door, a toad you can see)
 // it never steps: it stops beside it, and from there a travel to it is the bump.
 
