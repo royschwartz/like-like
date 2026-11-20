@@ -80,5 +80,6 @@ export const CONFIG = {
   // `reach` steps further off. secret: the chance a secret of the room comes to you.
   // esoteric (decision 246): a detail of something in sight, at most `detail` a turn beside it,
   // none `reach` steps on; a line of the room's air or ground, `ambient` a turn. Provisional.
+  eatHeals: 1, // esoteric: eating a corpse, once, gives back this much hp (provisional)
   notice: { near: 0.5, reach: 8, secret: 0.04, esoteric: { detail: 0.3, reach: 5, ambient: 0.2 } },
 };

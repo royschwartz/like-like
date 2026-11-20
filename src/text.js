@@ -182,6 +182,9 @@ export const TEXT = {
     // PLAIN. The menu's setting for the lines round the buttons: none, or a step of grey.
     outlines: (n) => (n ? `outlines ${n}` : 'outlines off'),
     dig: 'dig for worms', // HIS
+    // HIS (November 20): "you can eat the corpse take items". The esoteric corpse's menu.
+    eat: 'eat',
+    takeItems: 'take items',
     memory: '[memory]', //  a memory you have, under psy: his to name
     enchanted: '[enchanted]', // beside an enchanted item in the inventory: his to write
   },
@@ -193,6 +196,8 @@ export const TEXT = {
     descend: { grass: 'you descend and find yourself in low, soft grass', dirt: 'you descend, dirt' },
     // [...]: going back up the stairs (esoteric), his to write.
     ascend: '[you go back up]',
+    // [...]: eating a corpse (esoteric), his to write.
+    eat: '[you eat the corpse]',
     // said in place of the blow that kills you
     youDie: 'you die',
     youRest: 'you rest',

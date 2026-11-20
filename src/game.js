@@ -898,6 +898,13 @@ function entries(g, menu) {
       ];
     case 'corpse': {
       const items = corpseHere(g)?.items ?? [];
+      // esoteric (decision 264): eat it, or take what it has on a view of its own
+      if (g.edition === 'esoteric') {
+        return [
+          { label: TEXT.menu.eat, kind: 'action', disabled: !!corpseHere(g)?.eaten, run: 'eat' },
+          { label: TEXT.menu.takeItems, kind: 'action', disabled: false, run: 'loot' },
+        ];
+      }
       if (items.length === 0) return [{ label: TEXT.menu.nothing, kind: 'info', disabled: true }];
       return items.map((it, i) => ({ label: TEXT.thing[it.key], kind: 'item', disabled: false, run: 'take', arg: i }));
     }
@@ -917,10 +924,13 @@ function pages(list) {
   return out;
 }
 
+// A corpse in the esoteric edition has no back: stepping off it is the way out.
+const noBack = (g, menu) => g.edition === 'esoteric' && menu.id === 'corpse';
+
 function slots(g, menu) {
   const all = pages(entries(g, menu));
   const page = all[Math.min(menu.page, all.length - 1)];
-  return [page[0] ?? null, page[1] ?? null, page[2] ?? null, BACK];
+  return [page[0] ?? null, page[1] ?? null, page[2] ?? null, noBack(g, menu) ? null : BACK];
 }
 
 const choosable = (s) => !!s && !s.disabled;
@@ -934,11 +944,47 @@ function menuTitle(g, menu) {
   return TEXT.button[menu.id];
 }
 
+// ---- a corpse, in the esoteric edition (decision 264) ------------------------------
+// Standing on it, its menu offers eat and take items, with no back: stepping off it closes
+// the menu. Take items opens a view of its own, its things as links and back, which goes
+// back to the corpse's menu.
+
+function takeFromCorpse(g, i) {
+  const [it] = corpseHere(g).items.splice(i, 1);
+  g.items.push({ key: it.key, inHand: false });
+  say(g, TEXT.log.take(TEXT.thing[it.key]), 'plain');
+}
+
+function lootPassages(g, e) {
+  const empty = (corpseHere(g)?.items ?? []).length === 0;
+  e.passages = [[prose(TEXT.context.corpse)], ...(empty ? [[prose(TEXT.menu.nothing)]] : [])];
+}
+
+function openLoot(g, ev) {
+  const e = { id: 'loot', passages: [] };
+  openEvent(g, e, ev, true); // back returns to the corpse's menu
+  lootPassages(g, g.event);
+}
+
+// Eating it takes a turn and does you good, once; it stays, with whatever it has.
+function eatCorpse(g, ev) {
+  const corpse = corpseHere(g);
+  if (!corpse || corpse.eaten) return;
+  corpse.eaten = true;
+  g.hp = Math.min(g.maxHp, g.hp + CONFIG.eatHeals);
+  say(g, TEXT.log.eat, 'good');
+  ev.push({ type: 'eat', x: g.x, y: g.y });
+  endTurn(g, ev);
+}
+
+// Is the esoteric corpse menu open? Moving, tapping or dragging closes it and goes.
+const corpseMenuOpen = (g) => !!g.menu && noBack(g, g.menu);
+
 function openMenu(g, id) {
   g.inv = null;
   g.menu = { id, page: 0, cursor: 0 };
   g.menu.cursor = firstChoosable(slots(g, g.menu));
-  if (id === 'corpse' && corpseHere(g).items.length === 0) say(g, TEXT.log.corpseEmpty, 'plain');
+  if (id === 'corpse' && g.edition !== 'esoteric' && corpseHere(g).items.length === 0) say(g, TEXT.log.corpseEmpty, 'plain');
 }
 
 function toggleMenu(g, id) {
@@ -1235,6 +1281,9 @@ function eventOptions(g) {
   if (e.id === 'abilities') {
     for (const id of abilityIds(g)) list.push({ label: abilityLabel(id), kind: 'action', run: 'ability', arg: id });
   }
+  if (e.id === 'loot') {
+    (corpseHere(g)?.items ?? []).forEach((it, i) => list.push({ label: TEXT.thing[it.key], kind: 'item', run: 'take', arg: i }));
+  }
   if (!e.over && e.id === 'bust') {
     // The bust's opening: what you carry, by name.
     g.items.forEach((it, i) => list.push({ label: TEXT.thing[it.key], kind: 'item', run: 'give', arg: i }));
@@ -1272,6 +1321,12 @@ function eventChoose(g, i, ev) {
         g.menu = e.returnScreen.menu;
       }
       break;
+    case 'take': {
+      takeFromCorpse(g, o.arg);
+      lootPassages(g, e);
+      e.cursor = Math.min(e.cursor, eventOptions(g).length - 1);
+      break;
+    }
     case 'readMemory':
       e.cursor = i;
       openMemory(g, o.arg, ev);
@@ -1434,6 +1489,12 @@ function chooseSlot(g, i, ev) {
       g.menu = null;
       dig(g, ev);
       break;
+    case 'eat':
+      eatCorpse(g, ev);
+      break;
+    case 'loot':
+      openLoot(g, ev);
+      break;
     case 'memory':
       openMemory(g, g.memories[slot.arg], ev, true); // back returns to psy
       break;
@@ -1558,7 +1619,7 @@ function look(g, x, y) {
 // Can a cell be looked at or travelled to? Any cell of the room, a dark one too, but not
 // under a menu, the inventory or an event.
 function canTarget(g, a) {
-  return !g.menu && !g.inv && !g.event && inRoom(a.x, g) && inRoom(a.y, g);
+  return (!g.menu || corpseMenuOpen(g)) && !g.inv && !g.event && inRoom(a.x, g) && inRoom(a.y, g);
 }
 
 // ---- the API -----------------------------------------------------------
@@ -1578,7 +1639,10 @@ export function act(g, a) {
     case 'move':
       if (!DIRS.includes(a.dir)) return [];
       if (g.inv) invMove(g, a.dir);
-      else if (g.menu) moveCursor(g, a.dir);
+      else if (corpseMenuOpen(g)) {
+        g.menu = null;
+        move(g, a.dir, ev);
+      } else if (g.menu) moveCursor(g, a.dir);
       else move(g, a.dir, ev);
       break;
     case 'context':
@@ -1611,6 +1675,7 @@ export function act(g, a) {
       chooseSlot(g, a.index, ev);
       break;
     case 'back':
+      if (corpseMenuOpen(g)) return []; // no back: stepping off is the way out
       if (g.inv) g.inv = null;
       else if (g.menu) back(g);
       break;
@@ -1624,13 +1689,15 @@ export function act(g, a) {
       if (g.inv && Number.isInteger(a.index) && a.index >= 0 && a.index < g.items.length) g.inv.cursor = a.index;
       break;
     case 'observe':
-      if (g.menu || g.inv || !inRoom(a.x, g) || !inRoom(a.y, g)) return [];
+      if ((g.menu && !corpseMenuOpen(g)) || g.inv || !inRoom(a.x, g) || !inRoom(a.y, g)) return [];
       observe(g, a.x, a.y, ev);
       break;
     case 'look':
       return canTarget(g, a) ? look(g, a.x, a.y) : [];
     case 'travel':
       if (!canTarget(g, a)) return [];
+      if (corpseMenuOpen(g) && !(a.x === g.x && a.y === g.y)) g.menu = null;
+      else if (corpseMenuOpen(g)) return [];
       travel(g, a.x, a.y, ev, true);
       break;
     case 'continue':

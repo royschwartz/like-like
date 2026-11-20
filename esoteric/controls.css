@@ -141,8 +141,8 @@
   align-items: center;
 }
 #navigation .btn {
-  width: var(--control-height);
-  height: var(--control-height);
+  width: max(var(--control-height), 2.8em);
+  height: max(var(--control-height), 2.8em);
 }
 #btn-sys,
 #btn-memories,
@@ -162,8 +162,9 @@
 #btn-memories::before,
 #btn-inv::before {
   content: "";
-  width: 1.4em;
-  height: 1.4em;
+  width: 2.6em;
+  height: 2.6em;
+  flex: none;
   box-shadow: none;
   background: currentColor;
   -webkit-mask: var(--icon) center / contain no-repeat;
@@ -227,3 +228,27 @@
 }
 /* The arrow points to the selected link. Its accessible name is the link text. */
 .link.cursor::before { content: ">" / ""; }
+
+/* The tint is the label's colour alone: no filled box behind stairs or a corpse. */
+#btn-context[data-context]:not(.down) {
+  background: var(--slab);
+  box-shadow: none;
+}
+
+/* A corpse's eat and take items sit where the abilities row is (decision 264). */
+#controls[data-menu="corpse"] #options {
+  margin-top: auto;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: var(--control-height);
+  gap: calc(2 * var(--u));
+}
+#controls[data-menu="corpse"] #options .opt.empty { display: none; }
+#controls[data-menu="corpse"] #options .opt { justify-content: flex-start; }
+/* tinted as the corpse is, and the keyboard's place shown by an arrow, not a box */
+#controls[data-menu="corpse"] #options .opt:not(.down) {
+  color: color-mix(in srgb, #ff7467 var(--text-brightness, 100%), black);
+  background: var(--slab);
+  box-shadow: none;
+}
+#controls[data-menu="corpse"] #options .opt:disabled { opacity: .45; }
+#controls[data-menu="corpse"] #options .opt.cursor::before { content: "> " / ""; white-space: pre; }

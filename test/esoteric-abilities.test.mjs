@@ -71,7 +71,7 @@ test('the esoteric edition has no sense: the first place is what is here, and wa
   assert.equal(g.turn, t + 1);
 });
 
-test('a corpse comes first, the stairs are walked into, and the original edition keeps its sense', () => {
+test('a corpse: eat or take items, no back, stepping off closes it; the stairs are walked into', () => {
   const g = start();
   act(g, { type: 'move', dir: 's' });
   assert.deepEqual(shortcuts(g), []);
@@ -80,9 +80,34 @@ test('a corpse comes first, the stairs are walked into, and the original edition
   assert.deepEqual(openList(g), [TEXT.context.corpse, TEXT.button.waitName, TEXT.menu.rest, TEXT.menu.back]);
   act(g, { type: 'choose', index: 0 });
   assert.equal(view(g).menu.id, 'corpse');
+  // eat and take items, and no back
+  assert.deepEqual(view(g).menu.options.map((o) => o?.label ?? null), [TEXT.menu.eat, TEXT.menu.takeItems, null, null]);
+  assert.deepEqual(act(g, { type: 'back' }), []);
+  assert.equal(view(g).menu.id, 'corpse');
+  // take items: a view of its own, the corpse's things and back
+  act(g, { type: 'choose', index: 1 });
+  assert.equal(view(g).event.id, 'loot');
+  assert.deepEqual(view(g).event.options.map((o) => o.label), [TEXT.thing.key, TEXT.menu.back]);
   act(g, { type: 'choose', index: 0 });
   assert.ok(g.items.some((it) => it.key === 'key'));
-  act(g, { type: 'back' });
+  assert.deepEqual(view(g).event.options.map((o) => o.label), [TEXT.menu.back]);
+  assert.ok(view(g).event.lines.some((l) => l.text === TEXT.menu.nothing));
+  act(g, { type: 'choose', index: 0 });
+  assert.equal(view(g).event, null);
+  assert.equal(view(g).menu.id, 'corpse', 'back to the corpse');
+  // eat: once, a turn, and some hp back
+  g.hp = 1;
+  const turn = g.turn;
+  act(g, { type: 'choose', index: 0 });
+  assert.equal(g.hp, 1 + CONFIG.eatHeals);
+  assert.equal(g.turn, turn + 1);
+  assert.equal(view(g).menu.options[0].disabled, true);
+  assert.equal(g.log.at(-1).text, TEXT.log.eat);
+  // stepping off closes it
+  act(g, { type: 'move', dir: 'n' });
+  assert.equal(view(g).menu, null);
+  assert.deepEqual([g.x, g.y], [3, 4]);
+  act(g, { type: 'move', dir: 's' });
   const { depth } = g;
   // the stairs are in the wall below: a step into them goes down
   act(g, { type: 'move', dir: 's' });
