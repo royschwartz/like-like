@@ -159,7 +159,8 @@ function makeRoom(rng, nb, grid, shaped = false, keep = null) {
   for (let tries = 0; ; tries++) {
     const t = emptyRoom(nb, grid);
     const whole = !shaped || carveShape(rng, t, nb, grid, keep, tries > 40);
-    if (whole) addObstacles(rng, t);
+    const parted = shaped && tries <= 40 && addPartitions(rng, t, grid, keep);
+    if (whole && !parted) addObstacles(rng, t);
     addGrass(rng, t);
     if (roomConnected(t) && keepsStairs(t, keep, grid)) return t;
   }
@@ -233,6 +234,45 @@ function carveShape(rng, t, nb, grid, keep, whole) {
     }
   }
   return w === n && h === n && !cut;
+}
+
+// Walls partitioning a room (decision 259): up to two straight lengths of wall across its
+// open ground, each with open ground on both sides and a way round one end. Returns
+// whether any went in. Never on where you come in or the cell inside the stairs up.
+const PARTITION_CHANCES = [0.5, 0.3];
+function addPartitions(rng, t, grid, keep) {
+  const { size, idx } = grid;
+  const isOpen = (x, y) => x >= 0 && y >= 0 && x < size && y < size && t[idx(x, y)] === 'floor';
+  const spare = DIRS.map((d) => grid.arrivals[d]);
+  if (keep) spare.push(keptOpen(keep));
+  const spared = (x, y) => spare.some(([sx, sy]) => sx === x && sy === y);
+  let added = false;
+  for (const p of PARTITION_CHANCES) {
+    if (!chance(rng, p)) break;
+    const runs = [];
+    for (const across of [true, false]) {
+      for (let k = 2; k <= size - 3; k++) {
+        let run = [];
+        for (let j = 1; j <= size - 1; j++) {
+          const [x, y] = across ? [j, k] : [k, j];
+          const [ax, ay, bx, by] = across ? [x, y - 1, x, y + 1] : [x - 1, y, x + 1, y];
+          const fits = j < size - 1 && isOpen(x, y) && isOpen(ax, ay) && isOpen(bx, by) && !spared(x, y);
+          if (fits) run.push([x, y]);
+          else {
+            if (run.length >= 3) runs.push(run);
+            run = [];
+          }
+        }
+      }
+    }
+    if (runs.length === 0) break;
+    const run = pick(rng, runs);
+    const len = int(rng, 2, run.length - 1);
+    const part = chance(rng, 0.5) ? run.slice(0, len) : run.slice(run.length - len);
+    for (const [x, y] of part) t[idx(x, y)] = 'wall';
+    added = true;
+  }
+  return added;
 }
 
 const NEIGHBOURS8 = [[0, -1], [1, 0], [0, 1], [-1, 0], [1, -1], [1, 1], [-1, 1], [-1, -1]];
