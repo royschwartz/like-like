@@ -80,7 +80,7 @@ test('a corpse: eat, take items or back, and stepping off closes it too; the sta
   assert.deepEqual(openList(g), [TEXT.context.corpse, TEXT.button.waitName, TEXT.menu.rest, TEXT.menu.back]);
   act(g, { type: 'choose', index: 0 });
   assert.equal(view(g).menu.id, 'corpse');
-  // eat, take items and back (decision 275)
+  // eat, take items and back (decision 276)
   assert.deepEqual(view(g).menu.options.map((o) => o?.label ?? null), [TEXT.menu.eat, TEXT.menu.takeItems, null, TEXT.menu.back]);
   act(g, { type: 'choose', index: 3 });
   assert.equal(view(g).menu, null, 'back closes it');

@@ -941,7 +941,7 @@ function menuTitle(g, menu) {
   return TEXT.button[menu.id];
 }
 
-// ---- a corpse, in the esoteric edition (decisions 264, 275) -------------------------
+// ---- a corpse, in the esoteric edition (decisions 264, 276) -------------------------
 // Standing on it, its menu offers eat, take items and back; stepping off it also closes
 // the menu. Take items opens a view of its own, its things as links and back, which goes
 // back to the corpse's menu.

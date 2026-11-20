@@ -230,14 +230,14 @@
 .link.cursor::before { content: ">" / ""; }
 
 /* The tint is the label's colour alone: no filled box behind stairs or a corpse.
-   A corpse is just its word in red (decision 274). */
+   A corpse is just its word in red (decision 275). */
 #btn-context[data-context]:not(.down) {
   background: var(--slab);
   box-shadow: none;
 }
 
 /* A corpse's eat and take items sit where the abilities row is (decision 264),
-   and back at its end, where wait and the star were (decision 275). */
+   and back at its end, where wait and the star were (decision 276). */
 #controls[data-menu="corpse"] #options {
   margin-top: auto;
   grid-template-columns: 1fr 1fr auto;
