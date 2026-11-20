@@ -215,12 +215,26 @@ function toadActs(g, ev) {
   return { hit, died: false };
 }
 
+// Woken, by its song, a blow, noise or a grab for its key. It stays awake until it has not
+// seen you for CONFIG.toad.sleepsAfter turns: "it should take much longer for monsters to
+// fall asleep again" (decision 193).
+function wake(g, toad) {
+  toad.asleep = false;
+  toad.sawAt = g.turn;
+}
+
 // The toad's turn. Asleep, it does nothing: only its event, a blow or noise wakes it.
 // Returns true if it hit you.
 function toadTurn(g, room, toad, ev) {
+  if (!toad.asleep && g.turn - (toad.sawAt ?? g.turn) >= CONFIG.toad.sleepsAfter) {
+    toad.asleep = true;
+    toad.stirred = false;
+    toad.lastSeen = null;
+  }
   if (toad.asleep) return false;
   if (los(room.t, toad.x, toad.y, g.x, g.y)) {
     toad.lastSeen = { x: g.x, y: g.y };
+    toad.sawAt = g.turn;
     if (isStep(room.t, toad.x, toad.y, g.x, g.y)) return toadAttacks(g, ev);
     stepToward(g, room, toad, g.x, g.y);
     return false;
@@ -288,8 +302,9 @@ function die(g, ev) {
   g.menu = null;
   g.inv = null;
   g.going = null;
-  // The toad goes back to where it slept. Once woken it stays awake and bloodthirsty: "the
-  // toad should be awake and bloodthirsty when you come back" (decision 191).
+  // The toad goes back to where it slept, still awake and bloodthirsty: "the toad should be
+  // awake and bloodthirsty when you come back" (decision 191). It sleeps again only after
+  // a long time without seeing you (193).
   const tr = g.level.toadRoom;
   if (tr !== null && tr !== undefined && g.level.rooms[tr].toad) toadGoesHome(g, g.level.rooms[tr]);
 }
@@ -358,7 +373,7 @@ function goldDoor(g, room, x, y, ev) {
 // You strike the toad. Asleep, it is always hit, and wakes.
 function attack(g, room, toad, ev) {
   const hit = toad.asleep || chance(g.rng, CONFIG.playerHits);
-  toad.asleep = false;
+  wake(g, toad);
   const dmg = hit ? playerDamage(g) : 0;
   ev.push({ type: 'attack', by: 'player', x: toad.x, y: toad.y, hit, dmg });
   if (!hit) {
@@ -421,7 +436,7 @@ function makeNoise(g, ev) {
   const room = currentRoom(g);
   const toad = room.toad;
   if (toad && toad.asleep && chance(g.rng, CONFIG.noiseWakes)) {
-    toad.asleep = false;
+    wake(g, toad);
     if (los(room.t, g.x, g.y, toad.x, toad.y)) say(g, TEXT.log.toadWakes, 'plain');
   }
   ev.push({ type: 'noise' });
@@ -1067,7 +1082,7 @@ function eventChoose(g, i, ev) {
         }
       } else {
         e.passages = [TEXT.toad.wakes.map(prose)];
-        toad.asleep = false;
+        wake(g, toad);
         e.over = true;
       }
       break;
@@ -1081,7 +1096,7 @@ function eventChoose(g, i, ev) {
         e.passages = [[prose(TEXT.toad.success)]];
         ev.push({ type: 'key' });
       } else {
-        toad.asleep = false;
+        wake(g, toad);
         e.passages = [[prose(TEXT.toad.failure)]];
       }
       e.over = true;

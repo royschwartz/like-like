@@ -729,3 +729,30 @@ test('a memory that is due in a fight waits until there is room to say it', () =
   act(g, { type: 'wait' });
   assert.deepEqual(texts(g, from), ['you have a memory']);
 });
+
+test('woken, the toad sleeps again only after CONFIG.toad.sleepsAfter turns without seeing you (193)', () => {
+  const { g, room, t } = atToad();
+  openItsEvent(g, t);
+  for (let i = 0; i < 3; i++) act(g, { type: 'choose', index: 0 }); // listen until it wakes
+  assert.equal(t.asleep, false);
+  act(g, { type: 'back' });
+  // away from its room for a while: when you come back, it is still awake
+  const away = g.level.entrance.room;
+  assert.notEqual(away, g.level.toadRoom);
+  const here = [g.room, g.x, g.y];
+  g.room = away;
+  [g.x, g.y] = [g.level.entrance.x, g.level.entrance.y];
+  const woke = t.sawAt;
+  while (g.turn < woke + CONFIG.toad.sleepsAfter - 2) act(g, { type: 'wait' });
+  [g.room, g.x, g.y] = here;
+  act(g, { type: 'wait' });
+  assert.equal(t.asleep, false, 'not yet');
+  // long enough out of its sight, and it sleeps where it is
+  [g.room, g.x, g.y] = [away, g.level.entrance.x, g.level.entrance.y];
+  for (let k = 0; k < CONFIG.toad.sleepsAfter + 1; k++) act(g, { type: 'wait' });
+  [g.room, g.x, g.y] = here;
+  act(g, { type: 'wait' });
+  assert.equal(t.asleep, true);
+  assert.equal(t.stirred, false);
+  assert.equal(room.toad, t);
+});

@@ -38,7 +38,9 @@ export const CONFIG = {
   // The toad: level 1 only. It sleeps in the room farthest from the entrance, near a
   // golden door; the stairs are in a small room behind that door.
   // wander: the chance, each turn, that it takes a step when awake and it can't see you.
-  toad: { hp: 8, damage: 2, hits: 0.6, wander: 0.5 },
+  // sleepsAfter: an awake toad that hasn't seen you for this many turns falls asleep again,
+  // where it is (decision 193). Your turns count wherever you are.
+  toad: { hp: 8, damage: 2, hits: 0.6, wander: 0.5, sleepsAfter: 200 },
   toadLevel: 1,
   toadExtraRoom: 1, //   level 1 has this many rooms more than it would (never more than 4)
   closetSize: 3, //      the small room behind the golden door is this many cells across, inside (1 to 3)
