@@ -1,0 +1,188 @@
+/* The stairs study. The game's own cover for going down is off: the study plays its own. */
+#screen.fx-descend #map-wrap::before {
+  animation: none;
+  visibility: hidden;
+}
+
+/* --- the sheet the animations play on, over the map and as big as it --- */
+.stairs-fx {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  overflow: hidden;
+  pointer-events: none;
+  background: var(--unknown);
+}
+/* the copies of the floors: what isn't drawn shows the black behind */
+.stairs-fx .map {
+  background: transparent;
+  pointer-events: none;
+}
+.stairs-fx .map .c {
+  cursor: default;
+}
+.stairs-fx-actors.map {
+  display: block;
+}
+.stairs-fx-box {
+  position: absolute;
+  overflow: hidden;
+}
+.map .c.stairs-fx-actor {
+  position: absolute;
+  inset: 0;
+  --bg: transparent;
+  background: transparent;
+}
+.stairs-fx-bars {
+  position: absolute;
+  inset: 0;
+}
+.stairs-fx-bar {
+  position: absolute;
+  background: var(--sulphur);
+  -webkit-mask: var(--tread) center / 100% 100% no-repeat;
+  mask: var(--tread) center / 100% 100% no-repeat;
+  image-rendering: pixelated;
+}
+
+/* --- the panel: flat, hard-edged and mono, like the marks study --- */
+#study {
+  --st-bg: #000;
+  --st-ink: #c9c3b4;
+  --st-quiet: #6f6a5f;
+  --st-line: #4a463e;
+  --st-bright: #fff;
+  --st-pick: #ffff54;
+  font-family: Monaco, Menlo, "Courier New", monospace;
+  font-size: 11px;
+  line-height: 1.25;
+  color: var(--st-ink);
+}
+#study button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  border-radius: 0;
+  -webkit-appearance: none;
+  appearance: none;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.st-panel {
+  position: fixed;
+  z-index: 20;
+  box-sizing: border-box;
+  overflow-y: auto;
+  background: var(--st-bg);
+  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.st-top {
+  justify-content: flex-end;
+}
+#study.closed .st-panel {
+  display: none;
+}
+.st-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: var(--st-quiet);
+}
+.st-hide,
+.st-show {
+  padding: 4px 6px !important;
+  border: 1px solid var(--st-line) !important;
+  color: var(--st-quiet) !important;
+}
+.st-show {
+  position: fixed;
+  z-index: 21;
+  top: 6px;
+  left: 6px;
+  background: var(--st-bg) !important;
+  display: none;
+}
+#study.closed .st-show {
+  display: block;
+}
+
+.st-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 3px;
+}
+.st-anim {
+  position: relative;
+  min-height: 30px;
+  padding: 2px 14px 2px 5px !important;
+  text-align: left;
+  border: 1px solid var(--st-line) !important;
+}
+.st-anim.focus {
+  border-color: var(--st-ink) !important;
+  color: var(--st-bright) !important;
+}
+.st-anim.down,
+.st-anim.up {
+  color: var(--st-pick) !important;
+}
+.st-marks {
+  position: absolute;
+  right: 3px;
+  top: 2px;
+  font-size: 10px;
+  color: var(--st-pick);
+}
+.st-source {
+  color: var(--st-quiet);
+  min-height: 3.75em;
+}
+
+.st-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.st-row[hidden] {
+  display: none;
+}
+.st-label {
+  flex: 0 0 auto;
+  min-width: 7.5em;
+  color: var(--st-quiet);
+}
+.st-seg {
+  flex: 1;
+  min-height: 28px;
+  border: 1px solid var(--st-line) !important;
+}
+.st-seg.on {
+  color: var(--st-bg) !important;
+  background: var(--st-ink) !important;
+  border-color: var(--st-ink) !important;
+}
+.st-slider input {
+  flex: 1;
+  min-width: 0;
+  accent-color: var(--st-ink);
+}
+.st-value {
+  flex: 0 0 5.5em;
+  text-align: right;
+}
+.st-go-btn {
+  flex: 1;
+  min-height: 38px;
+  font-size: 14px !important;
+  color: var(--st-bright) !important;
+  border: 1px solid var(--st-ink) !important;
+}
+.st-readout {
+  white-space: pre-line;
+  color: var(--st-quiet);
+}
