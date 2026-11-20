@@ -170,6 +170,7 @@ export const TEXT = {
     nothing: 'nothing',
     lookDark: 'dark',
     lookPaper: 'paper',
+    textBrightness: 'text brightness',
     // PLAIN. The menu's setting for the lines round the buttons: none, or a step of grey.
     outlines: (n) => (n ? `outlines ${n}` : 'outlines off'),
     dig: 'dig for worms', // HIS

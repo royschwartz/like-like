@@ -39,9 +39,27 @@
   --blood-ink: #a23327;
 }
 
-/* The black margin around the drawn room. */
-#screen:not([data-screen="inv"]) #map-wrap {
-  margin: calc(var(--u) * 2.5);
+/* The viewport cuts each outside wall at its centerline. For seven tiles
+   across, the six visible tile widths leave half a tile outside each edge.
+   The live grid, room slides and finger marks all sit in this one frame. */
+#map-field {
+  position: absolute;
+  inset: calc(-50% / (var(--room-size, 7) - 1));
+}
+
+/* Landed hits show the whole perimeter in one hard cut. On a lethal hit,
+   keep it open for two frames after the existing six-frame death flash. */
+#map-field.fx-wall-reveal {
+  animation: fx-wall-reveal calc(var(--f) * 3) steps(1, end);
+}
+#map-field.fx-wall-reveal[data-hit="hurt"] {
+  animation-duration: calc(var(--f) * 4);
+}
+#map-field.fx-wall-reveal[data-hit="death"] {
+  animation-duration: calc(var(--f) * 8);
+}
+@keyframes fx-wall-reveal {
+  from, to { inset: 0; }
 }
 .map {
   font-size: calc(var(--u) * 72 / var(--room-size, 7));

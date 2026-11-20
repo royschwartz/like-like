@@ -10,6 +10,8 @@ The [esoteric edition](https://royschwartz.github.io/like-like/esoteric/) has fi
 you have been asked to retrieve the amulet of yendor. it is at the bottom of this dungeon, probably
 ```
 
+In the esoteric edition, open the square menu to set text brightness from 40% to 100%. The browser remembers your setting. The outer walls sit halfway offscreen until a hit briefly brings the whole room into view.
+
 ## Play
 
 It is plain files, with nothing to install or build. To run it on your own machine, serve the folder and open it:

@@ -1,0 +1,152 @@
+/* Crooked Hand has a 0.6 em advance. Give the log a taller, narrower cut so
+   the simulation's 41-character measure and two-line statuses still fit. */
+#screen {
+  --text-size: calc(var(--u) * 5.4);
+  --reading-ink: color-mix(in srgb, white var(--text-brightness, 100%), black);
+  --reading-paper-ink: color-mix(in srgb, #17150f var(--text-brightness, 100%), #878477);
+}
+
+#log {
+  padding-inline: calc(var(--u) * 2.5);
+}
+.line {
+  --log-scale: 0.79;
+  width: calc(100% / var(--log-scale));
+  transform: scaleX(var(--log-scale));
+  transform-origin: left;
+  font-size: calc(var(--u) * 4.85);
+  line-height: 1.25;
+}
+
+#stats {
+  font-size: calc(var(--u) * 5.6);
+}
+
+#inv-title,
+.row .state {
+  font-size: calc(var(--u) * 4.85);
+}
+.row {
+  font-size: calc(var(--u) * 5.7);
+}
+.row.cursor .state {
+  color: inherit;
+}
+
+#event {
+  --ev-side: calc(var(--u) * 6);
+  line-height: 1.42;
+}
+.link.cursor::before {
+  left: calc(var(--u) * 1.7);
+}
+
+/* The toad is the only letter drawn on the map. Its ink stands about
+   four fifths of an em high, leaving space around it within its square. */
+.map {
+  font-size: calc(var(--u) * 94 / var(--room-size, 7));
+}
+
+/* The slab and event screens are dark in both looks. Inverse selections use
+   their own ground as their text colour, including the inventory state. */
+#screen[data-look] {
+  --paper: var(--reading-ink, #fff);
+  --quiet: var(--paper);
+  --log-now: var(--paper);
+  --log-old: var(--paper);
+  --ink-slot: var(--paper);
+  --ink-warn: var(--paper);
+  --ink-bad: var(--paper);
+  --ink-good: var(--paper);
+  --ink-sense: var(--paper);
+  --stairs-ink: var(--reading-paper-ink, #17150f);
+}
+#screen[data-look="dark"] {
+  --btn-ink: var(--paper);
+  --inv-ink: var(--paper);
+  --inv-quiet: var(--inv-ink);
+  --corpse-ink: var(--paper);
+  --asleep: var(--paper);
+  --awake: var(--paper);
+}
+#screen[data-look="paper"] {
+  --btn-ink: var(--reading-paper-ink, #17150f);
+  --btn-down-ink: var(--paper);
+  --inv-ink: var(--btn-ink);
+  --inv-quiet: var(--inv-ink);
+  --asleep: var(--btn-ink);
+  --awake: var(--btn-ink);
+}
+#screen #event {
+  --ev-ink: var(--paper);
+  --ev-old: var(--ev-ink);
+  --ev-slot: var(--ev-ink);
+  --ev-song: var(--ev-ink);
+  --ev-link: var(--ev-ink);
+  --ev-link-quiet: var(--ev-ink);
+}
+
+.brightness {
+  display: none;
+  grid-template-columns: auto minmax(0, 1fr) 4ch;
+  align-items: center;
+  gap: calc(var(--u) * 2.5);
+  color: var(--reading-ink);
+  font-size: calc(var(--u) * 4.8);
+  white-space: nowrap;
+}
+#controls[data-menu="sys"] .brightness {
+  display: grid;
+  grid-area: 1 / 1 / 2 / 3;
+}
+#controls[data-menu="sys"] #options {
+  grid-row: 2 / 5;
+}
+#event:has(#btn-event-sys.open) .brightness {
+  display: grid;
+  flex: none;
+  margin-top: calc(var(--u) * 4);
+}
+.brightness-value { text-align: right; }
+.brightness input {
+  appearance: none;
+  -webkit-appearance: none;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  height: max(28px, calc(var(--u) * 9));
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  touch-action: none;
+}
+.brightness input::-webkit-slider-runnable-track {
+  height: 2px;
+  background: currentColor;
+}
+.brightness input::-moz-range-track {
+  height: 2px;
+  background: currentColor;
+}
+.brightness input::-webkit-slider-thumb {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 9px;
+  height: 18px;
+  margin-top: -8px;
+  background: currentColor;
+}
+.brightness input::-moz-range-thumb {
+  width: 9px;
+  height: 18px;
+  border: 0;
+  border-radius: 0;
+  background: currentColor;
+}
+.brightness input:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}

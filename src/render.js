@@ -23,8 +23,9 @@ const CELL_FX = ['fx-hit', 'fx-miss', 'fx-kill', 'fx-observe', 'fx-dig', 'fx-unl
 export function createRenderer(root = document, { marks: withMarks = true, cellPainter = paintCell, size = CONFIG.roomSize } = {}) {
   const $ = (id) => root.querySelector('#' + id);
   const screen = $('screen');
-  const mapWrap = $('map-wrap');
   const map = $('map');
+  const mapHost = map.parentElement; // the grid, its marks and any sliding copy share this box
+  const mapField = $('map-field'); // the esoteric room’s cropped outer wall
   const logLines = $('log-lines');
   const invEl = $('inv');
   const invTitle = $('inv-title');
@@ -80,7 +81,7 @@ export function createRenderer(root = document, { marks: withMarks = true, cellP
     slideMs: (frameMs / 2) * size, // a room sliding in: --slide-step, half a frame, a tile
   };
   // the marks round the square under a finger (--mark-* in style.css)
-  const marks = withMarks ? createMarks(mapWrap, { size, frameMs, num }) : null;
+  const marks = withMarks ? createMarks(mapHost, { size, frameMs, num }) : null;
   // The blink: about every two seconds, all in step. An item in the inventory goes white for
   // a couple of frames ("blink"); a unit's icon on the map steps to white and back ("stepping").
   // Nothing blinks while a sense wave is going; when the wave ends the blinking starts
@@ -110,6 +111,10 @@ export function createRenderer(root = document, { marks: withMarks = true, cellP
 
     const nextRoom = `${view.depth}:${view.room?.id}:${view.room?.key}`;
     const fresh = nextRoom !== roomKey || events.some((e) => e.type === 'death' || e.type === 'restart');
+    if (mapField && (fresh || view.event || view.inv || view.menu)) {
+      fx.stop(mapField, 'fx-wall-reveal');
+      for (const cls of JOLT_FX) fx.stop(screen, cls);
+    }
     if (fresh) {
       stopWave();
       clearTrail();
@@ -149,6 +154,15 @@ export function createRenderer(root = document, { marks: withMarks = true, cellP
       // must not flash unrelated squares there. The screen still jolts and flashes.
       if (!died) cellEffect(e, view);
       screenEffect(e);
+    }
+    // Retaliation can put two hits in a single turn. Give the player's hurt or
+    // death the whole reveal, and restart it on a subsequent landed strike.
+    if (mapField && !view.event && !view.inv && !view.menu) {
+      const hits = events.filter((e) => e.type === 'attack' && e.hit);
+      if (hits.length) {
+        mapField.dataset.hit = died ? 'death' : hits.some((e) => e.by === 'toad') ? 'hurt' : 'hit';
+        fx.play(mapField, 'fx-wall-reveal');
+      }
     }
     if (!died) drawTrail(view, events);
     lastTurn = view.turn;
@@ -220,7 +234,7 @@ export function createRenderer(root = document, { marks: withMarks = true, cellP
       c.className = c.classList.contains('b') ? 'c b' : 'c';
       c.removeAttribute('data-cell');
     }
-    mapWrap.appendChild(ghost);
+    mapHost.appendChild(ghost);
     const dirClass = `in-${dir}`;
     map.classList.remove(...DIRS.map((d) => `in-${d}`));
     void map.offsetWidth;
@@ -629,6 +643,7 @@ export function createRenderer(root = document, { marks: withMarks = true, cellP
 
   return { draw, timing, showAim, clearAim, flashAim, showLook, dropLook, destroy() {
     clearTimeout(blinkNext);
+    if (mapField) fx.stop(mapField, 'fx-wall-reveal');
     if (marks) marks.destroy();
     clearTrail();
     dropLook();
