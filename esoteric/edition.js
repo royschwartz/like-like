@@ -34,6 +34,6 @@ export function paintEsoteric(cell, x, y, env) {
     return { ch: '', fg, bg, mask, label, glints, glintInk };
   }
   const terrain = kind === 'wall' || kind === 'floor';
-  const mask = terrain ? terrainMask(kind, x, y, env.cells, env.size, env.key) : symbolMask(kind, x, y, env.size);
+  const mask = terrain ? terrainMask(kind, x, y, env.cells, env.size, env.key) : symbolMask(kind);
   return { ch: '', fg, bg, mask, label };
 }

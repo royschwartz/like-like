@@ -25,7 +25,7 @@ export function createRenderer(root = document, { marks: withMarks = true, cellP
   const screen = $('screen');
   const map = $('map');
   const mapHost = map.parentElement; // the grid, its marks and any sliding copy share this box
-  const mapField = $('map-field'); // the esoteric room’s cropped outer wall
+  const mapField = $('map-field'); // the esoteric room and its half-width wall tracks
   const logLines = $('log-lines');
   const invEl = $('inv');
   const invTitle = $('inv-title');
@@ -112,7 +112,6 @@ export function createRenderer(root = document, { marks: withMarks = true, cellP
     const nextRoom = `${view.depth}:${view.room?.id}:${view.room?.key}`;
     const fresh = nextRoom !== roomKey || events.some((e) => e.type === 'death' || e.type === 'restart');
     if (mapField && (fresh || view.event || view.inv || view.menu)) {
-      fx.stop(mapField, 'fx-wall-reveal');
       for (const cls of JOLT_FX) fx.stop(screen, cls);
     }
     if (fresh) {
@@ -154,15 +153,6 @@ export function createRenderer(root = document, { marks: withMarks = true, cellP
       // must not flash unrelated squares there. The screen still jolts and flashes.
       if (!died) cellEffect(e, view);
       screenEffect(e);
-    }
-    // Retaliation can put two hits in a single turn. Give the player's hurt or
-    // death the whole reveal, and restart it on a subsequent landed strike.
-    if (mapField && !view.event && !view.inv && !view.menu) {
-      const hits = events.filter((e) => e.type === 'attack' && e.hit);
-      if (hits.length) {
-        mapField.dataset.hit = died ? 'death' : hits.some((e) => e.by === 'toad') ? 'hurt' : 'hit';
-        fx.play(mapField, 'fx-wall-reveal');
-      }
     }
     if (!died) drawTrail(view, events);
     lastTurn = view.turn;
@@ -643,7 +633,6 @@ export function createRenderer(root = document, { marks: withMarks = true, cellP
 
   return { draw, timing, showAim, clearAim, flashAim, showLook, dropLook, destroy() {
     clearTimeout(blinkNext);
-    if (mapField) fx.stop(mapField, 'fx-wall-reveal');
     if (marks) marks.destroy();
     clearTrail();
     dropLook();

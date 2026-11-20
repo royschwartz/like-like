@@ -98,68 +98,23 @@ const stamps = {
 ###........#####.....
 ..############.......`,
 
-  // A break between rooms. The two split posts hold the sides of the wall apart;
-  // the little chevron points through the opening. This master faces north.
-  door: `
-......###...............##.....
-.....##.##.............####....
-.....##..#.....#.......#..##...
-.....##.......###.........##...
-....###......##.##........##...
-#####.#.....##...##.....####...
-####.##.................##.####
-.....###...............###..###
-......##...............##......
-.....####.............####.....
-....##.###...........###.##....
-.......#...............#.......`,
-
-  // A pointed seal with the keyhole cut out of the slab.
+  // The locked gate hangs in the opening. A single cut catches one facet.
   golddoor: `
-.........##.........
-.......#####........
-.....#########......
-....###..######.....
-...###....#######...
-..###......######...
-..###.......######..
-..##.........#####..
-.###....###...####..
-.###...#####..####..
-.###...#####..#####.
-.###....###...#####.
-.###.....##...#####.
-.###.....##...#####.
-..##....####..#####.
-..###.........#####.
-..####.......######.
-..#####....########.
-...###############..
-...###.########.##..
-..####..........###.`,
-
-  // The same hinge and crown, with the panel folded against the left jamb.
-  opendoor: `
-.........##.........
-.......#####........
-.....####..##.......
-....###.....###.....
-...###.......###....
-..#####.......###...
-..##.###........##..
-..##..##........##..
-.###..##.........##.
-.###..##.........##.
-.###..##.........##.
-.###..##.........##.
-.###..##.........##.
-.###.###.........##.
-..##.##..........##.
-..#####..........##.
-..####...........##.
-..###............##.
-...##...........###.
-..####..........###.`,
+.......#.......
+......###......
+.....#####.....
+....#####.#....
+...#####..##...
+..#####..####..
+.#####..######.
+#####..########
+.####..#######.
+..###.#######..
+...#########...
+....#######....
+.....#####.....
+......###......
+.......#.......`,
 
   // A collapsed pair of ribs on a snapped spine.
   corpse: `
@@ -178,28 +133,17 @@ const stamps = {
 ##.....................`,
 };
 
-function stampUrl(rows, rotation = 0) {
+function stampUrl(rows) {
   const lines = rows.trim().split('\n');
   const left = Math.floor((36 - Math.max(...lines.map((line) => line.length))) / 2);
   const top = Math.floor((36 - lines.length) / 2);
   const path = stamp(left, top, rows.trim());
-  return inkMask(36, path, `rotate(${rotation} 18 18)`);
+  return inkMask(36, path);
 }
 
 const masks = Object.fromEntries(Object.entries(stamps).map(([kind, rows]) => [kind, stampUrl(rows)]));
-const doors = {
-  north: masks.door,
-  east: stampUrl(stamps.door, 90),
-  south: stampUrl(stamps.door, 180),
-  west: stampUrl(stamps.door, 270),
-};
 
-export function symbolMask(kind, x, y, size) {
-  if (kind === 'door') {
-    if (x === 0) return doors.west;
-    if (x === size - 1) return doors.east;
-    if (y === size - 1) return doors.south;
-    return doors.north;
-  }
-  return masks[kind] ?? 'none';
+// Open doors have no ink. An actor or corpse on the same cell supplies its own stamp.
+export function symbolMask(kind) {
+  return masks[kind];
 }

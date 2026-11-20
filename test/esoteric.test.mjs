@@ -7,9 +7,9 @@ import { levelDistances } from '../src/gen.js';
 const visible = (t, thing = null) => ({ t, thing, state: 'visible' });
 const env = () => ({ size: 3, key: 17, cells: Array.from({ length: 9 }, () => visible('floor')) });
 
-test('each mapped object has its own drawing and the living toad is the font letter', () => {
+test('each drawn object has its own mark and the living toad is the font letter', () => {
   const room = env();
-  const tiles = ['stairs', 'entrance', 'statue', 'door', 'opendoor', 'golddoor'].map(t => visible(t));
+  const tiles = ['stairs', 'entrance', 'statue', 'golddoor'].map(t => visible(t));
   tiles.push(visible('floor', { kind: 'player' }), visible('grass', { kind: 'corpse' }));
   const masks = tiles.map(cell => paintEsoteric(cell, 1, 1, room).mask);
   assert.ok(masks.every(mask => mask.startsWith('url(')));
@@ -19,6 +19,23 @@ test('each mapped object has its own drawing and the living toad is the font let
     assert.equal(toad.ch, 't');
     assert.equal(toad.mask, undefined);
   }
+});
+
+test('open doors are bare gaps and the locked gate keeps its gold mark', () => {
+  const room = env();
+  for (const state of ['visible', 'remembered']) {
+    for (const t of ['door', 'opendoor']) {
+      const gap = paintEsoteric({ t, state }, 1, 1, room);
+      assert.equal(gap.ch, '');
+      assert.equal(gap.mask, undefined);
+      assert.equal(gap.label, 'door');
+    }
+    const gate = paintEsoteric({ t: 'golddoor', state }, 1, 1, room);
+    assert.match(gate.fg, /--sulphur/);
+    assert.ok(gate.mask.startsWith('url('));
+  }
+  const player = paintEsoteric(visible('opendoor', { kind: 'player' }), 1, 1, room);
+  assert.equal(player.mask, paintEsoteric(visible('floor', { kind: 'player' }), 1, 1, room).mask);
 });
 
 test('wall joins follow only known terrain', () => {

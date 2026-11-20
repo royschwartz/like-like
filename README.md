@@ -10,7 +10,7 @@ The [esoteric edition](https://royschwartz.github.io/like-like/esoteric/) has fi
 you have been asked to retrieve the amulet of yendor. it is at the bottom of this dungeon, probably
 ```
 
-In the esoteric edition, open the square menu to set text brightness from 40% to 100%. The browser remembers your setting. The newest log message uses the brightest ink and older messages dim. The outer walls are half a playable square wide. Half of each wall sits offscreen until a hit brings the whole perimeter into view.
+In the esoteric edition, open the square menu to set text brightness from 40% to 100%. The browser remembers your setting. The newest log message uses the brightest ink and older messages dim. The outer walls are half a playable square wide and fit inside the map even during a hit. A gap in the wall leads to the next room. A gold diamond marks a locked golden door and disappears when the key opens it.
 
 ## Play
 
