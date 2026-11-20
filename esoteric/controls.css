@@ -157,14 +157,14 @@
 
 /* Roy's three icons (decision 254): three dots for the menu, an open book for
    memories and a pot for the inventory, drawn in esoteric/icons.js in square ink.
-   A bit smaller than at first (decisions 265, 278). */
+   Smaller than at first, twice (decisions 265, 278, 286); the drawings are unchanged. */
 #btn-sys::before,
 #btn-event-sys::before,
 #btn-memories::before,
 #btn-inv::before {
   content: "";
-  width: 2.2em;
-  height: 2.2em;
+  width: 1.8em;
+  height: 1.8em;
   flex: none;
   box-shadow: none;
   background: currentColor;

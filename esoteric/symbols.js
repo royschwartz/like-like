@@ -154,8 +154,9 @@ const STAIR_TURNS = {
 };
 // The three treads are drawn a little narrower toward the top than the drawing has them,
 // so the stair gets smaller toward the edge: each tread is squeezed about the middle.
-// Gentler than the first taper of 0.5 and 0.75, which narrowed too much (decision 281).
-const TREAD_WIDTHS = [0.8, 0.9, 1];
+// Gentler than the first taper of 0.5 and 0.75, which narrowed too much (decision 281),
+// and the bottom tread shrunk as much as the middle one (decision 285).
+const TREAD_WIDTHS = [0.8, 0.9, 0.9];
 const stairsPath = (() => {
   const lines = stamps.stairs.trim().split('\n');
   const width = Math.max(...lines.map((line) => line.length));
