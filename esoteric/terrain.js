@@ -205,23 +205,24 @@ const looseGrass = [
 ];
 const looseMasks = new Map();
 
+// The sprigs are laid out from the grass as it is in the room, seen or not, so a
+// patch keeps its arrangement as more of it comes into view (decision 282).
 export function grassMasks(x, y, cells, size, roomKey) {
-  function knownGrass(cx, cy) {
+  function grassAt(cx, cy) {
     if (cx < 0 || cy < 0 || cx >= size || cy >= size) return false;
-    const cell = cells[cy * size + cx];
-    return cell?.t === 'grass' && cell.state !== 'unknown';
+    return cells[cy * size + cx]?.t === 'grass';
   }
-  const west = knownGrass(x - 1, y);
-  const east = knownGrass(x + 1, y);
-  const north = knownGrass(x, y - 1);
-  const south = knownGrass(x, y + 1);
+  const west = grassAt(x - 1, y);
+  const east = grassAt(x + 1, y);
+  const north = grassAt(x, y - 1);
+  const south = grassAt(x, y + 1);
   const dx = Number(east) - Number(west);
   const dy = Number(south) - Number(north);
-  if (dx && dy && knownGrass(x + dx, y + dy)) {
+  if (dx && dy && grassAt(x + dx, y + dy)) {
     const left = Math.min(x, x + dx);
     const top = Math.min(y, y + dy);
-    const extendsAcross = [top, top + 1].some(cy => knownGrass(left - 1, cy) || knownGrass(left + 2, cy));
-    const extendsDown = [left, left + 1].some(cx => knownGrass(cx, top - 1) || knownGrass(cx, top + 2));
+    const extendsAcross = [top, top + 1].some(cy => grassAt(left - 1, cy) || grassAt(left + 2, cy));
+    const extendsDown = [left, left + 1].some(cx => grassAt(cx, top - 1) || grassAt(cx, top + 2));
     if (!extendsAcross && !extendsDown) return grassQuarters[(y - top) * 2 + x - left];
   }
   const variation = (Math.imul(x + 1, 3) ^ (y + 1) ^ roomKey ^ (roomKey >>> 6)) & 3;
@@ -268,7 +269,7 @@ function wallEdges(x, y, cells, size) {
   function joins(cx, cy) {
     if (cx < 0 || cy < 0 || cx >= size || cy >= size) return false;
     const cell = cells[cy * size + cx];
-    return cell && cell.state !== 'unknown' &&
+    return !!cell &&
       (cell.t === 'wall' || cell.t === 'door' || cell.t === 'golddoor' || cell.t === 'opendoor' ||
         cell.t === 'stairs' || cell.t === 'upstairs');
   }
@@ -276,8 +277,9 @@ function wallEdges(x, y, cells, size) {
     (joins(x, y + 1) ? S : 0) | (joins(x - 1, y) ? W : 0);
 }
 
-// Only the view is available here. The wall stops at the edge of what was
-// seen, even when there's another length of wall beyond it in the real room.
+// A wall is shaped by the walls really beside it, seen or not, so what you see of it
+// never changes as more of the room comes into view (decision 282): a length of wall
+// running out of sight is never drawn as a pillar first.
 export function terrainMask(tile, x, y, cells, size, roomKey) {
   const seed = Math.imul(x + 1, 179) ^ Math.imul(y + 1, 541) ^ (roomKey | 0);
   const variation = (seed ^ (seed >>> 3) ^ (seed >>> 7)) & 3;

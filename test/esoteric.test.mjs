@@ -50,18 +50,33 @@ test('only known room exits have a compass direction', () => {
   assert.equal(paintEsoteric(visible('opendoor'), 1, 1, room).passage, undefined);
 });
 
-test('wall joins follow only known terrain', () => {
+test('a wall is shaped by the room as it is, so it never changes as more is seen', () => {
   const room = env();
   room.cells[4] = visible('wall');
   const wall = () => paintEsoteric(room.cells[4], 1, 1, room).mask;
   const pillar = wall();
   room.cells[5] = { t: 'wall', state: 'unknown' };
-  assert.equal(wall(), pillar);
+  const joined = wall();
+  assert.notEqual(joined, pillar);
   const unseen = paintEsoteric(room.cells[5], 2, 1, room);
   assert.equal(unseen.mask, undefined);
   assert.equal(unseen.label, undefined);
-  room.cells[5].state = 'remembered';
-  assert.notEqual(wall(), pillar);
+  for (const state of ['remembered', 'visible']) {
+    room.cells[5].state = state;
+    assert.equal(wall(), joined);
+  }
+});
+
+test('grass keeps its sprigs as more of the patch comes into view', () => {
+  const room = env();
+  room.cells[4] = visible('grass');
+  const sprigs = () => paintEsoteric(room.cells[4], 1, 1, room).mask;
+  for (const i of [1, 3, 5]) room.cells[i] = { t: 'grass', state: 'unknown' };
+  const before = sprigs();
+  for (const state of ['remembered', 'visible']) {
+    for (const i of [1, 3, 5]) room.cells[i].state = state;
+    assert.equal(sprigs(), before);
+  }
 });
 
 test('the seven-by-seven opening keeps the drawn landmarks on every seed and restart', () => {
