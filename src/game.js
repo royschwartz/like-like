@@ -1769,8 +1769,9 @@ function plan(g, tx, ty) {
   const t = room.t.map((c, i) => (room.seen[i] || shown[i] || c === 'void' ? c : 'floor'));
   const there = idx(tx, ty);
   if (tx === g.x && ty === g.y) return { bump: false, path: [] };
-  const drawnToad = (i) => ['toad', 'mother'].includes(thingAt(g, room, i, vis, shown, sensed)?.kind);
-  // gaps and stairs up are gone to, never through
+  const drawnToad = (i) => thingAt(g, room, i, vis, shown, sensed)?.kind === 'toad';
+  // Gaps are destinations, never intermediate steps. Going to the mother's gap
+  // takes the final step into her encounter, just as walking there by arrow does.
   const pass = (i) => !PATH_STOPS.has(t[i]) && t[i] !== 'door' && t[i] !== 'upstairs' && !drawnToad(i);
   const isBump = t[there] === 'statue' || t[there] === 'golddoor' || drawnToad(there);
   if (isBump && isStep(t, g.x, g.y, tx, ty)) return { bump: true, path: [] };

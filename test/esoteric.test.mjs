@@ -234,9 +234,10 @@ test('entering the mother’s room brings its cold, and observing her reveals a 
 
 test('talking to the woman and looking through items return to her choices, and back leaves her in the gap', () => {
   const g = enterMotherRoom();
-  for (let i = 0; i < 4; i++) act(g, { type: 'move', dir: 'w' });
-  const turn = g.turn;
-  act(g, { type: 'travel', x: 0, y: 3 }); // tap on her from beside the gap
+  const turn = g.turn + 4; // four steps from the doorway to the square beside her
+  act(g, { type: 'travel', x: 0, y: 3 }); // one tap from across the room
+  for (let i = 0; i < 7 && g.going; i++) act(g, { type: 'continue' });
+  assert.equal(g.going, null);
   assert.deepEqual(eventLines(g), [
     'the woman looks up at you', 'her face is ghoulish', 'she is mumbling about her missing baby',
   ]);
