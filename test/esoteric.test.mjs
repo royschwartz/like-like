@@ -64,25 +64,23 @@ test('wall joins follow only known terrain', () => {
   assert.notEqual(wall(), pillar);
 });
 
-test('the nine-by-nine opening keeps the drawn landmarks on every seed and restart', () => {
+test('the seven-by-seven opening keeps the drawn landmarks on every seed and restart', () => {
   const signs = { player: '@', grass: '"', statue: '&', stairs: '>', floor: '.', wall: '#' };
   const drawing = [
-    '#########',
-    '#"".....#',
-    '#"".....#',
-    '#.......#',
-    '#......&#',
-    '#.......#',
-    '#...@...#',
-    '#...>...#',
-    '#########',
+    '#######',
+    '#""...#',
+    '#""...#',
+    '#....&#',
+    '#..@..#',
+    '#..>..#',
+    '#######',
   ];
   for (const seed of [0, 7, 19]) {
     const g = newGame({ edition: 'esoteric', seed });
     for (let run = 0; run < 2; run++) {
       const v = view(g);
-      assert.equal(v.room.size, 9);
-      assert.equal(v.cells.length, 81);
+      assert.equal(v.room.size, 7);
+      assert.equal(v.cells.length, 49);
       const symbols = v.cells.map(c => signs[c.thing?.kind ?? c.t]).join('');
       assert.equal(symbols, drawing.join(''));
       assert.equal(view(newGame({ seed })).room.size, 11);
@@ -98,14 +96,14 @@ test('the nine-by-nine opening keeps the drawn landmarks on every seed and resta
 
 test('the stairs below the drawing are guarded and DEE remembers speaking upstairs', () => {
   const g = newGame({ edition: 'esoteric', seed: 19 });
-  for (const dir of ['e', 'e', 'e', 'n', 'n']) act(g, { type: 'move', dir });
+  for (const dir of ['e', 'e', 'n']) act(g, { type: 'move', dir });
   assert.equal(view(g).event.id, 'dee');
   act(g, { type: 'choose', index: 0 });
   act(g, { type: 'back' });
-  for (const dir of ['w', 'w', 'w', 's', 's']) act(g, { type: 'move', dir });
+  for (const dir of ['w', 'w', 's']) act(g, { type: 'move', dir });
   act(g, { type: 'context' });
   assert.equal(g.depth, 2);
-  assert.ok(g.level.rooms.every(room => room.t.length === 81));
+  assert.ok(g.level.rooms.every(room => room.t.length === 49));
   const sentryRoom = g.level.rooms[g.level.toadRoom];
   assert.ok(sentryRoom.toad.asleep);
   assert.ok(sentryRoom.statue.spoke);

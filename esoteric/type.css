@@ -48,7 +48,7 @@
 /* The toad's lowercase t follows the smaller of the room and the type slab.
    Widening a short phone's room still leaves space around the letter. */
 .map {
-  font-size: calc(min(var(--board-side), var(--w)) * .78 / var(--room-size, 9));
+  font-size: calc(min(var(--board-side), var(--w)) * .78 / var(--room-size, 7));
 }
 
 /* The slab and event screens are dark in both looks. Inverse selections use

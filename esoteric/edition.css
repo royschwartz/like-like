@@ -39,7 +39,7 @@
   --blood-ink: #a23327;
 }
 
-/* Nine equal tracks run to the edge. The drawn walls have their own
+/* Seven equal tracks run to the edge. The drawn walls have their own
    clearance inside the outer tiles. */
 #map-field {
   position: absolute;
@@ -52,7 +52,7 @@
 }
 
 .map {
-  font-size: calc(var(--u) * 72 / var(--room-size, 9));
+  font-size: calc(var(--u) * 72 / var(--room-size, 7));
 }
 .map .c {
   margin: 0;
