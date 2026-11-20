@@ -103,6 +103,21 @@ test('grass keeps its sprigs as more of the patch comes into view', () => {
   }
 });
 
+test('grass is the same drawing whatever its kind; the toad room\'s is only coloured purple, with green tips', () => {
+  const cells = Array.from({ length: 49 }, () => visible('grass'));
+  const look = { size: 7, key: 5, cells };
+  for (const [x, y] of [[1, 1], [3, 2], [5, 5]]) {
+    const plain = paintEsoteric(visible('grass'), x, y, look);
+    const glowing = paintEsoteric({ ...visible('grass'), grass: 'glowing' }, x, y, look);
+    const purple = paintEsoteric({ ...visible('grass'), grass: 'purple' }, x, y, look);
+    for (const p of [glowing, purple]) assert.deepEqual([p.mask, p.glints], [plain.mask, plain.glints]);
+    assert.deepEqual([plain.fg, plain.glintInk], ['var(--shoot)', 'var(--chalk)']);
+    assert.deepEqual([glowing.fg, glowing.glintInk], [plain.fg, plain.glintInk]);
+    assert.deepEqual([purple.fg, purple.glintInk], ['var(--grass-purple)', 'var(--shoot)']);
+    assert.equal(purple.fill, undefined);
+  }
+});
+
 test('the seven-by-seven opening keeps the drawn grass and entrance, and two ways out, on every seed and restart', () => {
   const signs = { player: '@', grass: '"', door: '+', floor: '.', wall: '#' };
   const drawing = [

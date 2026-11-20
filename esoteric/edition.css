@@ -80,7 +80,7 @@
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background: var(--fill, currentColor);
+  background: currentColor;
   -webkit-mask: var(--drawing) center / 100% 100% no-repeat;
   mask: var(--drawing) center / 100% 100% no-repeat;
   image-rendering: pixelated;

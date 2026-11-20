@@ -200,11 +200,6 @@ export function createRenderer(root = document, { marks: withMarks = true, cellP
         if (paint.glintInk) el.style.setProperty('--glint-ink', paint.glintInk);
         else el.style.removeProperty('--glint-ink');
       }
-      // a drawing in more than one colour: a CSS background in place of its one ink
-      if (last?.fill !== paint.fill) {
-        if (paint.fill) el.style.setProperty('--fill', paint.fill);
-        else el.style.removeProperty('--fill');
-      }
       if (last?.label !== paint.label) {
         if (paint.label) {
           el.setAttribute('role', 'img');
@@ -820,10 +815,10 @@ function words(text) {
   return text == null ? '' : String(text).replace(/[[\]]/g, '');
 }
 
-// Narrowest monospaced measure that fits the complete text in two lines.
 // The least the actions row's words are set, as a share of their size, to fit two actions.
 const ROW_FIT_LEAST = 0.8;
 
+// Narrowest monospaced measure that fits the complete text in two lines.
 function twoLineMeasure(text) {
   let measure = text.length;
   for (let i = text.indexOf(' '); i >= 0; i = text.indexOf(' ', i + 1)) {

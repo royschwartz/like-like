@@ -178,37 +178,21 @@ const sprig = `...+++....
 .....++...`;
 const glints = sprig.replaceAll('#', '.').replaceAll('+', '#');
 
-// glow: the sprigs give off light, a halo round them in two steps, fainter further out
-// ("it looks like regular grass, except it is glowing"). Pixel-edged, as the rest.
-function sprigMasks(points, glow = false) {
-  const path = (drawing) => points.map(([x, y]) => stamp(x, y, drawing)).join('');
-  const green = glow ? glowMask(grassSize, path(sprig)) : inkMask(grassSize, path(sprig));
-  return { green, white: inkMask(grassSize, path(glints)), points };
-}
-
-// Where in a sprig some purple goes, for grass that is purple-green ("you can use the regular
-// grass sprite, just add some purple to the green"): its left leaf. [x, y, width, height] in
-// the sprig's pixels.
-export const SPRIG_PURPLE = [0, 3, 4, 5];
-export const GRASS_SIZE = grassSize;
-
-const GLOW = [[7, 0.16], [3.5, 0.34]]; // [width of the halo's stroke, its strength], outside in
-function glowMask(size, d) {
-  const halo = GLOW.map(([w, a]) => `<path fill="white" fill-opacity="${a}" stroke="white" stroke-opacity="${a}" stroke-width="${w}" stroke-linejoin="round" d="${d}"/>`).join('');
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size} ${size}" preserveAspectRatio="none" shape-rendering="crispEdges">${halo}<path fill="white" d="${d}"/></svg>`;
-  return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
+function sprigMasks(points) {
+  const layer = (drawing) => inkMask(grassSize,
+    points.map(([x, y]) => stamp(x, y, drawing)).join(''));
+  return { green: layer(sprig), white: layer(glints) };
 }
 
 // The seven sprigs of the drawing are one arrangement across four tiles.
 // Cutting the same artwork at the tile edges keeps the seam-crossing leaves
 // whole. Positions are measured from the upper left of the four squares.
 const drawnGrass = [[43, 19], [76, 25], [27, 35], [45, 39], [60, 41], [53, 54], [30, 57]];
-const quarters = (glow) => [[0, 0], [48, 0], [0, 48], [48, 48]].map(([left, top]) => {
+const grassQuarters = [[0, 0], [48, 0], [0, 48], [48, 48]].map(([left, top]) => {
   const points = drawnGrass.map(([x, y]) => [x - left, y - top])
     .filter(([x, y]) => x > -10 && x < grassSize && y > -11 && y < grassSize);
-  return sprigMasks(points, glow);
+  return sprigMasks(points);
 });
-const grassQuarters = { false: quarters(false), true: quarters(true) };
 
 // Other patch shapes have room for one to three sprigs in each square.
 // The whole grouping leans toward the adjoining grass, with a different
@@ -223,7 +207,7 @@ const looseMasks = new Map();
 
 // The sprigs are laid out from the grass as it is in the room, seen or not, so a
 // patch keeps its arrangement as more of it comes into view (decision 282).
-export function grassMasks(x, y, cells, size, roomKey, glow = false) {
+export function grassMasks(x, y, cells, size, roomKey) {
   function grassAt(cx, cy) {
     if (cx < 0 || cy < 0 || cx >= size || cy >= size) return false;
     return cells[cy * size + cx]?.t === 'grass';
@@ -239,13 +223,13 @@ export function grassMasks(x, y, cells, size, roomKey, glow = false) {
     const top = Math.min(y, y + dy);
     const extendsAcross = [top, top + 1].some(cy => grassAt(left - 1, cy) || grassAt(left + 2, cy));
     const extendsDown = [left, left + 1].some(cx => grassAt(cx, top - 1) || grassAt(cx, top + 2));
-    if (!extendsAcross && !extendsDown) return grassQuarters[glow][(y - top) * 2 + x - left];
+    if (!extendsAcross && !extendsDown) return grassQuarters[(y - top) * 2 + x - left];
   }
   const variation = (Math.imul(x + 1, 3) ^ (y + 1) ^ roomKey ^ (roomKey >>> 6)) & 3;
-  const key = ((dy + 1) * 12 + (dx + 1) * 4 + variation) * 2 + Number(glow);
+  const key = (dy + 1) * 12 + (dx + 1) * 4 + variation;
   if (!looseMasks.has(key)) {
     const points = looseGrass[variation].map(([sx, sy]) => [sx + dx * 6, sy + dy * 6]);
-    looseMasks.set(key, sprigMasks(points, glow));
+    looseMasks.set(key, sprigMasks(points));
   }
   return looseMasks.get(key);
 }
