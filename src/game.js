@@ -680,7 +680,7 @@ function noticeIdly(g) {
   }
 }
 
-// The esoteric edition, without sense (decision 230): as you go about, now and then the
+// The esoteric edition, without sense (decision 239): as you go about, now and then the
 // air or the ground comes to you, a line of the room's own, never the worms, which only
 // inspecting the grass tells; or you notice a detail of something in sight, as if you had
 // observed it: the nearer, the likelier. One at a time, and never over something else said.
@@ -1614,7 +1614,7 @@ export function view(g) {
     let more = false;
     if (state === 'visible') {
       const o = observable(g, room, i, thing);
-      // Nothing blinks in the esoteric edition (decision 230).
+      // Nothing blinks in the esoteric edition (decision 240).
       more = g.edition !== 'esoteric' && !!o.unit && !!noticedIn(room)[o.unit] && hasNew(g, o.list);
     }
     cells.push({ t: room.t[i], state, thing, more });

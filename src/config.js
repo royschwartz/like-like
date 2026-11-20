@@ -78,7 +78,7 @@ export const CONFIG = {
   // Noticing without trying, each turn, as Brogue searches without being asked.
   // near: the chance of noticing a unit in sight beside you; it falls away to nothing
   // `reach` steps further off. secret: the chance a secret of the room comes to you.
-  // esoteric (decision 230): a detail of something in sight, at most `detail` a turn beside it,
+  // esoteric (decision 241): a detail of something in sight, at most `detail` a turn beside it,
   // none `reach` steps on; a line of the room's air or ground, `ambient` a turn. Provisional.
   notice: { near: 0.5, reach: 8, secret: 0.04, esoteric: { detail: 0.3, reach: 5, ambient: 0.2 } },
 };
