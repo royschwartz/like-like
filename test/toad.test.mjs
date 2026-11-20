@@ -457,7 +457,7 @@ test('attack! closes the event and strikes the toad, which wakes; a turn passes'
   assert.equal(g.turn, turn + 1);
 });
 
-test('the awake toad fights with CONFIG.toad; when you die it sleeps again where it slept', () => {
+test('the awake toad fights with CONFIG.toad; when you die it is back where it slept, still awake', () => {
   const { g, room, t } = atToad();
   const home = { ...t.home };
   t.asleep = false;
@@ -476,8 +476,8 @@ test('the awake toad fights with CONFIG.toad; when you die it sleeps again where
   }
   assert.ok(died && hits > 0);
   assert.ok(g.log.some((l) => l.text === `the toad strikes you for ${CONFIG.toad.damage} damage`));
-  assert.equal(t.asleep, true);
-  assert.equal(t.stirred, false);
+  assert.equal(t.asleep, false, 'awake and bloodthirsty when you come back (191)');
+  assert.equal(t.lastSeen, null);
   assert.deepEqual([t.x, t.y], [home.x, home.y]);
   assert.equal(room.toad, t);
 });

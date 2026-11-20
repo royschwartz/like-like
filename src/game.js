@@ -288,15 +288,14 @@ function die(g, ev) {
   g.menu = null;
   g.inv = null;
   g.going = null;
-  // The toad goes back to sleep where it slept.
+  // The toad goes back to where it slept. Once woken it stays awake and bloodthirsty: "the
+  // toad should be awake and bloodthirsty when you come back" (decision 191).
   const tr = g.level.toadRoom;
-  if (tr !== null && tr !== undefined && g.level.rooms[tr].toad) toadSleeps(g, g.level.rooms[tr]);
+  if (tr !== null && tr !== undefined && g.level.rooms[tr].toad) toadGoesHome(g, g.level.rooms[tr]);
 }
 
-function toadSleeps(g, room) {
+function toadGoesHome(g, room) {
   const t = room.toad;
-  t.asleep = true;
-  t.stirred = false;
   t.lastSeen = null;
   if (t.x === t.home.x && t.y === t.home.y) return;
   const best = mayStand(g, room, t.home.x, t.home.y, t) ? [t.home.x, t.home.y] : nearestFree(g, room, t.home.x, t.home.y, t);
