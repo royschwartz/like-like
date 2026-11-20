@@ -269,7 +269,8 @@ function wallEdges(x, y, cells, size) {
     if (cx < 0 || cy < 0 || cx >= size || cy >= size) return false;
     const cell = cells[cy * size + cx];
     return cell && cell.state !== 'unknown' &&
-      (cell.t === 'wall' || cell.t === 'door' || cell.t === 'golddoor' || cell.t === 'opendoor');
+      (cell.t === 'wall' || cell.t === 'door' || cell.t === 'golddoor' || cell.t === 'opendoor' ||
+        (cell.t === 'stairs' && (cx === 0 || cy === 0 || cx === size - 1 || cy === size - 1)));
   }
   return (joins(x, y - 1) ? N : 0) | (joins(x + 1, y) ? E : 0) |
     (joins(x, y + 1) ? S : 0) | (joins(x - 1, y) ? W : 0);

@@ -71,20 +71,21 @@ test('the esoteric edition has no sense: the first place is what is here, and wa
   assert.equal(g.turn, t + 1);
 });
 
-test('stairs and corpses come first, and the original edition keeps its sense', () => {
+test('a corpse comes first, the stairs are walked into, and the original edition keeps its sense', () => {
   const g = start();
   act(g, { type: 'move', dir: 's' });
-  assert.deepEqual(shortcuts(g), ['stairs']);
+  assert.deepEqual(shortcuts(g), []);
   currentRoom(g).corpses.push({ x: g.x, y: g.y, items: [{ key: 'key' }] });
-  assert.deepEqual(shortcuts(g), ['stairs', 'corpse']);
-  assert.deepEqual(openList(g), [TEXT.context.stairs, TEXT.context.corpse, TEXT.button.waitName, TEXT.menu.rest, TEXT.menu.back]);
-  act(g, { type: 'choose', index: 1 });
+  assert.deepEqual(shortcuts(g), ['corpse']);
+  assert.deepEqual(openList(g), [TEXT.context.corpse, TEXT.button.waitName, TEXT.menu.rest, TEXT.menu.back]);
+  act(g, { type: 'choose', index: 0 });
   assert.equal(view(g).menu.id, 'corpse');
   act(g, { type: 'choose', index: 0 });
   assert.ok(g.items.some((it) => it.key === 'key'));
   act(g, { type: 'back' });
   const { depth } = g;
-  act(g, { type: 'ability', id: 'stairs' });
+  // the stairs are in the wall below: a step into them goes down
+  act(g, { type: 'move', dir: 's' });
   assert.equal(g.depth, depth + 1);
 
   const original = newGame({ seed: 7 });

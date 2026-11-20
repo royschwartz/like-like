@@ -254,7 +254,8 @@ function drawnLevel(grid) {
   const t = emptyRoom(nb, grid);
   const room = roomState(0, 0, 0, 0, nb, t);
   const entrance = { room: 0, x: mid, y: farEdge - 1, ground: 'dirt' };
-  const stairs = { room: 0, x: mid, y: farEdge };
+  // The stairs are in the wall below where the drawing had them (decision 246).
+  const stairs = { room: 0, x: mid, y: size - 1 };
   for (const y of [1, 2]) for (const x of [1, 2]) t[idx(x, y)] = 'grass';
   t[idx(entrance.x, entrance.y)] = 'entrance';
   t[idx(stairs.x, stairs.y)] = 'stairs';
@@ -292,7 +293,18 @@ export function makeLevel(rng, depth, edition) {
   const far = Math.max(...hops);
   const room = pick(rng, rooms.filter((r) => hops[r.id] === far));
   if (toadLevel && room.id !== 0) {
-    makeToadRoom(rng, room, level);
+    makeToadRoom(rng, room, level, drawn);
+    return level;
+  }
+  if (drawn) {
+    // The esoteric stairs are always in the wall (decision 246).
+    const from = rooms.length === 1 ? [ex, ey] : arrivalCells(room)[0];
+    let spots = edgeStairSpots(room, from);
+    if (rooms.length === 1) spots = spots.filter((s) => s.steps >= CONFIG.stairsAway);
+    if (spots.length === 0) return makeLevel(rng, depth, edition); // very unlikely; try again
+    const { x: sx, y: sy } = pick(rng, spots);
+    room.t[idx(sx, sy)] = 'stairs';
+    level.stairs = { room: room.id, x: sx, y: sy };
     return level;
   }
   let stairSpots = interiorCells(room.t, openSpot);
@@ -368,9 +380,36 @@ function placeStatue(rng, t, shape, door, toad, from) {
   return null;
 }
 
+// Is (x, y) in the wall's ring of a room `size` across?
+export const onRing = (x, y, size) => x === 0 || y === 0 || x === size - 1 || y === size - 1;
+
+// Where stairs may go in a room's wall: [{ x, y, steps }]. Not a corner, not where a gap
+// to the next room is or could be, nor beside one, and with open ground inside it that can
+// be reached from `from`, `steps` away (straight steps).
+function edgeStairSpots(room, from) {
+  const { t, nb } = room;
+  const { size, idx, mid } = terrainGrid(t);
+  const dist = roomDistances(t, from[0], from[1]);
+  const out = [];
+  const sides = {
+    n: (k) => [k, 0, k, 1], s: (k) => [k, size - 1, k, size - 2],
+    w: (k) => [0, k, 1, k], e: (k) => [size - 1, k, size - 2, k],
+  };
+  for (const d of DIRS) {
+    for (let k = 1; k < size - 1; k++) {
+      if (k === mid || (nb[d] !== null && Math.abs(k - mid) === 1)) continue;
+      const [x, y, ix, iy] = sides[d](k);
+      if (t[idx(x, y)] !== 'wall' || !['floor', 'grass'].includes(t[idx(ix, iy)])) continue;
+      const steps = dist[idx(ix, iy)];
+      if (steps >= 0) out.push({ x, y, steps: steps + 1 });
+    }
+  }
+  return out;
+}
+
 // The toad's room: the small room in the corner farthest from where you come in,
 // its golden door, the stairs in it, the toad asleep near the door, and the bust of DEE.
-function makeToadRoom(rng, room, level) {
+function makeToadRoom(rng, room, level, drawn = false) {
   const grid = terrainGrid(room.t);
   const { size, idx } = grid;
   const farEdge = size - 2;
@@ -413,6 +452,15 @@ function makeToadRoom(rng, room, level) {
         room.toad = { x, y, home: { x, y }, hp: CONFIG.toad.hp, asleep: true, stirred: false, key: true, lastSeen: null };
         level.toadRoom = room.id;
         level.stairs = { room: room.id, x: shape.corner[0], y: shape.corner[1] };
+        if (drawn) {
+          // In the esoteric edition the stairs are in the wall beside the small room
+          // (decision 246): its corner is open ground, and the way down is just beyond it.
+          const [cx, cy] = shape.corner;
+          const sy = cy === 1 ? 0 : size - 1;
+          t[idx(cx, cy)] = 'floor';
+          t[idx(cx, sy)] = 'stairs';
+          level.stairs = { room: room.id, x: cx, y: sy };
+        }
         level.golddoor = { room: room.id, x: door.at[0], y: door.at[1] };
         return;
       }

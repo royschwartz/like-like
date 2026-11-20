@@ -16,7 +16,7 @@ test('consecutive matching esoteric arrivals share a row and keep both floor tra
   assert.deepEqual(start.map((l) => l.text), [...TEXT.openingEsoteric, TEXT.log.descend.dirt]);
   assert.equal(new Set(start.map((l) => l.actionId)).size, 3);
   act(g, { type: 'move', dir: 's' });
-  const events = act(g, { type: 'ability', id: 'stairs' });
+  const events = act(g, { type: 'move', dir: 's' });
   assert.equal(events.filter((e) => e.type === 'descend').length, 1);
   assert.equal(g.depth, 2);
   const v = view(g);
@@ -36,7 +36,7 @@ test('different arrivals and arrivals separated by another message keep their ow
     // a message between the two arrivals: observing yourself
     if (sense) act(g, { type: 'observe', x: g.x, y: g.y });
     act(g, { type: 'move', dir: 's' });
-    act(g, { type: 'context' });
+    act(g, { type: 'move', dir: 's' });
     const rows = view(g).log.filter((l) => l.arrival);
     assert.deepEqual(rows.map((l) => l.text), [TEXT.log.descend.dirt, TEXT.log.descend[ground]]);
     assert.ok(rows.every((l) => l.count === undefined));

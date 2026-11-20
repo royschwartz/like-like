@@ -1,5 +1,5 @@
 import { TEXT } from '../src/text.js';
-import { symbolMask } from './symbols.js';
+import { symbolMask, stairsDownMask } from './symbols.js';
 import { terrainMask, grassMasks } from './terrain.js';
 
 const tiles = {
@@ -27,15 +27,20 @@ export function paintEsoteric(cell, x, y, env) {
   const fg = cell.state === 'remembered' ? `color-mix(in srgb, ${color} 44%, ${bg})` : color;
   const label = name.replace(/[[\]]/g, '');
   if (kind === 'toad') return { ch: 't', fg, bg, label };
+  const edge = env.size - 1;
   if (kind === 'door') {
     // An ordinary room exit lies on an edge. An unlocked gold gate is inside.
-    const edge = env.size - 1;
     let passage;
     if (x === 0) passage = 'west';
     else if (x === edge) passage = 'east';
     else if (y === 0) passage = 'north';
     else if (y === edge) passage = 'south';
     return { ch: '', fg, bg, label, passage };
+  }
+  if (kind === 'stairs') {
+    // In the wall, the treads narrow toward the edge: the way down (decision 246).
+    const side = y === 0 ? 'n' : y === edge ? 's' : x === 0 ? 'w' : x === edge ? 'e' : null;
+    if (side) return { ch: '', fg, bg, label, mask: stairsDownMask(side) };
   }
 
   if (kind === 'grass') {

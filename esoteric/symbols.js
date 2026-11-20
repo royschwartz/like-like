@@ -143,6 +143,46 @@ function stampUrl(rows) {
 
 const masks = Object.fromEntries(Object.entries(stamps).map(([kind, rows]) => [kind, stampUrl(rows)]));
 
+// Stairs in the wall (decision 246): treads that get smaller toward the edge go down;
+// bigger toward the edge would go up. The drawn stair narrows toward its top, so it is
+// turned to narrow toward the side of the room it is in.
+const STAIR_TURNS = {
+  n: '',
+  s: 'matrix(1 0 0 -1 0 36)',
+  e: 'rotate(90 18 18)',
+  w: 'rotate(-90 18 18)',
+};
+// The three treads are drawn narrower toward the top than the drawing has them, so the
+// stair clearly gets smaller toward the edge: each tread is squeezed about the middle.
+const TREAD_WIDTHS = [0.5, 0.75, 1];
+const stairsPath = (() => {
+  const lines = stamps.stairs.trim().split('\n');
+  const width = Math.max(...lines.map((line) => line.length));
+  const left = Math.floor((36 - width) / 2);
+  const top = Math.floor((36 - lines.length) / 2);
+  const middle = left + width / 2;
+  let tread = 0;
+  let path = '';
+  lines.forEach((row, y) => {
+    if (!row.includes('#')) {
+      if (lines[y - 1]?.includes('#')) tread++;
+      return;
+    }
+    const k = TREAD_WIDTHS[Math.min(tread, TREAD_WIDTHS.length - 1)];
+    for (const run of row.matchAll(/#+/g)) {
+      const x = middle + (left + run.index - middle) * k;
+      path += `M${x.toFixed(2)} ${top + y}h${(run[0].length * k).toFixed(2)}v1h-${(run[0].length * k).toFixed(2)}z`;
+    }
+  });
+  return path;
+})();
+const downMasks = Object.fromEntries(Object.entries(STAIR_TURNS).map(([side, turn]) => [side, inkMask(36, stairsPath, turn)]));
+
+// The stairs down in the wall on side 'n', 'e', 's' or 'w'.
+export function stairsDownMask(side) {
+  return downMasks[side];
+}
+
 // Open doors have no ink. An actor or corpse on the same cell supplies its own stamp.
 export function symbolMask(kind) {
   return masks[kind];

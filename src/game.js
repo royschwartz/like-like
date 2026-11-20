@@ -5,7 +5,7 @@ import { CONFIG } from './config.js';
 import { terrainGrid } from './grid.js';
 import { TEXT, isSlot } from './text.js';
 import { makeRng, chance, pick, deriveSeed } from './rng.js';
-import { DIRS, STEP, OPP, walkable, makeLevel, arrivalCells } from './gen.js';
+import { DIRS, STEP, OPP, walkable, makeLevel, arrivalCells, onRing } from './gen.js';
 import { fov, frame, los } from './fov.js';
 import { NEIGHBOURS, chebyshev, cutsCorner, isStep, stepsFrom, walkDown } from './path.js';
 
@@ -173,7 +173,9 @@ function creatureBlocked(room) {
   const { idx } = terrainGrid(room.t);
   let b = blockCache.get(room);
   if (!b) {
-    b = room.t.map((c) => CREATURE_BLOCKED.has(c));
+    const { size } = terrainGrid(room.t);
+    // stairs in the wall (esoteric) are the way down, never somewhere to stand
+    b = room.t.map((c, i) => CREATURE_BLOCKED.has(c) || (c === 'stairs' && onRing(i % size, Math.floor(i / size), size)));
     for (const [x, y] of arrivalCells(room)) b[idx(x, y)] = true;
     blockCache.set(room, b);
   }
@@ -365,6 +367,12 @@ function step(g, dx, dy, ev) {
   if (c === 'wall') return; // no turn, nothing
   if (c === 'statue') return openBust(g, ev); // into the bust, never onto it: its event, no turn
   if (c === 'golddoor') return goldDoor(g, room, x, y, ev);
+  if (c === 'stairs' && onRing(x, y, terrainGrid(room.t).size)) {
+    // Stairs in the wall (esoteric, decision 246) are walked into, as a gap is, and you go
+    // down. Only a straight step reaches them, and nothing can be in the way.
+    if (dx && dy) return;
+    return descend(g, ev);
+  }
   const toad = toadAt(room, x, y);
   if (toad) {
     // Into the toad asleep: its song, and no turn, as the bust (decision 155). Awake, it is
