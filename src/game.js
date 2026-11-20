@@ -653,10 +653,18 @@ function enchant(g, i, ev) {
 function descend(g, ev) {
   const esoteric = g.edition === 'esoteric';
   // esoteric: each floor is kept as you left it, so you can go back up and down again
-  // (decision 257). The stairs up below are anywhere on its edge (decision 323).
+  // (decision 257). The stairs up below are on the other side of the screen from these, in
+  // the same row or column, so you come out going the way you went in (decision 340).
+  let up = null;
+  const s = g.level.stairs;
+  if (esoteric && s?.side) {
+    const edge = terrainGrid(g.level.rooms[s.room].t).size - 1;
+    const across = s.side === 'e' || s.side === 'w';
+    up = { x: across ? edge - s.x : s.x, y: across ? s.y : edge - s.y, side: OPP[s.side] };
+  }
   if (esoteric) g.floors[g.depth] = g.level;
   g.depth++;
-  g.level = (esoteric && g.floors[g.depth]) || makeLevel(g.rng, g.depth, g.edition);
+  g.level = (esoteric && g.floors[g.depth]) || makeLevel(g.rng, g.depth, g.edition, up);
   const e = g.level.entrance;
   g.room = e.room;
   g.x = e.x;

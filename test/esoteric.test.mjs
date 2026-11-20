@@ -258,8 +258,8 @@ const waysIn = (t, size, x, y) =>
     return nx >= 0 && ny >= 0 && nx < size && ny < size && OPEN.includes(t[ny * size + nx]);
   }).length;
 
-test('going down, you arrive just inside stairs up anywhere on the edge with one way in; up takes you back', () => {
-  let moved = 0;
+test('going down, you arrive just inside stairs up on the other side of the screen, going the same way; up takes you back', () => {
+  let mirrored = 0;
   let floors = 0;
   for (let seed = 1; seed <= 25; seed++) {
     const g = newGame({ edition: 'esoteric', seed });
@@ -282,9 +282,14 @@ test('going down, you arrive just inside stairs up anywhere on the edge with one
       // you arrive on that one way in
       assert.equal(Math.abs(g.x - upx) + Math.abs(g.y - upy), 1, 'you arrive just inside the stairs up');
       assert.ok(OPEN.includes(here[g.y * size + g.x]));
-      // they need not be where the stairs down above were (decision 323)
+      // across the screen from the stairs down above, in the same row or column, and you
+      // come out going the way you went in (decision 340)
+      const across = side === 'e' || side === 'w';
       floors++;
-      if (g.room !== room || upx !== x || upy !== y) moved++;
+      if (upx === (across ? size - 1 - x : x) && upy === (across ? y : size - 1 - y)) {
+        mirrored++;
+        assert.deepEqual([g.x, g.y], [upx + dx, upy + dy], `seed ${seed} floor ${floor + 1}: going the same way`);
+      }
       // every open cell of the floor can be reached
       const dist = levelDistances(g.level);
       g.level.rooms.forEach((r, k) => r.t.forEach((c, i) => {
@@ -302,7 +307,7 @@ test('going down, you arrive just inside stairs up anywhere on the edge with one
       assert.deepEqual([g.x, g.y], [g.level.entrance.x, g.level.entrance.y], 'down again, just inside the same stairs up');
     }
   }
-  assert.ok(moved > floors / 2, `the stairs up moved on ${moved} of ${floors} floors`);
+  assert.ok(mirrored >= floors * 0.95, `the stairs up across from the stairs down on ${mirrored} of ${floors} floors`);
   const look = { size: 7, key: 3, cells: Array.from({ length: 49 }, () => visible('wall')) };
   const down = paintEsoteric(visible('stairs'), 3, 6, look).mask;
   const up = paintEsoteric(visible('upstairs'), 3, 6, look).mask;

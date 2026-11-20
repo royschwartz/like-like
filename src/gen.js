@@ -154,14 +154,16 @@ export function roomConnected(t) {
 }
 
 // shaped: an esoteric room, cut to a shape of its own (decision 256).
-function makeRoom(rng, nb, grid, shaped = false) {
+// keep: stairs up to put in it, { x, y, side }: the cell inside them is kept open and they and
+// the cells either side of them stay wall (decision 340).
+function makeRoom(rng, nb, grid, shaped = false, keep = null) {
   for (let tries = 0; ; tries++) {
     const t = emptyRoom(nb, grid);
-    const whole = !shaped || carveShape(rng, t, nb, grid, tries > 40);
-    const parted = shaped && tries <= 40 && addPartitions(rng, t, grid);
+    const whole = !shaped || carveShape(rng, t, nb, grid, keep, tries > 40);
+    const parted = shaped && tries <= 40 && addPartitions(rng, t, grid, keep);
     if (whole && !parted) addObstacles(rng, t);
     addGrass(rng, t);
-    if (roomConnected(t)) return t;
+    if (roomConnected(t) && keepsStairs(t, keep, grid)) return t;
   }
 }
 
@@ -179,8 +181,38 @@ const perpendicular = (side) => (side === 'n' || side === 's' ? [[1, 0], [-1, 0]
 // The one cell stairs in the wall at { x, y, side } are reached from: just inside them.
 const insideStairs = (s) => [s.x - STEP[s.side][0], s.y - STEP[s.side][1]];
 
+// The cells stairs kept for at keep must leave closed: the stairs and the walls either side.
+function keptClosed(keep) {
+  if (!keep) return [];
+  return [[keep.x, keep.y], ...perpendicular(keep.side).map(([dx, dy]) => [keep.x + dx, keep.y + dy])];
+}
+
+// Does t leave room for the stairs up at keep: open ground inside, and wall at them and
+// either side of them, so the cell inside is their one way in?
+function keepsStairs(t, keep, grid) {
+  if (!keep) return true;
+  const { idx } = grid;
+  const [ix, iy] = insideStairs(keep);
+  if (!['floor', 'grass'].includes(t[idx(ix, iy)])) return false;
+  return keptClosed(keep).every(([x, y]) => t[idx(x, y)] === 'wall');
+}
+
+// Does the way from the gap on side d to the middle pass any of these cells?
+function crossesWay(d, cells, grid) {
+  const { mid, arrivals, doors } = grid;
+  const way = [doors[d]];
+  let [x, y] = arrivals[d];
+  for (;;) {
+    way.push([x, y]);
+    if (x === mid && y === mid) break;
+    x += Math.sign(mid - x);
+    y += Math.sign(mid - y);
+  }
+  return cells.some(([cx, cy]) => way.some(([wx, wy]) => wx === cx && wy === cy));
+}
+
 // Cut t to a shape. whole: the full five by five. Returns true if nothing was cut away.
-function carveShape(rng, t, nb, grid, whole) {
+function carveShape(rng, t, nb, grid, keep, whole) {
   const { size, mid, idx, arrivals } = grid;
   const lo = 1;
   const hi = size - 2;
@@ -210,6 +242,11 @@ function carveShape(rng, t, nb, grid, whole) {
     add(x, y);
   };
   for (const d of DIRS) if (nb[d] !== null) toMiddle(...arrivals[d]);
+  if (keep) {
+    // a way from the cell inside the stairs to the middle; the stairs and either side stay wall
+    toMiddle(...insideStairs(keep));
+    for (const [cx, cy] of keptClosed(keep)) open.delete(idx(cx, cy));
+  }
   for (let y = 0; y < size; y++) {
     for (let x = 0; x < size; x++) {
       const i = idx(x, y);
@@ -230,10 +267,11 @@ function carveShape(rng, t, nb, grid, whole) {
 // open ground, each with open ground on both sides and a way round one end. Returns
 // whether any went in. Never on where you come in.
 const PARTITION_CHANCES = [0.5, 0.3];
-function addPartitions(rng, t, grid) {
+function addPartitions(rng, t, grid, keep) {
   const { size, idx } = grid;
   const isOpen = (x, y) => x >= 0 && y >= 0 && x < size && y < size && t[idx(x, y)] === 'floor';
   const spare = DIRS.map((d) => grid.arrivals[d]);
+  if (keep) spare.push(insideStairs(keep));
   const spared = (x, y) => spare.some(([sx, sy]) => sx === x && sy === y);
   let added = false;
   for (const p of PARTITION_CHANCES) {
@@ -412,16 +450,32 @@ function ensureGrass(rng, room) {
   if (spots.length) growGrass(rng, room.t, pick(rng, spots));
 }
 
-// In the esoteric edition the stairs up and the stairs down are each anywhere on the edge of
-// the map that has one way in, and need not line up with the floor above's (decision 323).
-export function makeLevel(rng, depth, edition) {
+// In the esoteric edition the stairs down are anywhere on the edge of the map that has one way
+// in (decision 323). `up`: where the stairs up go, { x, y, side }: on the other side of the
+// screen from the stairs down above, in the same row or column and facing the same way, so you
+// keep going the way you went (decision 340). If the first room can't have them there, they go
+// anywhere stairs may.
+export function makeLevel(rng, depth, edition, up = null) {
   const drawn = edition === 'esoteric';
   const grid = drawn ? roomGrid(CONFIG.esotericInteriorSize + 2) : standardGrid;
   const { idx } = grid;
   if (drawn && depth === 1) return firstFloor(rng, grid);
   // the esoteric edition's toad is on its first floor
   const toadLevel = !drawn && depth === CONFIG.toadLevel;
-  const spots = placeRooms(rng, toadLevel ? CONFIG.toadExtraRoom : 0);
+  // The stairs up must not stand on the way from a gap of the first room to its middle, so
+  // the first room has no neighbour on such a side. If no layout will do, they go elsewhere.
+  if (up && !up.side) up = null;
+  const blocks = up ? DIRS.filter((d) => crossesWay(d, keptClosed(up), grid)) : [];
+  let spots;
+  for (let tries = 0; ; tries++) {
+    spots = placeRooms(rng, toadLevel ? CONFIG.toadExtraRoom : 0);
+    const clash = blocks.some((d) => spots.some(([gx, gy]) => gx === STEP[d][0] && gy === STEP[d][1]));
+    if (!clash) break;
+    if (tries > 60) {
+      up = null;
+      break;
+    }
+  }
   const salt = int(rng, 1, 1 << 20);
   const at = new Map(spots.map(([gx, gy], i) => [`${gx},${gy}`, i]));
   const rooms = spots.map(([gx, gy], i) => {
@@ -430,13 +484,13 @@ export function makeLevel(rng, depth, edition) {
       const n = at.get(`${gx + STEP[d][0]},${gy + STEP[d][1]}`);
       nb[d] = n === undefined ? null : n;
     }
-    return roomState(i, gx, gy, salt * 8 + i, nb, makeRoom(rng, nb, grid, drawn));
+    return roomState(i, gx, gy, salt * 8 + i, nb, makeRoom(rng, nb, grid, drawn, i === 0 ? up : null));
   });
 
   // The entrance, in the first room, in grass or on dirt. In the esoteric edition, the
   // stairs up in the wall, and you arrive just inside them.
   const first = rooms[0];
-  const [ex, ey, ground] = drawn ? placeUpstairs(rng, first, grid) : placeEntrance(rng, first.t);
+  const [ex, ey, ground] = drawn ? placeUpstairs(rng, first, grid, up) : placeEntrance(rng, first.t);
   if (!drawn) first.t[idx(ex, ey)] = 'entrance';
   const level = { depth, rooms, entrance: { room: 0, x: ex, y: ey, ground }, stairs: null, toadRoom: null };
 
@@ -461,7 +515,7 @@ export function makeLevel(rng, depth, edition) {
       room.t = makeRoom(rng, room.nb, grid, tries < 30);
       spots = find();
     }
-    if (spots.length === 0) return makeLevel(rng, depth, edition); // try again
+    if (spots.length === 0) return makeLevel(rng, depth, edition, up); // try again
     const { x: sx, y: sy, side } = pick(rng, spots);
     room.t[idx(sx, sy)] = 'stairs';
     level.stairs = { room: room.id, x: sx, y: sy, side };
@@ -554,11 +608,12 @@ export function ringSide(x, y, size) {
   return null;
 }
 
-// The stairs up in the first room's wall, anywhere stairs may go there (decision 323).
-// Returns where you arrive, just inside them: [x, y, 'grass' | 'dirt'].
-function placeUpstairs(rng, room, grid) {
+// The stairs up in the first room's wall: at `up` if the room was made for them (decision 340),
+// else anywhere stairs may go there (323). Returns where you arrive, just inside them:
+// [x, y, 'grass' | 'dirt'].
+function placeUpstairs(rng, room, grid, up) {
   const { idx } = grid;
-  let at = null;
+  let at = up && keepsStairs(room.t, up, grid) ? up : null;
   while (!at) {
     const open = interiorCells(room.t, (c) => c === 'floor' || c === 'grass');
     const from = arrivalCells(room)[0] ?? open[0];
