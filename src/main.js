@@ -57,7 +57,9 @@ if (esoteric && document.fonts) await document.fonts.load('1em "Crooked Hand"').
 const game = newGame({ seed: readSeed(), look: readLook(), outlines: readOutlines(), edition: document.documentElement.dataset.edition, opening: esoteric });
 const opening = view(game);
 const size = opening.room.size ?? Math.sqrt(opening.cells.length);
-const renderer = createRenderer(document, { cellPainter: edition?.paintEsoteric, size });
+// the square that means more, a new version of it each time one is made (esoteric)
+const more = esoteric ? await import('../esoteric/more.js') : null;
+const renderer = createRenderer(document, { cellPainter: edition?.paintEsoteric, moreMark: more?.moreMark, size });
 renderer.draw(opening);
 const timing = renderer.timing;
 

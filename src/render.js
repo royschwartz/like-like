@@ -20,7 +20,9 @@ const CELL_FX = ['fx-hit', 'fx-miss', 'fx-kill', 'fx-observe', 'fx-dig', 'fx-unl
 
 // withMarks: draw the marks round a held or aimed square (marks.js). The marks study
 // draws its own, so it turns these off.
-export function createRenderer(root = document, { marks: withMarks = true, cellPainter = paintCell, size = CONFIG.roomSize } = {}) {
+// moreMark: the esoteric edition's square for "more", a new version of it each call: given,
+// it is set as --more on the stat row once and on each item listed as it is made.
+export function createRenderer(root = document, { marks: withMarks = true, cellPainter = paintCell, size = CONFIG.roomSize, moreMark = null } = {}) {
   const $ = (id) => root.querySelector('#' + id);
   const screen = $('screen');
   const map = $('map');
@@ -46,6 +48,7 @@ export function createRenderer(root = document, { marks: withMarks = true, cellP
   const optButtons = [0, 1, 2, 3].map((i) => root.querySelector(`#options [data-choose="${i}"]`));
 
   screen.style.setProperty('--room-size', size);
+  if (moreMark) statRow.style.setProperty('--more', moreMark());
   const cells = buildMap(map, size);
   const lastPaint = new Array(size * size).fill(null);
   const stats = buildStats(statRow);
@@ -591,6 +594,7 @@ export function createRenderer(root = document, { marks: withMarks = true, cellP
         link.dataset.kind = o.kind;
         link.textContent = words(o.label);
         link.disabled = !!o.disabled;
+        if (o.kind === 'item' && moreMark) link.style.setProperty('--more', moreMark());
         // Items (and memories) are things in a list, under the text, not choices; the
         // choices, marked with an arrow, come after them (decision 305).
         (o.kind === 'item' && eventItems ? eventItems : eventLinks).appendChild(link);

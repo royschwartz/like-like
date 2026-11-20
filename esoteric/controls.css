@@ -68,32 +68,23 @@
   color: var(--paper);
   font-size: var(--text-size);
 }
-/* "square means more" and "> is the universal language of action" (decision 314).
-   The square: small and slightly imperfect, five pixels a side with its top left corner
-   gone and a nick in its right side. At the end of the stat row, which opens the psyche,
-   and beside each item listed, which opens more about it. */
-#screen {
-  --more-mark: polygon(20% 0, 100% 0, 100% 40%, 80% 40%, 80% 60%, 100% 60%, 100% 100%,
-    0 100%, 0 20%, 20% 20%);
-}
+/* "square means more" (decisions 314, 316): a small hollow square, black inside, drawn
+   by hand in several versions in esoteric/more.js; each one made takes a different version
+   (render.js sets it as --more). At the end of the stat row, which opens the psyche, and
+   beside each item listed, which opens more about it. The actions under the stats have no
+   arrow ("remove those actually in the main screen the >"). */
 #stats::after,
 #event-items .link::after {
   content: "";
   flex: none;
-  width: .6em;
-  height: .6em;
+  width: .75em;
+  height: .75em;
   background: currentColor;
-  clip-path: var(--more-mark);
+  -webkit-mask: var(--more) center / 100% 100% no-repeat;
+  mask: var(--more) center / 100% 100% no-repeat;
+  image-rendering: pixelated;
 }
-#event-items .link::after { margin-left: .6em; }
-/* The actions under the stats are actions: each begins with the arrow. The star is not one
-   of them; it opens the list of them. */
-#btn-context::before,
-#btn-secondary::before,
-#btn-wait::before {
-  content: "> " / "";
-  white-space: pre;
-}
+#event-items .link::after { margin-left: .45em; }
 #stats.down { background: var(--paper); color: var(--slab); }
 #stats.down .stat .v { color: inherit; }
 
