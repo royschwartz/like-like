@@ -3,19 +3,18 @@
 // numbers, and down and up, which take you to the stairs and through them. The map stays in
 // sight and can be played. Kept in localStorage.
 
-import { ANIMS, byKey } from './fx.js';
+import { ANIMS, byKey, paramsOf } from './fx.js';
 
 const KEY = 'likelike.study.stairs';
 const FRAME = { min: 30, max: 200, step: 10 };
-const BLACK = { min: 0, max: 8, step: 1 };
 
 function defaults() {
   const opts = {};
-  for (const a of ANIMS) opts[a.key] = { black: a.black ?? 0, n: a.n ? a.n.value : 0 };
+  for (const a of ANIMS) opts[a.key] = Object.fromEntries(paramsOf(a).map((p) => [p.key, p.value]));
   return { frame: 70, down: 'fold', up: 'fold', target: 'both', focus: 'fold', opts };
 }
 
-const clamp = (v, { min, max, step }) => Math.round(Math.min(max, Math.max(min, Number(v))) / step) * step;
+const clamp = (v, { min, max, step }) => Number((Math.round(Math.min(max, Math.max(min, Number(v))) / step) * step).toFixed(2));
 
 function load() {
   const s = defaults();
@@ -32,8 +31,7 @@ function load() {
   for (const a of ANIMS) {
     const o = saved.opts?.[a.key];
     if (!o) continue;
-    if (a.black !== null && Number.isFinite(Number(o.black))) s.opts[a.key].black = clamp(o.black, BLACK);
-    if (a.n && Number.isFinite(Number(o.n))) s.opts[a.key].n = clamp(o.n, { ...a.n, step: 1 });
+    for (const p of paramsOf(a)) if (o[p.key] != null && Number.isFinite(Number(o[p.key]))) s.opts[a.key][p.key] = clamp(o[p.key], p);
   }
   return s;
 }
@@ -94,39 +92,40 @@ export function createPanel({ onDown, onUp, mapWrap }) {
     targets.set(t, b);
   }
 
-  const slider = (label) => {
+  // A slider: its row, and a way to set what it shows.
+  const slider = (label, range, onInput) => {
     const row = el('label', 'st-row st-slider');
     const name = el('span', 'st-label', label);
     const input = el('input');
     input.type = 'range';
+    input.min = range.min;
+    input.max = range.max;
+    input.step = range.step;
     const value = el('span', 'st-value');
+    input.addEventListener('input', () => onInput(clamp(input.value, range)));
     row.append(name, input, value);
-    return { row, name, input, value };
+    return { row, input, value };
   };
-  const frame = slider('frame');
-  const black = slider('black');
-  const own = slider('');
-
-  frame.input.min = FRAME.min;
-  frame.input.max = FRAME.max;
-  frame.input.step = FRAME.step;
-  frame.input.addEventListener('input', () => {
-    settings.frame = clamp(frame.input.value, FRAME);
+  const frame = slider('frame', FRAME, (v) => {
+    settings.frame = v;
     changed();
   });
-  black.input.min = BLACK.min;
-  black.input.max = BLACK.max;
-  black.input.step = BLACK.step;
-  black.input.addEventListener('input', () => {
-    settings.opts[settings.focus].black = clamp(black.input.value, BLACK);
-    changed();
-  });
-  own.input.step = 1;
-  own.input.addEventListener('input', () => {
+  // the picked animation's own numbers, made again when another is picked
+  const own = el('div', 'st-own');
+  let ownFor = null;
+  let ownSliders = [];
+  function buildOwn() {
     const a = byKey[settings.focus];
-    if (a.n) settings.opts[settings.focus].n = clamp(own.input.value, { ...a.n, step: 1 });
-    changed();
-  });
+    ownFor = a.key;
+    ownSliders = paramsOf(a).map((p) => {
+      const s = slider(p.name, p, (v) => {
+        settings.opts[a.key][p.key] = v;
+        changed();
+      });
+      return { p, ...s };
+    });
+    own.replaceChildren(...ownSliders.map((s) => s.row));
+  }
 
   const go = el('div', 'st-row st-go');
   const down = el('button', 'st-go-btn', '> down');
@@ -138,7 +137,7 @@ export function createPanel({ onDown, onUp, mapWrap }) {
   go.append(down, up);
 
   const readout = el('div', 'st-readout');
-  bottom.append(targetRow, frame.row, black.row, own.row, go, readout);
+  bottom.append(targetRow, go, frame.row, own, readout);
 
   // ---- shown again after hide ----
   const show = el('button', 'st-show', 'stairs');
@@ -149,11 +148,9 @@ export function createPanel({ onDown, onUp, mapWrap }) {
   root.append(top, bottom, show);
   document.body.append(root);
 
-  let open = true;
   let last = null; // what was last played: { way, key, frames, ms }
 
   function setOpen(on) {
-    open = on;
     root.classList.toggle('closed', !on);
     place();
   }
@@ -171,9 +168,7 @@ export function createPanel({ onDown, onUp, mapWrap }) {
   function describe(key) {
     const a = byKey[key];
     const o = settings.opts[key];
-    const parts = [];
-    if (a.n) parts.push(`${a.n.name} ${o.n}`);
-    if (a.black !== null) parts.push(`black ${o.black}`);
+    const parts = paramsOf(a).map((p) => `${p.name} ${o[p.key]}`);
     return parts.length ? `${a.name} (${parts.join(', ')})` : a.name;
   }
 
@@ -189,17 +184,11 @@ export function createPanel({ onDown, onUp, mapWrap }) {
     source.textContent = `${a.name}: ${a.source}`;
     frame.input.value = settings.frame;
     frame.value.textContent = `${settings.frame} ms`;
-    const o = settings.opts[settings.focus];
-    black.row.hidden = a.black === null;
-    black.input.value = o.black;
-    black.value.textContent = `${o.black} frame${o.black === 1 ? '' : 's'}`;
-    own.row.hidden = !a.n;
-    if (a.n) {
-      own.name.textContent = a.n.name;
-      own.input.min = a.n.min;
-      own.input.max = a.n.max;
-      own.input.value = o.n;
-      own.value.textContent = String(o.n);
+    if (ownFor !== a.key) buildOwn();
+    for (const s of ownSliders) {
+      const v = settings.opts[a.key][s.p.key];
+      s.input.value = v;
+      s.value.textContent = String(v);
     }
     const lastLine = last ? `last: ${last.way} · ${byKey[last.key].name} · ${last.frames} frames · ${last.ms} ms` : 'last: none yet';
     readout.textContent = `${lastLine}\ndown: ${describe(settings.down)}\nup: ${describe(settings.up)}\nframe ${settings.frame} ms`;

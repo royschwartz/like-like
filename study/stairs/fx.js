@@ -26,9 +26,14 @@ export const ANIMS = [
     source: 'Gauntlet (1985) has exit animations; as remembered, the hero shrinks into the exit (not checked). Here the spiral shrinks into the stairs and grows out of the other ones',
   },
   {
-    key: 'fold', name: 'folding stairs', black: 1,
+    key: 'fold', name: 'folding stairs', black: 1, blackName: 'black, no roll',
     n: { name: 'frames a tread', min: 1, max: 6, value: 2 },
-    source: 'The Tower of Druaga (1985): the door turns into a stair tile and Gil walks onto it. Here you vanish, the treads go one at a time from your side to the edge, and on the other floor they come back from the edge before you appear',
+    more: [
+      { key: 'gone', name: 'gone first', min: 0, max: 8, step: 1, value: 2 },
+      { key: 'roll', name: 'roll, frames a tile', min: 0, max: 3, step: 0.5, value: 0.5 },
+      { key: 'wait', name: 'wait to appear', min: 0, max: 10, step: 1, value: 3 },
+    ],
+    source: 'The Tower of Druaga (1985): the door turns into a stair tile and Gil walks onto it. Here you vanish, the treads go one at a time from your side to the edge, the screen rolls over the way you went (0: black instead), the treads come back from the edge, and then you appear',
   },
   {
     key: 'closeup', name: 'close-up', black: 0,
@@ -79,6 +84,15 @@ export const ANIMS = [
 
 export const byKey = Object.fromEntries(ANIMS.map((a) => [a.key, a]));
 
+// An animation's numbers, as the panel shows them: { key, name, min, max, step, value }.
+export function paramsOf(a) {
+  const list = [];
+  if (a.n) list.push({ key: 'n', step: 1, ...a.n });
+  list.push(...(a.more || []));
+  if (a.black !== null) list.push({ key: 'black', name: a.blackName || 'black', min: 0, max: 8, step: 1, value: a.black });
+  return list;
+}
+
 // ---- the stair drawing, taken apart into its three treads -------------------------------
 
 // A mask's svg: its transform and its little rectangles, as [x, y, w, h].
@@ -126,11 +140,11 @@ const TREAD_MASKS = (() => {
 // ---- the frames ----------------------------------------------------------------------
 
 // A frame: `cells(i)` says what each square shows: 'o' the old floor, 'n' the new one,
-// 'b' black. `both`: both floors whole, moved by `shift` rows ([old, new]). `invert`: 'o' or
-// 'n'. `patch`: 'o' or 'n', the floor whose spiral has left its square. `actor`: the spiral
-// drawn on its own, { on, at, t, scale }: at the stairs `at`, gone `t` of a square toward the
-// edge, at `scale`. `fold`: { on, keep }: which treads of that floor's stairs are drawn.
-// `bars`: the close-up's treads, [{ z }].
+// 'b' black. `both`: both floors whole, moved by `shift` squares ([[x, y] old, [x, y] new]).
+// `invert`: 'o' or 'n'. `patch`: 'o', 'n' or 'on', the floors whose spiral has left its
+// square. `actor`: the spiral drawn on its own, { on, at, t, scale }: at the stairs `at`, gone
+// `t` of a square toward the edge, at `scale`. `fold`: { o, n }: which treads of each floor's
+// stairs are drawn. `bars`: the close-up's treads, [{ z }]. `ms`: how many frames it lasts.
 const showAll = (s) => () => s;
 
 function framesFor(key, ctx, o) {
@@ -166,16 +180,22 @@ function framesFor(key, ctx, o) {
 
     case 'fold': {
       // You vanish first; then the treads go one at a time, in the order you would walk
-      // them, from your side to the edge. On the other floor they come back one at a time
-      // from the edge, and then you appear.
+      // them, from your side to the edge. The screen rolls over the way you went, a tile at a
+      // time, as it does between rooms (or, with no roll, goes black). On the other floor the
+      // treads come back one at a time from the edge, and then, after a wait, you appear.
       if (!os || !ns) return black();
       const out = [];
-      const hold = (f) => { for (let h = 0; h < n; h++) out.push(f); };
+      const hold = (k, f) => { for (let h = 0; h < k; h++) out.push(f); };
       const leaving = ctx.old.roomFirst;
-      for (let j = 0; j <= 3; j++) hold({ cells: showAll('o'), patch: 'o', fold: { on: 'o', keep: leaving.slice(j) } });
-      out.push(...black());
       const coming = [...ctx.neu.roomFirst].reverse();
-      for (let j = 0; j <= 3; j++) hold({ cells: showAll('n'), patch: 'n', fold: { on: 'n', keep: coming.slice(0, j) } });
+      for (let j = 0; j <= 3; j++) hold(j === 0 ? o.gone : n, { cells: showAll('o'), patch: 'o', fold: { o: leaving.slice(j) } });
+      if (o.roll > 0) {
+        const [sx, sy] = STEP[os.side];
+        for (let k = 1; k < size; k++) {
+          out.push({ both: true, shift: [[-sx * k, -sy * k], [sx * (size - k), sy * (size - k)]], patch: 'on', fold: { o: [], n: [] }, ms: o.roll });
+        }
+      } else out.push(...black());
+      for (let j = 0; j <= 3; j++) hold(j === 3 ? o.wait : n, { cells: showAll('n'), patch: 'n', fold: { n: coming.slice(0, j) } });
       return out;
     }
 
@@ -273,7 +293,7 @@ function framesFor(key, ctx, o) {
       for (let k = 1; ; k++) {
         const s = Math.min(total, k * n);
         if (s >= total) break; // the last is the new floor in place, which the end shows
-        out.push({ both: true, shift: way === 'down' ? [-s, total - s] : [s, -(total - s)] });
+        out.push({ both: true, shift: way === 'down' ? [[0, -s], [0, total - s]] : [[0, s], [0, -(total - s)]] });
       }
       return out;
     }
@@ -341,28 +361,30 @@ export function createStairsFx(host, size) {
   }
 
   // oldMap, newMap: copies of the map before and after. before, after: the views. way: 'down'
-  // or 'up'. Returns the frames it will play.
+  // or 'up'. Returns how many frames it will play and how long they take, { frames, ms }.
   function play({ oldMap, newMap, before, after, way, key, opts, frameMs, done }) {
     stop();
     const ctx = setup({ oldMap, newMap, before, after, way });
     const frames = framesFor(key, ctx, opts);
     run = { sheet: ctx.sheet, timer: null, done };
+    const ms = Math.round(frames.reduce((sum, f) => sum + frameMs * (f.ms ?? 1), 0));
     if (frames.length === 0) {
       stop();
-      return 0;
+      return { frames: 0, ms: 0 };
     }
     let k = 0;
     const tick = () => {
       if (!run) return;
       clearTimeout(run.timer);
       if (k >= frames.length) return stop();
-      apply(ctx, frames[k++]);
-      run.timer = setTimeout(tick, frameMs);
+      const f = frames[k++];
+      apply(ctx, f);
+      run.timer = setTimeout(tick, frameMs * (f.ms ?? 1));
     };
     run.tick = tick;
     host.appendChild(ctx.sheet);
     tick();
-    return frames.length;
+    return { frames: frames.length, ms };
   }
 
   // For checking by hand: the next frame now.
@@ -489,17 +511,18 @@ function setFold(side, keep) {
 
 function apply(ctx, f) {
   const { size, old, neu } = ctx;
-  setPatched(old, f.patch === 'o');
-  setPatched(neu, f.patch === 'n');
-  setFold(old, f.fold?.on === 'o' ? f.fold.keep : null);
-  setFold(neu, f.fold?.on === 'n' ? f.fold.keep : null);
+  setPatched(old, f.patch === 'o' || f.patch === 'on');
+  setPatched(neu, f.patch === 'n' || f.patch === 'on');
+  setFold(old, f.fold?.o ?? null);
+  setFold(neu, f.fold?.n ?? null);
   for (let i = 0; i < size * size; i++) {
     const s = f.both ? null : f.cells(i);
     old.cells[i].style.visibility = f.both || s === 'o' ? '' : 'hidden';
     neu.cells[i].style.visibility = f.both || s === 'n' ? '' : 'hidden';
   }
-  old.el.style.transform = f.shift ? `translateY(${(f.shift[0] * 100) / size}%)` : '';
-  neu.el.style.transform = f.shift ? `translateY(${(f.shift[1] * 100) / size}%)` : '';
+  const move = ([x, y]) => `translate(${(x * 100) / size}%, ${(y * 100) / size}%)`;
+  old.el.style.transform = f.shift ? move(f.shift[0]) : '';
+  neu.el.style.transform = f.shift ? move(f.shift[1]) : '';
   old.el.style.filter = f.invert === 'o' ? 'invert(1)' : '';
   neu.el.style.filter = f.invert === 'n' ? 'invert(1)' : '';
 

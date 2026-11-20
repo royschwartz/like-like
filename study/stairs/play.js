@@ -88,8 +88,8 @@ function playStairs(oldMap, before, after, way) {
   const s = panel.settings;
   const key = way === 'down' ? s.down : s.up;
   const opts = s.opts[key];
-  const frames = fx.play({ oldMap, newMap: mapEl.cloneNode(true), before, after, way, key, opts, frameMs: s.frame });
-  panel.played({ way, key, frames, ms: frames * s.frame });
+  const { frames, ms } = fx.play({ oldMap, newMap: mapEl.cloneNode(true), before, after, way, key, opts, frameMs: s.frame });
+  panel.played({ way, key, frames, ms });
 }
 
 // A fast move takes its next step one step's time from now, unless something has taken

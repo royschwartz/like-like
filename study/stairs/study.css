@@ -167,13 +167,16 @@
   background: var(--st-ink) !important;
   border-color: var(--st-ink) !important;
 }
+.st-slider .st-label {
+  flex: 0 0 11.5em;
+}
 .st-slider input {
   flex: 1;
   min-width: 0;
   accent-color: var(--st-ink);
 }
 .st-value {
-  flex: 0 0 5.5em;
+  flex: 0 0 4em;
   text-align: right;
 }
 .st-go-btn {
