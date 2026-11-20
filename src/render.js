@@ -636,13 +636,14 @@ export function createRenderer(root = document, { marks: withMarks = true, cellP
     } else {
       setText(menuButtons.inv, view.inv ? TEXT.menu.back : TEXT.button.inv);
     }
-    setText(btnWait, TEXT.button.wait ?? '');
+    // The esoteric edition writes wait out, as its list of abilities does.
+    setText(btnWait, (btnMemories ? TEXT.button.waitName : TEXT.button.wait) ?? '');
     setText(btnUse, TEXT.button.use ?? '');
     // the two labels that are marks, not words: their ink in the middle of the button
     centreInk(menuButtons.act);
-    centreInk(btnWait);
+    if (!btnMemories) centreInk(btnWait);
     const shortcuts = view.abilities || [];
-    const ctx = shortcuts[0] || view.context || {};
+    const ctx = btnSecondary && !view.inv ? shortcuts[0] || {} : shortcuts[0] || view.context || {};
     if (btnSecondary) {
       btnSecondary.hidden = !shortcuts[1];
       setText(btnSecondary, shortcuts[1]?.label);
@@ -650,10 +651,18 @@ export function createRenderer(root = document, { marks: withMarks = true, cellP
       else btnSecondary.removeAttribute('data-ability');
       if (shortcuts[0]) setAttr(btnContext, 'data-ability', shortcuts[0].id);
       else btnContext.removeAttribute('data-ability');
+      // nothing to do here: the first place stays, empty, so wait never moves
+      btnContext.classList.toggle('empty', !ctx.label);
+      btnContext.disabled = !ctx.label;
     }
     setText(btnContext, ctx.label == null ? '' : ctx.label);
     if (ctx.id) setAttr(btnContext, 'data-context', ctx.id);
     else btnContext.removeAttribute('data-context');
+    // A second variable action only if the row has room for it beside wait and the star.
+    if (btnSecondary && !btnSecondary.hidden) {
+      const row = btnSecondary.parentElement;
+      if (row.scrollWidth > row.clientWidth + 1) btnSecondary.hidden = true;
+    }
   }
 
   function drawOptions(menu) {

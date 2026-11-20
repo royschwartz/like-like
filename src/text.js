@@ -9,6 +9,9 @@
 export const TEXT = {
   // HIS. The first line in the log. He asked for the two lines joined with a period.
   opening: ['you have been asked to retrieve the amulet of yendor. it is at the bottom of this dungeon, probably'],
+  // HIS. The esoteric edition's first lines (November 20), each its own entry, with space
+  // between them and before what you arrive in ("space between probably and you decend").
+  openingEsoteric: ['your mission is to retrieve the amulet', 'it’s at the bottom of this dungeon probably'],
   repeated: (text, count) => `${text} ×${count}`,
 
   // HIS, from his drawing of the screen.
@@ -185,8 +188,8 @@ export const TEXT = {
   // Lines in the log. PLAIN unless marked. An action adds at most two wrapped lines
   // in total (see test/log.test.mjs).
   log: {
-    // What you arrive in, by what the entrance stands in. HIS: grass. [...]: dirt, his to write.
-    descend: { grass: 'you descend and find yourself in low, soft grass', dirt: '[you descend, dirt]' },
+    // What you arrive in, by what the entrance stands in. HIS: grass, and dirt (November 20).
+    descend: { grass: 'you descend and find yourself in low, soft grass', dirt: 'you descend, dirt' },
     // said in place of the blow that kills you
     youDie: 'you die',
     youRest: 'you rest',

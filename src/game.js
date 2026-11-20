@@ -57,8 +57,12 @@ function makeState(seed, look, nextLogId, outlines = CONFIG.outlines.start, edit
     busy: false, // resting or digging: a memory waits until it is done
     going: null, // a fast move under way: where to, { x, y }, or null
   };
-  for (const line of TEXT.opening) say(g, line, 'story');
-  g.said = 0; // the opening is already behind you: what you arrive in is the status
+  // The opening is already behind you: what you arrive in is the status. Each of its lines
+  // is an entry of its own.
+  for (const line of edition === 'esoteric' ? TEXT.openingEsoteric : TEXT.opening) {
+    say(g, line, 'story');
+    g.said = 0;
+  }
   sayDescend(g);
   see(g);
   return g;
@@ -424,12 +428,38 @@ function contextId(g) {
   const { idx } = terrainGrid(room.t);
   if (room.t[idx(g.x, g.y)] === 'stairs') return 'stairs';
   if (corpseAt(room, g.x, g.y)) return 'corpse';
+  // The esoteric edition has no sense: the ground is inspected where there is
+  // something to it, in the grass, and otherwise the first place has nothing.
+  if (g.edition === 'esoteric') return room.t[idx(g.x, g.y)] === 'grass' ? 'inspect' : null;
   return 'sense';
+}
+
+// The esoteric edition's variable actions, by where you stand and what is about:
+// the ground's first, then resting and digging. Waiting is always offered beside them.
+function variableIds(g) {
+  const ids = [];
+  const room = currentRoom(g);
+  const { idx } = terrainGrid(room.t);
+  const ground = room.t[idx(g.x, g.y)];
+  if (ground === 'stairs') ids.push('stairs');
+  if (corpseAt(room, g.x, g.y)) ids.push('corpse');
+  if (ground === 'grass') ids.push('inspect');
+  const quiet = !awakeInSight(g);
+  if (quiet && g.hp < g.maxHp) ids.push('rest');
+  if (quiet && g.knowsWorms && canDig(g)) ids.push('dig');
+  return ids;
 }
 
 // Ground-specific actions come first. The map only needs a second shortcut
 // when there is something useful to do here; the full list also offers waiting.
 function abilityIds(g, shortcutsOnly = false) {
+  if (g.edition === 'esoteric') {
+    const ids = variableIds(g);
+    if (shortcutsOnly) return ids.slice(0, 2);
+    ids.push('wait');
+    if (!awakeInSight(g) && g.hp === g.maxHp) ids.push('rest');
+    return ids;
+  }
   const here = contextId(g);
   const ids = [here];
   if (here === 'stairs' && corpseHere(g)) ids.push('corpse');
@@ -455,6 +485,7 @@ function runAbility(g, id, ev) {
     case 'wait': return endTurn(g, ev);
     case 'rest': return rest(g, ev);
     case 'dig': return dig(g, ev);
+    case 'inspect': return inspectGround(g, ev);
   }
 }
 
@@ -632,6 +663,7 @@ export function noticeChance(steps) {
 }
 
 function noticeIdly(g) {
+  if (g.edition === 'esoteric') return noticeEsoteric(g);
   const room = currentRoom(g);
   const { idx } = terrainGrid(room.t);
   const vis = fov(room.t, g.x, g.y);
@@ -646,6 +678,47 @@ function noticeIdly(g) {
     say(g, line.text, 'sense');
     g.sensed[line.id] = true;
   }
+}
+
+// The esoteric edition, without sense (decision 230): as you go about, now and then the
+// air or the ground comes to you, a line of the room's own, never the worms, which only
+// inspecting the grass tells; or you notice a detail of something in sight, as if you had
+// observed it: the nearer, the likelier. One at a time, and never over something else said.
+function noticeEsoteric(g) {
+  if (g.said > 0) return;
+  const room = currentRoom(g);
+  const { detail, reach, ambient } = CONFIG.notice.esoteric;
+  const t = room.toad;
+  if (t && los(room.t, g.x, g.y, t.x, t.y)) {
+    const steps = chebyshev(t.x, t.y, g.x, g.y);
+    const o = unitCycle(g, room, 'toad').find((it, k) => k > 0 && !g.observed[it.id]);
+    const p = detail * Math.max(0, 1 - (steps - 1) / reach);
+    if (o && chance(g.noticeRng, p) && sayObserved(g, 'toad', o)) return;
+  }
+  const line = roomLines(g).find((l) => !g.sensed[l.id] && !l.worms);
+  if (line && chance(g.noticeRng, ambient) && canSay(g, line.text)) {
+    say(g, line.text, 'sense');
+    g.sensed[line.id] = true;
+  }
+}
+
+// Inspecting the grass you stand in: in the toad's room, what is under it (the worms,
+// once); otherwise, or after, what the grass is, going round as observing does.
+function inspectGround(g, ev) {
+  ev.push({ type: 'inspect', x: g.x, y: g.y });
+  endTurn(g, ev, () => {
+    const find = roomLines(g).find((l) => l.worms && !g.sensed[l.id]);
+    if (find) {
+      if (!canSay(g, find.text)) return;
+      say(g, find.text, 'sense');
+      g.sensed[find.id] = true;
+      g.knowsWorms = true;
+      return;
+    }
+    const list = sayings('grass');
+    const last = list.findIndex((it) => it.id === g.lastObserved.grass);
+    sayObserved(g, 'grass', list.find((it) => !g.observed[it.id]) ?? list[(last + 1) % list.length]);
+  }, false);
 }
 
 // One sensing, one new thing ("1 thing per sense", decision 150): the first it can find now
@@ -1005,16 +1078,24 @@ function observe(g, x, y, ev) {
   // Look at the thing under the finger before it gets its turn to move.
   ev.push({ type: 'observe', x, y });
   endTurn(g, ev, () => {
-    // "it" only right after an observation of the same thing, including when a
-    // combat line intervenes. Leave a detail unread if its line doesn't fit.
-    const prev = g.log[g.log.length - 1];
-    const text = key === 'toad' && prev?.about !== 'toad' ? TEXT.unit.named(o.text, TEXT.unit.the.toad) : o.text;
-    if (!canSay(g, text)) return;
-    say(g, text, 'observe');
-    if (key === 'toad') g.log[g.log.length - 1].about = 'toad';
-    g.observed[o.id] = true;
-    g.lastObserved[key] = o.id;
+    if (!sayObserved(g, key, o)) return;
+    // In the esoteric edition, with no sense, looking at yourself lets you see your numbers.
+    if (key === 'you' && g.edition === 'esoteric') g.selfUntil = g.turn + CONFIG.senseSelfTurns;
   });
+}
+
+// Say observation o of the thing kept by `key`, and keep it as had. "it" only right after
+// an observation of the same thing, including when a combat line intervenes. A detail is
+// left unread if its line doesn't fit. Returns whether it was said.
+function sayObserved(g, key, o) {
+  const prev = g.log[g.log.length - 1];
+  const text = key === 'toad' && prev?.about !== 'toad' ? TEXT.unit.named(o.text, TEXT.unit.the.toad) : o.text;
+  if (!canSay(g, text)) return false;
+  say(g, text, 'observe');
+  if (key === 'toad') g.log[g.log.length - 1].about = 'toad';
+  g.observed[o.id] = true;
+  g.lastObserved[key] = o.id;
+  return true;
 }
 
 // ---- events ----------------------------------------------------------------
@@ -1467,7 +1548,7 @@ export function act(g, a) {
       else runAbility(g, contextId(g), ev);
       break;
     case 'ability':
-      if (g.edition !== 'esoteric' || g.inv || g.menu || !abilityIds(g, true).includes(a.id)) return [];
+      if (g.edition !== 'esoteric' || g.inv || g.menu || !abilityIds(g).includes(a.id)) return [];
       runAbility(g, a.id, ev);
       break;
     case 'menu':
@@ -1533,7 +1614,8 @@ export function view(g) {
     let more = false;
     if (state === 'visible') {
       const o = observable(g, room, i, thing);
-      more = !!o.unit && !!noticedIn(room)[o.unit] && hasNew(g, o.list);
+      // Nothing blinks in the esoteric edition (decision 230).
+      more = g.edition !== 'esoteric' && !!o.unit && !!noticedIn(room)[o.unit] && hasNew(g, o.list);
     }
     cells.push({ t: room.t[i], state, thing, more });
   }
@@ -1567,7 +1649,7 @@ export function view(g) {
         name: TEXT.thing[it.key],
         state: [it.inHand ? TEXT.menu.inHand : '', it.enchanted ? TEXT.menu.enchanted : ''].filter(Boolean).join(' '),
         // something to find out by inspecting it: it blinks in the list (decision 117)
-        more: !g.inspected[it.key],
+        more: g.edition !== 'esoteric' && !g.inspected[it.key],
       })),
       cursor: g.inv.cursor,
     };
@@ -1590,7 +1672,7 @@ export function view(g) {
       maxHp: g.maxHp,
     },
     // The wide button never blinks any more (decision 116); `more` stays for the screen code.
-    context: { id: ctx, label: TEXT.context[ctx], more: false },
+    context: { id: ctx, label: ctx ? TEXT.context[ctx] : '', more: false },
     abilities: g.edition === 'esoteric' && !g.menu && !g.inv && !g.event
       ? abilityIds(g, true).map((id) => ({ id, label: abilityLabel(id) }))
       : [],

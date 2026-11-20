@@ -8,11 +8,12 @@ const menu = (g, id) => act(g, { type: 'menu', id });
 const back = (g) => act(g, { type: 'back' });
 const lines = (g) => view(g).event.lines.map((line) => line.text);
 
-test('the esoteric psyche page shows the same masked or sensed stats as the player sees', () => {
+test('the esoteric psyche page shows the same masked or perceived stats as the player sees', () => {
   const g = start();
   g.hp = 2;
   for (const sensed of [false, true]) {
-    if (sensed) act(g, { type: 'context' });
+    // no sense in this edition: observing yourself shows your numbers
+    if (sensed) act(g, { type: 'observe', x: g.x, y: g.y });
     const { turn, stats, log } = view(g);
     assert.deepEqual(menu(g, 'psy'), [{ type: 'event', id: 'psyche' }]);
     const wanted = (stat) => sensed ? g[stat] : TEXT.stat.unknown;
