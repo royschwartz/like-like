@@ -27,13 +27,13 @@ export const ANIMS = [
   },
   {
     key: 'fold', name: 'folding stairs', black: 1, blackName: 'black, no roll',
-    n: { name: 'frames a tread', min: 1, max: 6, value: 2 },
+    n: { name: 'frames a tread', min: 1, max: 6, value: 1 },
     more: [
-      { key: 'gone', name: 'gone first', min: 0, max: 8, step: 1, value: 2 },
-      { key: 'roll', name: 'roll, frames a tile', min: 0, max: 3, step: 0.5, value: 0.5 },
-      { key: 'wait', name: 'wait to appear', min: 0, max: 10, step: 1, value: 3 },
+      { key: 'gone', name: 'gone first', min: 0, max: 8, step: 1, value: 0 },
+      { key: 'roll', name: 'roll, frames a tile', min: 0, max: 3, step: 0.25, value: 0.5 },
+      { key: 'wait', name: 'wait to appear', min: 0, max: 10, step: 1, value: 0 },
     ],
-    source: 'The Tower of Druaga (1985): the door turns into a stair tile and Gil walks onto it. Here you vanish, the treads go one at a time from your side to the edge, the screen rolls over the way you went (0: black instead), the treads come back from the edge, and then you appear',
+    source: 'The Tower of Druaga (1985): the door turns into a stair tile and Gil walks onto it. Here you vanish as the first tread goes, the treads go one at a time from your side to the edge, the screen rolls over the way you went (0: black instead), the treads come back from the edge, and you appear as the last one comes back. gone first and wait to appear put frames between',
   },
   {
     key: 'closeup', name: 'close-up', black: 0,

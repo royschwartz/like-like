@@ -5,7 +5,8 @@
 
 import { ANIMS, byKey, paramsOf } from './fx.js';
 
-const KEY = 'likelike.study.stairs';
+// a new name when the starting numbers change, so they reach a page that kept the old ones
+const KEY = 'likelike.study.stairs.2';
 const FRAME = { min: 30, max: 200, step: 10 };
 
 function defaults() {
