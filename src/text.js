@@ -60,10 +60,11 @@ export const TEXT = {
   // "dirt" is his word for the bare ground (decision 52). Ground with no word here, or a
   // toad awake, says the whole-line slot instead.
   //
-  // HIS (decision 183): "the first time you see something it should be a toad, the second
-  // time, the toad". And a line of his that starts "it" keeps it only right after an
-  // observation of the same thing; otherwise "it" becomes its name ("sometimes its unclear
-  // what the obsveration is in reference to"): "the toad seems stronger than you".
+  // HIS (decision 185): the plain line is "a toad" every time ("the obsversation can be the
+  // same every time use A 'a toad sleeping on dirt'"). And a line of his that starts "it"
+  // keeps it only right after an observation of the same thing; otherwise "it" becomes its
+  // name ("sometimes its unclear what the obsveration is in reference to", decision 183):
+  // "the toad seems stronger than you".
   unit: {
     line: (who, doing, ground) => `${who} ${doing} on ${ground}`,
     who: { toad: 'a toad' },
@@ -86,19 +87,24 @@ export const TEXT = {
   },
 
   // HIS. The toad's event, opened by moving into it while it sleeps (decision 155).
-  // "singing" is the event's first line, and the last thing observing it tells, up close.
-  // "necklace" is the first line instead while you have not been told of its key (decision
-  // 176). All lower case ("lower case everything remember", decision 177).
+  // "singing" is what observing it tells of its song, up close. The event opens on "sings",
+  // with "necklace" before it while you have not been told of its key (decisions 176, 186:
+  // "here let's break this apart a little"). All lower case (decision 177).
   toad: {
     singing: 'it is singing in its sleep, in an irish style',
-    necklace: 'the toad wears a necklace with a golden key around its neck and is singing softly in its sleep, in an irish style',
+    necklace: 'the toad wears a necklace with a golden key around its neck',
+    sings: 'it sings softly in its sleep, in an irish style',
     verses: [
       ['when i was small', 'a mischievous girl did i love', 'who i let open my mouth', 'and she pulled out my tongue'],
       ["and she didn't care", 'so she never knew', 'that my tongue grew back'],
-      ['i changed for a long time', "i'm coming back different"],
+      ['i changed for a long time', "now i'm coming back different"],
     ],
-    stirs: 'the toad stirs momentarily, interrupting the song',
-    wakes: 'the toad wakes up',
+    // "dialogue should have text about it" (decision 187): his line under the second verse,
+    // and his line before the third (decision 188).
+    stirs: 'the toad stirs momentarily, then continues',
+    growls: 'its voice becomes lower, almost like a growl',
+    // his, for the last "listen more" (decision 189), in place of "the toad wakes up"
+    wakes: ['its eyelids flutter, then it sees you', 'immediately you know it is bloodthirsty'],
     success: 'success!',
     failure: 'failure! the toad wakes up',
     // HIS, from "(listen more)", "(go for the key)", "(attack!)", "(back)".

@@ -63,7 +63,7 @@ test('walking into the toad tells you of its key if nothing has: then you can go
   const { g, t } = atToad();
   const labels = () => view(g).event.options.map((o) => o.label);
   openItsEvent(g, t);
-  assert.equal(eventTexts(view(g))[0], TEXT.toad.necklace);
+  assert.deepEqual(eventTexts(view(g)).slice(0, 2), [TEXT.toad.necklace, 'it sings softly in its sleep, in an irish style']);
   assert.deepEqual(labels(), ['listen more', 'go for the key', 'attack!', 'back']);
   act(g, { type: 'back' });
   // told once: after that the plain first line, and the chain is had, not new
@@ -73,7 +73,7 @@ test('walking into the toad tells you of its key if nothing has: then you can go
   act(g, { type: 'back' });
   const said = [0, 1, 2, 3, 4, 5].map(() => lookAtToad(g, t).said[0]);
   const ground = said[0].split(' on ')[1];
-  assert.deepEqual(said, [`a toad sleeping on ${ground}`, SEEN.stronger, SINGS, `the toad sleeping on ${ground}`, SEEN.stronger, SEEN.chain], 'the chain is had, not new, and in the round');
+  assert.deepEqual(said, [`a toad sleeping on ${ground}`, SEEN.stronger, SINGS, `a toad sleeping on ${ground}`, SEEN.stronger, SEEN.chain], 'the chain is had, not new, and in the round');
 });
 
 test('if you observed the chain first, walking in says only that it sings', () => {
@@ -113,8 +113,9 @@ function openToadRoom(x, y, seed = 21) {
 const SEEN = TEXT.toadSeen;
 const SINGS = 'it is singing in its sleep, in an irish style';
 // the event's first line has nothing before it, so it names the toad (decision 183)
-const EVENT_SINGS = 'the toad is singing in its sleep, in an irish style';
-const NECKLACE = 'the toad wears a necklace with a golden key around its neck and is singing softly in its sleep, in an irish style';
+const EVENT_SINGS = 'the toad sings softly in its sleep, in an irish style'; // his line, named (186)
+const NECKLACE = 'the toad wears a necklace with a golden key around its neck';
+const NECKLACE_SINGS = 'it sings softly in its sleep, in an irish style';
 
 const labels = (v) => v.event.options.map((o) => o.label);
 const eventTexts = (v) => v.event.lines.map((l) => l.text);
@@ -156,6 +157,7 @@ test('moving into the sleeping toad opens its song: no turn, no blow; in again, 
   const v = view(g);
   assert.deepEqual(v.event.lines, [
     { text: NECKLACE, song: false, slot: false, passage: 0 },
+    { text: NECKLACE_SINGS, song: false, slot: false, passage: 0 },
     { text: 'when i was small', song: true, slot: false, passage: 1 },
     { text: 'a mischievous girl did i love', song: true, slot: false, passage: 1 },
     { text: 'who i let open my mouth', song: true, slot: false, passage: 1 },
@@ -198,7 +200,7 @@ test('observing the toad never opens its event: its plain line, that it seems st
   const turn = g.turn;
   const ground = room.t[idx(t.x, t.y)] === 'grass' ? 'grass' : 'dirt';
   const first = `a toad sleeping on ${ground}`;
-  const plain = `the toad sleeping on ${ground}`;
+  const plain = first; // the same every time (185)
   for (const want of [first, SEEN.stronger, SEEN.chain, SINGS, plain, SEEN.stronger]) {
     const r = lookAtToad(g, t);
     assert.deepEqual(r.said, [want]);
@@ -270,15 +272,19 @@ test('the event: listen more three times, the toad stirs, then wakes; each choic
   assert.equal(v.event.now, 0);
   assert.deepEqual(
     v.event.lines.map((l) => [l.text, l.song, l.passage]),
-    [["and she didn't care", true, 0], ['so she never knew', true, 0], ['that my tongue grew back', true, 0], ['the toad stirs momentarily, interrupting the song', false, 1]],
+    [["and she didn't care", true, 0], ['so she never knew', true, 0], ['that my tongue grew back', true, 0], ['the toad stirs momentarily, then continues', false, 1]],
   );
   act(g, { type: 'choose', index: 0 });
   v = view(g);
-  assert.deepEqual(eventTexts(v), ['i changed for a long time', "i'm coming back different"]);
+  assert.deepEqual(
+    v.event.lines.map((l) => [l.text, l.song, l.passage]),
+    [['its voice becomes lower, almost like a growl', false, 0], ['i changed for a long time', true, 1], ["now i'm coming back different", true, 1]],
+    'his line about it, then the verse',
+  );
   assert.equal(t.asleep, true);
   act(g, { type: 'choose', index: 0 });
   v = view(g);
-  assert.deepEqual(eventTexts(v), ['the toad wakes up']);
+  assert.deepEqual(eventTexts(v), ['its eyelids flutter, then it sees you', 'immediately you know it is bloodthirsty']);
   assert.equal(t.asleep, false);
   assert.deepEqual(labels(v), ['back']);
   assert.equal(v.event.cursor, 0);

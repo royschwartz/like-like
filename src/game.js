@@ -864,14 +864,12 @@ const TERRAIN_NAME = {
 const sayings = (name) => [].concat(TEXT.observe[name]).map((text, k) => ({ id: `${name}.${k}`, text }));
 
 // The toad's plain line, as Brogue's: who, doing what, on what ground. Its id is by what it
-// is doing, so a toad that wakes has a new line to observe. "a toad" until you have
-// observed it once, then "the toad" (decision 183).
+// is doing, so a toad that wakes has a new line to observe. Always "a toad" (decision 185).
 function toadLine(room, toad) {
   if (!toad.asleep) return { id: 'unit.toad.awake', text: TEXT.observe.toad, plain: true };
   const u = TEXT.unit;
   const ground = u.ground[room.t[idx(toad.x, toad.y)]];
-  const who = toad.named ? u.the.toad : u.who.toad;
-  return { id: 'unit.toad.asleep', text: ground ? u.line(who, u.doing.asleep, ground) : u.elsewhere.toad, plain: true };
+  return { id: 'unit.toad.asleep', text: ground ? u.line(u.who.toad, u.doing.asleep, ground) : u.elsewhere.toad, plain: true };
 }
 
 // What observing a unit goes round, in order: [{ id, text }]. The toad: its plain line and
@@ -933,10 +931,7 @@ function observe(g, x, y, ev) {
   const prev = g.log[g.log.length - 1];
   const text = key === 'toad' && prev?.about !== 'toad' ? TEXT.unit.named(o.text, TEXT.unit.the.toad) : o.text;
   say(g, text, 'observe');
-  if (key === 'toad') {
-    g.log[g.log.length - 1].about = 'toad';
-    room.toad.named = true;
-  }
+  if (key === 'toad') g.log[g.log.length - 1].about = 'toad';
   ev.push({ type: 'observe', x, y });
 }
 
@@ -962,13 +957,14 @@ function openEvent(g, e, ev, keepMenu = false) {
 // on its chain is one of what observing it goes round, already had, and you can go for it.
 function openToad(g, ev) {
   const toad = currentRoom(g).toad;
-  // the event's first line has nothing before it, so "it" is the toad (183)
-  let first = TEXT.unit.named(TEXT.toad.singing, TEXT.unit.the.toad);
+  // Its key, if you have not been told of it, then that it sings: "it" right after the
+  // necklace; alone, the event's first line has nothing before it, so "the toad" (183, 186).
+  let opening = [TEXT.unit.named(TEXT.toad.sings, TEXT.unit.the.toad)];
   if (toad.key && !g.observed['unit.toad.chain']) {
-    first = TEXT.toad.necklace;
+    opening = [TEXT.toad.necklace, TEXT.toad.sings];
     g.observed['unit.toad.chain'] = true;
   }
-  const passages = [[prose(first)], TEXT.toad.verses[0].map(sung)];
+  const passages = [opening.map(prose), TEXT.toad.verses[0].map(sung)];
   openEvent(g, { id: 'toad', passages, heard: 1, over: false }, ev);
 }
 
@@ -1065,12 +1061,13 @@ function eventChoose(g, i, ev) {
       const verses = TEXT.toad.verses;
       if (e.heard <= verses.length) {
         e.passages = [verses[e.heard - 1].map(sung)];
+        if (e.heard === 3) e.passages.unshift([prose(TEXT.toad.growls)]); // before it (188)
         if (e.heard === 2) {
           e.passages.push([prose(TEXT.toad.stirs)]);
           toad.stirred = true;
         }
       } else {
-        e.passages = [[prose(TEXT.toad.wakes)]];
+        e.passages = [TEXT.toad.wakes.map(prose)];
         toad.asleep = false;
         e.over = true;
       }
