@@ -183,13 +183,36 @@ test('the first floor: the mother\'s room one way, the toad\'s room with the bus
   }
 });
 
-test('walking into the mother: a line, no turn, and never past her; observing her, her line', () => {
-  const g = newGame({ edition: 'esoteric', seed: 19 });
+function enterMotherRoom() {
+  const g = newGame({ edition: 'esoteric', seed: 19, opening: true });
+  act(g, { type: 'choose', index: 0 }); // jump into the hole
   for (const dir of ['n', 'w', 'w', 'w']) act(g, { type: 'move', dir });
   assert.equal(g.room, 1, 'through the west gap into her room');
   assert.deepEqual([g.x, g.y], [5, 3]);
-  // just inside her gap
-  [g.x, g.y] = [1, 3];
+  return g;
+}
+
+const motherChoices = ['talk to her', 'try to take her cloak', 'attack her', 'item', 'back'];
+const eventLabels = (g) => view(g).event.options.map((o) => o.label);
+const eventLines = (g) => view(g).event.lines.map((l) => l.text);
+
+function chooseLabel(g, label) {
+  const index = eventLabels(g).indexOf(label);
+  assert.notEqual(index, -1, `option available: ${label}`);
+  return act(g, { type: 'choose', index });
+}
+
+test('entering the mother’s room brings its cold, and observing her reveals a cloaked woman', () => {
+  const g = enterMotherRoom();
+  const cold = 'the room is cold and you are suddenly afraid';
+  assert.equal(view(g).log.at(-1).text, cold);
+  act(g, { type: 'wait' });
+  act(g, { type: 'move', dir: 'e' }); // leave by the gap behind you
+  assert.equal(view(g).log.filter((l) => l.text === cold).length, 1);
+  act(g, { type: 'move', dir: 'w' });
+  assert.equal(view(g).log.filter((l) => l.text === cold).length, 2);
+  assert.equal(view(g).log.at(-1).text, cold);
+  for (let i = 0; i < 4; i++) act(g, { type: 'move', dir: 'w' });
   const v = view(g);
   assert.deepEqual(v.cells[3 * 7].thing, { kind: 'mother' });
   const mark = paintEsoteric(v.cells[3 * 7], 0, 3, { size: 7, key: 1, cells: v.cells });
@@ -201,16 +224,57 @@ test('walking into the mother: a line, no turn, and never past her; observing he
   assert.deepEqual([right - left, bottom - top, left, top], [26, 21, 5, 7]);
   assert.ok(runs.every((r) => r[3] === 1));
   assert.match(mark.fg, /--mother/);
-  assert.equal(mark.label, 'mother');
-  const turn = g.turn;
-  act(g, { type: 'move', dir: 'w' });
-  assert.deepEqual([g.room, g.x, g.y, g.turn], [1, 1, 3, turn]);
-  assert.equal(g.log.at(-1).text, TEXT.log.motherBlocks);
-  // a tap on her bumps her, as a toad's would, never a way through
-  act(g, { type: 'travel', x: 0, y: 3 });
-  assert.deepEqual([g.room, g.x, g.y], [1, 1, 3]);
+  assert.equal(mark.label, 'a cloaked woman');
   act(g, { type: 'observe', x: 0, y: 3 });
-  assert.equal(g.log.at(-1).text, TEXT.observe.mother);
+  assert.equal(view(g).log.at(-1).text, 'a cloaked woman');
+  assert.equal(view(g).event, null);
+});
+
+test('talking to the woman and looking through items return to her choices, and back leaves her in the gap', () => {
+  const g = enterMotherRoom();
+  for (let i = 0; i < 4; i++) act(g, { type: 'move', dir: 'w' });
+  const turn = g.turn;
+  act(g, { type: 'travel', x: 0, y: 3 }); // tap on her from beside the gap
+  assert.deepEqual(eventLines(g), [
+    'the woman looks up at you', 'her face is ghoulish', 'she is mumbling about her missing baby',
+  ]);
+  assert.deepEqual(eventLabels(g), motherChoices);
+  chooseLabel(g, 'talk to her');
+  assert.equal(eventLines(g).at(-1), 'she keeps mumbling about her baby');
+  assert.deepEqual(eventLabels(g), motherChoices);
+  chooseLabel(g, 'item');
+  assert.deepEqual(eventLabels(g), [TEXT.thing.sword, TEXT.menu.back]);
+  chooseLabel(g, TEXT.thing.sword);
+  chooseLabel(g, TEXT.context.inspect);
+  assert.ok(eventLines(g).includes(TEXT.slot.sword));
+  act(g, { type: 'back' });
+  assert.deepEqual(eventLabels(g), [TEXT.thing.sword, TEXT.menu.back]);
+  chooseLabel(g, 'back');
+  assert.deepEqual(eventLabels(g), motherChoices);
+  chooseLabel(g, 'back');
+  assert.equal(view(g).event, null);
+  assert.deepEqual([g.room, g.x, g.y, g.turn], [1, 1, 3, turn]);
+});
+
+test('taking the cloak or attacking leads to her accusation and only die restarts the game', () => {
+  for (const choice of ['try to take her cloak', 'attack her']) {
+    const g = enterMotherRoom();
+    for (let i = 0; i < 5; i++) act(g, { type: 'move', dir: 'w' });
+    const turn = g.turn;
+    chooseLabel(g, choice);
+    assert.deepEqual(eventLines(g), [
+      'she seizes you with surprising strength',
+      'her fingers enter you as a knife through butter',
+      'YOU DIDN’T CARE ABOUT MY BABY DID YOU',
+    ]);
+    assert.deepEqual(eventLabels(g), ['die']);
+    act(g, { type: 'back' });
+    assert.deepEqual(eventLabels(g), ['die']);
+    assert.deepEqual([g.room, g.x, g.y, g.turn], [1, 1, 3, turn]);
+    assert.ok(chooseLabel(g, 'die').some((e) => e.type === 'restart'));
+    assert.deepEqual(eventLabels(g), [TEXT.openingEsoteric.jump]);
+    assert.deepEqual([g.room, g.turn, g.hp], [0, 0, g.maxHp]);
+  }
 });
 
 const STEPS = { n: [0, -1], e: [1, 0], s: [0, 1], w: [-1, 0] };

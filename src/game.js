@@ -386,10 +386,10 @@ function step(g, dx, dy, ev) {
   const c = room.t[idx(x, y)];
   if (c === 'wall' || c === 'void') return; // no turn, nothing
   if (c === 'statue') return openBust(g, ev); // into the bust, never onto it: its event, no turn
-  // into the mother, never past her: a line, and no turn
+  // She stays in the gap. Walking into her opens the encounter without spending a turn.
   if (motherAt(room, x, y)) {
-    say(g, TEXT.log.motherBlocks, 'plain');
-    return;
+    const passages = TEXT.mother.opening.map((line) => [prose(line)]);
+    return openEvent(g, { id: 'mother', passages }, ev);
   }
   if (c === 'golddoor') return goldDoor(g, room, x, y, ev);
   if ((c === 'stairs' && g.edition === 'esoteric') || c === 'upstairs') {
@@ -411,6 +411,7 @@ function step(g, dx, dy, ev) {
     g.room = room.nb[dir];
     [g.x, g.y] = arrivals[OPP[dir]];
     ev.push({ type: 'room', dir });
+    if (currentRoom(g).mother) say(g, TEXT.mother.room, 'observe');
     hearSounds(g);
   } else {
     g.x = x;
@@ -824,8 +825,7 @@ function noticeIdly(g, waiting) {
 // The esoteric edition has no sense ("there is no more sense in the game", decisions 244,
 // 297). As you go about, or wait, now and then you notice a detail of something in sight,
 // as if you had observed it: the nearer, the likelier, and likelier still waiting. One at a
-// time, never over anything said. The room's air and ground no longer come by themselves:
-// they were sensed, and the game starts over without them (November 20).
+// time, never over anything said. The mother's room has its own observation on entry.
 function noticeEsoteric(g, waiting = false) {
   if (g.said > 0) return;
   const room = currentRoom(g);
@@ -1435,6 +1435,17 @@ function eventOptions(g) {
   // The opening has one way on and no way back.
   if (e.id === 'opening') return [{ label: TEXT.openingEsoteric.jump, kind: 'action', run: 'jump' }];
   if (!e.over && e.id === 'dee') return [{ label: TEXT.dee.ask, kind: 'action', run: 'ask' }];
+  if (e.id === 'mother') {
+    const o = TEXT.mother.options;
+    if (e.over) return [{ label: o.die, kind: 'action', run: 'restart' }];
+    return [
+      { label: o.talk, kind: 'action', run: 'talk' },
+      { label: o.cloak, kind: 'action', run: 'motherSeizes' },
+      { label: o.attack, kind: 'action', run: 'motherSeizes' },
+      { label: o.item, kind: 'action', run: 'inventory' },
+      BACK,
+    ];
+  }
   const list = [];
   if (e.id === 'memories') {
     // things in a list, as items are: not marked as choices (decision 305)
@@ -1490,13 +1501,27 @@ function eventChoose(g, i, ev) {
       runAbility(g, o.arg, ev);
       break;
     case 'back':
-      // a memory read from the list goes back to the list; an item, to the inventory
-      g.event = e.memoryList ?? e.inventory ?? null;
+      g.event = e.parentEvent ?? null;
       if (g.event) ev.push({ type: 'event', id: g.event.id });
       if (e.returnScreen) {
         g.inv = e.returnScreen.inv;
         g.menu = e.returnScreen.menu;
       }
+      break;
+    case 'talk':
+      e.passages = [[prose(TEXT.mother.talk)]];
+      break;
+    case 'motherSeizes':
+      e.passages = TEXT.mother.death.map((line) => [prose(line)]);
+      e.over = true;
+      break;
+    case 'restart':
+      restart(g, ev);
+      break;
+    case 'inventory':
+      e.cursor = i;
+      openInventory(g, ev);
+      g.event.parentEvent = e;
       break;
     case 'take': {
       takeFromCorpse(g, o.arg);
@@ -1507,7 +1532,7 @@ function eventChoose(g, i, ev) {
     case 'item':
       e.cursor = i;
       openItem(g, o.arg, ev);
-      g.event.inventory = e;
+      g.event.parentEvent = e;
       break;
     case 'inspectItem': {
       const it = g.items[e.item];
@@ -1530,7 +1555,7 @@ function eventChoose(g, i, ev) {
     case 'readMemory':
       e.cursor = i;
       openMemory(g, o.arg, ev);
-      g.event.memoryList = e;
+      g.event.parentEvent = e;
       break;
     case 'ask':
       // what you say to DEE: its answer is the second page, and the event is over

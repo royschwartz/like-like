@@ -1,5 +1,5 @@
 // Every word the player reads is in this file, and nowhere else.
-// Everything is lower case: his decision ("all lower case should be used for everything").
+// Lower case unless Roy's writing calls for capitals.
 //
 // Three kinds:
 //   HIS    Roy's own words, kept as he wrote them.
@@ -60,8 +60,8 @@ export const TEXT = {
     toad: '[toad, awake]',
     // HIS.
     golddoor: 'the door at the far corner of the room is golden',
-    // The mother, standing in the way out of her room (esoteric): his to write.
-    mother: '[mother]',
+    // HIS. The mother as you first see her.
+    mother: 'a cloaked woman',
     // The bust. "statue description is short": before it has spoken, [...], his to write.
     statue: '[bust]',
     // HIS. After it has spoken. It is also the text of its event from then on.
@@ -123,6 +123,23 @@ export const TEXT = {
     failure: 'failure! the toad wakes up',
     // HIS, from "(listen more)", "(go for the key)", "(attack!)", "(back)".
     options: { listen: 'listen more', key: 'go for the key', attack: 'attack!', back: 'back' },
+  },
+
+  // HIS. Entering the mother's room, then approaching her.
+  mother: {
+    room: 'the room is cold and you are suddenly afraid',
+    opening: [
+      'the woman looks up at you',
+      'her face is ghoulish',
+      'she is mumbling about her missing baby',
+    ],
+    talk: 'she keeps mumbling about her baby',
+    death: [
+      'she seizes you with surprising strength',
+      'her fingers enter you as a knife through butter',
+      'YOU DIDN’T CARE ABOUT MY BABY DID YOU',
+    ],
+    options: { talk: 'talk to her', cloak: 'try to take her cloak', attack: 'attack her', item: 'item', die: 'die' },
   },
 
   // HIS. Stock writing for statues: "you may not encounter DEE first so this is stock
@@ -252,8 +269,6 @@ export const TEXT = {
     memory: 'you have a memory',
     // [...]. Sounds from the bust's opening, his to write.
     sounds: '[sounds from the opening, DEE]',
-    // [...]. Walking into the mother (esoteric), who blocks the way out: his to write.
-    motherBlocks: '[the mother blocks the way]',
     // [...]. The toad woken by noise, his to write.
     toadWakes: '[the toad wakes]',
     // HIS. Sensing when there is nothing new to find: "it should always say you sense nothing new".
