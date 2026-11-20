@@ -8,7 +8,6 @@ The outlines and this font source are distributed under the SIL Open Font Licens
 """
 from hashlib import sha256
 from pathlib import Path
-from math import ceil, hypot
 import sys
 import unicodedata
 
@@ -18,69 +17,73 @@ from fontTools.pens.ttGlyphPen import TTGlyphPen
 from fontTools.ttLib import TTFont
 from PIL import Image, ImageDraw, ImageFont
 
-from letters import LETTERS
+from letters import STRIPS
 
 
-# Two cuts per original proof pixel, with the same 0.60 em advance.
-UNIT = 25
+# Eight screen pixels make the source's 600-unit advance.
+PIXEL = 75
 ADVANCE = 600
-BASELINE = 31
-PAD = 10
+BASELINE = 10
 SOURCE_SHA256 = 'f9dbc746f60c83f5cb1503b19f90729d8195cab6bb67f2b861d4eb257ed86536'
 
 
-def nib_path(draw, stroke, offset=0):
-    # Moving a narrow, angled nib thickens a downstroke and feathers a return.
-    # Each knot has its own pressure. Endpoints can swell, split or die away.
-    erase = stroke.startswith('!')
-    points = [tuple(map(float, knot.split(','))) for knot in stroke.lstrip('!').split()]
-    for (x, y, p), (x1, y1, p1) in zip(points, points[1:]):
-        steps = max(1, ceil(3 * hypot(x1 - x, y1 - y)))
-        for i in range(steps + 1):
-            t = i / steps
-            cx, cy = x + t * (x1 - x), PAD + offset + y + t * (y1 - y)
-            width = p + t * (p1 - p)
-            nib = [(-0.55, 0.12), (-0.38, 0.42), (0.55, -0.13), (0.40, -0.42)]
-            stamp = [(round(cx + a * width), round(cy + b * width)) for a, b in nib]
-            draw.polygon(stamp, fill=0 if erase else 255)
+def read_strips():
+    bitmaps = {}
+    for chars, strip in STRIPS:
+        rows = [line.split() for line in strip.strip().splitlines()]
+        for row in rows:
+            if len(row) != len(chars) or any(len(cell) != 7 or set(cell) - {'.', '#'} for cell in row):
+                raise ValueError(f'malformed character cell in {chars}: {row}')
+        for i, char in enumerate(chars):
+            if char in bitmaps:
+                raise ValueError(f'duplicate character {char}')
+            bitmaps[char] = {(x, BASELINE - y - 1) for y, row in enumerate(rows)
+                             for x, bit in enumerate(row[i]) if bit == '#'}
+    return bitmaps
 
 
+LETTERS = read_strips()
+
+# The offset is measured from the top of the unaccented letter. Each mark
+# uses the same screen pixel as the lowercase body and the capital letters.
 ACCENTS = {
-    '\u0300': ['9,-7,1 10,-4,4 14,-2,1'],
-    '\u0301': ['10,-2,1 14,-7,4 16,-8,1'],
-    '\u0302': ['7,-2,1 12,-7,4 17,-3,1'],
-    '\u0303': ['6,-4,1 9,-6,3 14,-3,2 18,-6,1'],
-    '\u0308': ['7,-5,2 8,-4,3', '15,-5,2 16,-4,3'],
-    '\u030a': ['9,-6,2 13,-9,2 16,-6,2 12,-3,2 9,-6,2'],
-    '\u0327': ['12,1,2 10,3,2 14,5,3 10,8,1'],
+    '\u0300': [(2, 2), (3, 1)],
+    '\u0301': [(4, 2), (3, 1)],
+    '\u0302': [(3, 2), (2, 1), (4, 1)],
+    '\u0303': [(1, 1), (2, 2), (3, 2), (4, 1), (5, 2)],
+    '\u0308': [(1, 1), (2, 1), (4, 1), (5, 1)],
+    '\u030a': [(2, 2), (3, 2), (1, 1), (4, 1), (2, 0), (3, 0)],
 }
 
 
 def cut_letter(face, char):
-    sheet = Image.new('L', (24, PAD + BASELINE + 12))
-    draw = ImageDraw.Draw(sheet)
     parts = unicodedata.normalize('NFD', char)
     base = parts[0]
-    if base in LETTERS and all(mark in ACCENTS for mark in parts[1:]):
-        for stroke in LETTERS[base]:
-            # An accent takes the place of the dot on lowercase i and j.
-            if len(parts) > 1 and base in 'ij' and stroke == LETTERS[base][0]:
-                continue
-            nib_path(draw, stroke)
+    if base in LETTERS and all(mark in ACCENTS or mark == '\u0327' for mark in parts[1:]):
+        pixels = set(LETTERS[base])
+        if len(parts) > 1 and base in 'ij':
+            pixels = {(x, y) for x, y in pixels if y < 7}
+        top = max((y + 1 for _, y in pixels), default=0)
         for mark in parts[1:]:
-            top = sheet.getbbox()[1] - PAD
-            align = BASELINE if mark == '\u0327' else top
-            for stroke in ACCENTS[mark]:
-                nib_path(draw, stroke, align)
-    else:
-        # Secondary signs keep Adobe's outlines, cut on the same fine grid.
-        draw.text((0, BASELINE + PAD), char, font=face, fill=255, anchor='ls')
-    return {(x, BASELINE + PAD - row - 1)
-            for row in range(sheet.height) for x in range(sheet.width)
-            if sheet.getpixel((x, row)) >= 100}
+            if mark == '\u0327':
+                pixels.update([(3, -1), (4, -2), (3, -3), (2, -3)])
+            else:
+                pixels.update((x, top + y) for x, y in ACCENTS[mark])
+        # The side gutter is split 25/50 between the left and right of a cell.
+        return pixels, 25
+
+    # The remaining signs keep Adobe's designs. Strike the source at three
+    # times the design grid, then threshold the coverage of each screen pixel.
+    pad = 5
+    sheet = Image.new('L', (24, (BASELINE + pad + 5) * 3))
+    ImageDraw.Draw(sheet).text((0, (BASELINE + pad) * 3), char, font=face, fill=255, anchor='ls')
+    small = sheet.resize((8, sheet.height // 3), Image.Resampling.BOX)
+    pixels = {(x, BASELINE + pad - row - 1) for row in range(small.height)
+              for x in range(small.width) if small.getpixel((x, row)) >= 95}
+    return pixels, 0
 
 
-def outline(pixels):
+def outline(pixels, inset):
     # Trace the edge of the connected ink, omitting interior edges. Adjacent
     # runs share one perimeter so the browser can scale the font to any size.
     edges = set()
@@ -96,7 +99,7 @@ def outline(pixels):
     while edges:
         start, end = min(edges)
         current = start
-        pen.moveTo((current[0] * UNIT, current[1] * UNIT))
+        pen.moveTo((inset + current[0] * PIXEL, current[1] * PIXEL))
         while True:
             edges.remove((current, end))
             dx, dy = end[0] - current[0], end[1] - current[1]
@@ -107,7 +110,7 @@ def outline(pixels):
                 after = (end[0] + vx, end[1] + vy)
                 if (end, after) in edges:
                     if (dx, dy) != (vx, vy):
-                        pen.lineTo((end[0] * UNIT, end[1] * UNIT))
+                        pen.lineTo((inset + end[0] * PIXEL, end[1] * PIXEL))
                     current, end = end, after
                     break
         pen.closePath()
@@ -123,33 +126,35 @@ def build(source):
     codes = [*range(32, 127), *range(160, 256), *map(ord, extras)]
     cmap = {c: agl.UV2AGL.get(c, f'uni{c:04X}') for c in codes
             if c in upstream.getBestCmap()}
-    missing = {(x, y) for x in range(4, 20) for y in range(24)
-               if x in (4, 5, 18, 19) or y in (0, 1, 22, 23)}
-    tiles = {'.notdef': missing}
+    missing = {(x, y) for x in range(1, 7) for y in range(8)
+               if x in (1, 6) or y in (0, 7)}
+    tiles = {'.notdef': (missing, 0)}
     tiles.update({name: cut_letter(face, chr(c)) for c, name in cmap.items()})
 
     font = FontBuilder(1000, isTTF=True)
     font.setupGlyphOrder(list(tiles))
     font.setupCharacterMap(cmap)
-    font.setupGlyf({name: outline(ink) for name, ink in tiles.items()})
-    font.setupHorizontalMetrics({name: (ADVANCE, min((x for x, _ in ink), default=0) * UNIT)
-                                 for name, ink in tiles.items()})
+    font.setupGlyf({name: outline(ink, inset) for name, (ink, inset) in tiles.items()})
+    font.setupHorizontalMetrics({
+        name: (ADVANCE, min((x * PIXEL + inset for x, _ in ink), default=0))
+        for name, (ink, inset) in tiles.items()
+    })
     font.setupHorizontalHeader(ascent=850, descent=-250)
     font.setupNameTable({
         'copyright': upstream['name'].getDebugName(0),
         'familyName': 'Crooked Hand', 'styleName': 'Regular',
-        'uniqueFontIdentifier': '2.000;LIKE;CrookedHand-Regular',
+        'uniqueFontIdentifier': '3.000;LIKE;CrookedHand-Regular',
         'fullName': 'Crooked Hand Regular', 'psName': 'CrookedHand-Regular',
-        'version': 'Version 2.000',
-        'description': 'Hand-cut monospaced derivative of Adobe Source Code Pro Medium for LIKE LIKE.',
+        'version': 'Version 3.000',
+        'description': 'Eight-column bitmap cut of the monospaced LIKE LIKE derivative of Adobe Source Code Pro Medium.',
         'licenseDescription': upstream['name'].getDebugName(13),
         'licenseInfoURL': 'https://openfontlicense.org/',
     })
     font.setupOS2(sTypoAscender=850, sTypoDescender=-250, sTypoLineGap=0,
-                  usWinAscent=1000, usWinDescent=300, sxHeight=525, sCapHeight=725,
+                  usWinAscent=1000, usWinDescent=300, sxHeight=525, sCapHeight=750,
                   fsSelection=0x40)
     font.setupPost(isFixedPitch=1)
-    font.font['head'].fontRevision = 2.0
+    font.font['head'].fontRevision = 3.0
     # The desktop and web versions carry identical artwork and metrics.
     font.font['head'].created = font.font['head'].modified = 3800000000
     font.font.recalcTimestamp = False

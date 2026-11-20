@@ -410,11 +410,35 @@ function contextId(g) {
   return 'sense';
 }
 
-function context(g, ev) {
-  const id = contextId(g);
-  if (id === 'stairs') descend(g, ev);
-  else if (id === 'corpse') openMenu(g, 'corpse');
-  else sense(g, ev);
+// Ground-specific actions come first. The map only needs a second shortcut
+// when there is something useful to do here; the full list also offers waiting.
+function abilityIds(g, shortcutsOnly = false) {
+  const here = contextId(g);
+  const ids = [here];
+  if (here === 'stairs' && corpseHere(g)) ids.push('corpse');
+  const quiet = !awakeInSight(g);
+  if (quiet && g.hp < g.maxHp) ids.push('rest');
+  if (quiet && g.knowsWorms && canDig(g)) ids.push('dig');
+  if (here !== 'sense') ids.push('sense');
+  if (shortcutsOnly) return ids.slice(0, 2);
+  ids.push('wait');
+  if (quiet && g.hp === g.maxHp) ids.push('rest');
+  return ids;
+}
+
+function abilityLabel(id) {
+  return id === 'wait' ? TEXT.button.waitName : TEXT.context[id] ?? TEXT.menu[id];
+}
+
+function runAbility(g, id, ev) {
+  switch (id) {
+    case 'stairs': return descend(g, ev);
+    case 'corpse': return openMenu(g, 'corpse');
+    case 'sense': return sense(g, ev);
+    case 'wait': return endTurn(g, ev);
+    case 'rest': return rest(g, ev);
+    case 'dig': return dig(g, ev);
+  }
 }
 
 // ---- the bust of DEE -----------------------------------------------------------
@@ -1031,6 +1055,23 @@ function openMemory(g, id, ev, keepMenu = false) {
   openEvent(g, { id: 'memory', memory: id, passages, over: true }, ev, keepMenu);
 }
 
+function openPsyche(g, ev) {
+  const stats = ['str', 'will', 'love'].map((stat) =>
+    prose(`${TEXT.stat[stat]} ${perceived(g, stat) ?? TEXT.stat.unknown}`)
+  );
+  stats.push(prose(`${TEXT.stat.hp} ${g.hp}/${g.maxHp}`));
+  // The stat row is also available in inventory and menus. Keep that
+  // selection separate from the system menu that can open over this page.
+  const returnScreen = { inv: g.inv, menu: g.menu };
+  openEvent(g, { id: 'psyche', passages: [[prose(TEXT.button.psyche)], stats], returnScreen }, ev);
+}
+
+function openMemories(g, ev) {
+  const passages = [[prose(TEXT.button.memories)]];
+  if (g.memories.length === 0) passages.push([prose(TEXT.menu.nothing)]);
+  openEvent(g, { id: 'memories', passages }, ev);
+}
+
 // A memory on its way back comes back once its turn is reached, when the action
 // under way has room to say so and you are not resting or digging.
 function recallDue(g, ev) {
@@ -1053,6 +1094,12 @@ function eventOptions(g) {
   const e = g.event;
   if (!e.over && e.id === 'dee') return [{ label: TEXT.dee.ask, kind: 'action', run: 'ask' }];
   const list = [];
+  if (e.id === 'memories') {
+    for (const id of g.memories) list.push({ label: TEXT.menu.memory, kind: 'action', run: 'readMemory', arg: id });
+  }
+  if (e.id === 'abilities') {
+    for (const id of abilityIds(g)) list.push({ label: abilityLabel(id), kind: 'action', run: 'ability', arg: id });
+  }
   if (!e.over && e.id === 'bust') {
     // The bust's opening: what you carry, by name.
     g.items.forEach((it, i) => list.push({ label: TEXT.thing[it.key], kind: 'item', run: 'give', arg: i }));
@@ -1078,8 +1125,22 @@ function eventChoose(g, i, ev) {
   const room = currentRoom(g);
   const toad = room.toad;
   switch (o.run) {
-    case 'back':
+    case 'ability':
       g.event = null;
+      runAbility(g, o.arg, ev);
+      break;
+    case 'back':
+      g.event = e.memoryList ?? null;
+      if (g.event) ev.push({ type: 'event', id: g.event.id });
+      if (e.returnScreen) {
+        g.inv = e.returnScreen.inv;
+        g.menu = e.returnScreen.menu;
+      }
+      break;
+    case 'readMemory':
+      e.cursor = i;
+      openMemory(g, o.arg, ev);
+      g.event.memoryList = e;
       break;
     case 'ask':
       // what you say to DEE: its answer is the second page, and the event is over
@@ -1190,6 +1251,10 @@ function eventAct(g, a, ev) {
       default:
         return false;
     }
+  }
+  if (g.event.id === 'abilities' && a.type === 'menu' && a.id === 'act') {
+    g.event = null;
+    return true;
   }
   const options = eventOptions(g);
   const n = options.length;
@@ -1382,10 +1447,26 @@ export function act(g, a) {
     case 'context':
       if (g.inv) inspect(g);
       else if (g.menu) chooseSlot(g, g.menu.cursor, ev);
-      else context(g, ev);
+      else runAbility(g, contextId(g), ev);
+      break;
+    case 'ability':
+      if (g.edition !== 'esoteric' || g.inv || g.menu || !abilityIds(g, true).includes(a.id)) return [];
+      runAbility(g, a.id, ev);
       break;
     case 'menu':
+      if (g.edition === 'esoteric' && a.id === 'psy') {
+        openPsyche(g, ev);
+        break;
+      }
+      if (g.edition === 'esoteric' && a.id === 'memories') {
+        openMemories(g, ev);
+        break;
+      }
       if (!SQUARE_MENUS.includes(a.id)) return [];
+      if (g.edition === 'esoteric' && a.id === 'act') {
+        if (!g.inv && !g.menu) openEvent(g, { id: 'abilities', passages: [[prose(TEXT.button.abilities)]] }, ev);
+        break;
+      }
       toggleMenu(g, a.id);
       break;
     case 'choose':
@@ -1493,6 +1574,9 @@ export function view(g) {
     },
     // The wide button never blinks any more (decision 116); `more` stays for the screen code.
     context: { id: ctx, label: TEXT.context[ctx], more: false },
+    abilities: g.edition === 'esoteric' && !g.menu && !g.inv && !g.event
+      ? abilityIds(g, true).map((id) => ({ id, label: abilityLabel(id) }))
+      : [],
     menu,
     inv,
     event,

@@ -248,16 +248,17 @@ function roomState(id, gx, gy, key, nb, t) {
 
 // The esoteric edition opens inside the drawing. Its stair is the only way out.
 function drawnLevel(grid) {
-  const { idx } = grid;
+  const { idx, mid, size } = grid;
+  const farEdge = size - 2;
   const nb = { n: null, e: null, s: null, w: null };
   const t = emptyRoom(nb, grid);
   const room = roomState(0, 0, 0, 0, nb, t);
-  const entrance = { room: 0, x: 3, y: 4, ground: 'dirt' };
-  const stairs = { room: 0, x: 3, y: 5 };
+  const entrance = { room: 0, x: mid, y: farEdge - 1, ground: 'dirt' };
+  const stairs = { room: 0, x: mid, y: farEdge };
   for (const y of [1, 2]) for (const x of [1, 2]) t[idx(x, y)] = 'grass';
   t[idx(entrance.x, entrance.y)] = 'entrance';
   t[idx(stairs.x, stairs.y)] = 'stairs';
-  room.statue = { x: 5, y: 3, spoke: false };
+  room.statue = { x: farEdge, y: mid, spoke: false };
   t[idx(room.statue.x, room.statue.y)] = 'statue';
   return { depth: 1, rooms: [room], entrance, stairs, toadRoom: null };
 }
@@ -374,7 +375,7 @@ function makeToadRoom(rng, room, level) {
   const { size, idx } = grid;
   const farEdge = size - 2;
   const corners = [[1, 1], [farEdge, 1], [1, farEdge], [farEdge, farEdge]];
-  // The compact room has space for one tread behind the locked door.
+  // Keep the closet clear of the approach from the middle of each wall.
   const n = Math.max(1, Math.min(grid.mid - 2, CONFIG.closetSize));
   const ins = arrivalCells(room);
   const far = (c) => Math.min(...ins.map((a) => manhattan(a, c)));

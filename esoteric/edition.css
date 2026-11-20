@@ -1,6 +1,6 @@
 @font-face {
   font-family: "Crooked Hand";
-  src: url("font/crooked-hand.woff2?v=2") format("woff2");
+  src: url("font/crooked-hand.woff2?v=6") format("woff2");
   font-style: normal;
   font-weight: 400;
   font-display: swap;
@@ -39,29 +39,32 @@
   --blood-ink: #a23327;
 }
 
-/* Five full squares between two half-width wall tracks. Leave room for
-   the largest hit jolt so all four walls fit throughout the shake. */
-#screen {
-  --wall-fraction: 0.5;
-}
+/* Every wall and playable square uses one grid track. The inset keeps the
+   entire perimeter visible even on the strongest hit jolt. */
 #map-field {
-  --interior: calc(var(--room-size, 7) - 2);
-  --wall-width: calc(100% * var(--wall-fraction) / (var(--interior) + 2 * var(--wall-fraction)));
-  --tracks: var(--wall-width) repeat(var(--interior), minmax(0, 1fr)) var(--wall-width);
+  --frame-inset: calc(2 * var(--u));
   position: absolute;
-  inset: calc(2 * var(--u));
-}
-#map-field .map {
-  grid-template-columns: var(--tracks);
-  grid-template-rows: var(--tracks);
+  inset: var(--frame-inset);
 }
 
 .map {
-  font-size: calc(var(--u) * 72 / var(--room-size, 7));
+  font-size: calc(var(--u) * 72 / var(--room-size, 9));
 }
 .map .c {
   margin: 0;
 }
+/* The gap reads as open all the way to the edge of the board. Its clear hit
+   area follows it through the margin, within the same row or column. */
+#map .c[data-passage] { overflow: visible; }
+#map .c[data-passage]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+}
+#map .c[data-passage="north"]::after { top: calc(-1 * var(--frame-inset)); }
+#map .c[data-passage="south"]::after { bottom: calc(-1 * var(--frame-inset)); }
+#map .c[data-passage="west"]::after { left: calc(-1 * var(--frame-inset)); }
+#map .c[data-passage="east"]::after { right: calc(-1 * var(--frame-inset)); }
 /* Only the ink is masked. The hit area and the trail still occupy the whole cell. */
 .map .c[data-drawing]::before,
 .map .c[data-glints]::after {

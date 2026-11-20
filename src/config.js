@@ -3,7 +3,7 @@
 export const CONFIG = {
   // A room is this many cells across and down, its ring of wall included.
   roomSize: 11,
-  esotericInteriorSize: 5, // the drawing's walkable area, with a wall ring outside it
+  esotericInteriorSize: 7, // nine across including the two outside wall cells
 
   // How many rooms a level has: [rooms, weight]. Usually no more than 3.
   roomCounts: [[1, 40], [2, 30], [3, 25], [4, 5]],

@@ -16,7 +16,10 @@ export const TEXT = {
   // control (restart, the look). The menu button shows a square, not this word ("put in a
   // menu style icon, like a square or something instead of saying menu"); the word is only
   // its name for a screen reader.
-  button: { inv: 'inv', psy: 'psy', act: '*', wait: '...', use: 'use', sys: 'menu' },
+  button: {
+    inv: 'inv', psy: 'psy', act: '*', wait: '...', use: 'use', sys: 'menu',
+    inventory: 'inventory', psyche: 'psyche', memories: 'memories', abilities: 'abilities', waitName: 'wait',
+  },
 
   // HIS. What the wide button says, by where you stand; inspect in the inventory.
   context: { sense: 'sense', corpse: 'corpse', stairs: 'stairs', inspect: 'inspect' },

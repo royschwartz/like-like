@@ -1,0 +1,167 @@
+/* The log and the thumb controls share the same cut of Crooked Hand. */
+#screen {
+  --control-height: max(44px, calc(10 * var(--u)));
+  --side-units: 4;
+  --control-side: calc(var(--side-units) * var(--u));
+  /* Give the log the unused strip above and below the slab first. Where the
+     slab already fills the display, tuck the board in by up to 13 percent. */
+  --spare-height: max(0px, calc(100dvh - var(--w) * 20 / 9.5));
+  --board-reduction: clamp(0px, calc(16 * var(--u) - var(--spare-height)), calc(13 * var(--u)));
+  /* Preserve at least 26px per cell when the display has room for that. The
+     two screen-jolt gutters together take another four units. */
+  --board-side: min(var(--w), max(calc(9 * 26px + 4 * var(--u)), calc(var(--w) - var(--board-reduction))));
+  --board-gap: 6px;
+  height: 100dvh;
+  grid-template-rows: minmax(0, 1fr) calc(var(--board-side) + var(--board-gap)) var(--control-height) auto;
+}
+#map-wrap {
+  width: var(--board-side);
+  height: var(--board-side);
+  justify-self: center;
+}
+.map {
+  font-size: calc(var(--board-side) * .94 / var(--room-size, 9));
+}
+/* Shorter phones can use the old side margins for the log and controls. */
+@media (orientation: portrait) and (max-width: 600px) {
+  #screen { width: min(100vw, calc(118 * var(--u))); }
+}
+
+#log {
+  padding-inline: var(--control-side);
+  padding-top: env(safe-area-inset-top, 0px);
+}
+#log .line {
+  /* A letter advances 0.6 em. Only tighten lines that would push an
+     action past two rows. Their height stays the same as the controls. */
+  --log-scale: min(1, calc((100 - 2 * var(--side-units)) /
+    (var(--text-units) * .6 * (var(--log-measure, 1) + .2))));
+  width: calc(100% / var(--log-scale));
+  transform: scaleX(var(--log-scale));
+  transform-origin: left;
+  font-size: var(--text-size);
+}
+/* Short phones can have a wider log than board. Use its measured width
+   where the browser supports dividing lengths in calc(). */
+@supports (opacity: calc(1px / 1px)) {
+  #log { container-type: inline-size; }
+  #log .line {
+    --log-scale: min(1, calc(100cqi / ((var(--log-measure, 1) + .2) * 1ch)));
+  }
+}
+
+#stats {
+  position: relative;
+  justify-content: space-between;
+  width: 100%;
+  padding-inline: var(--control-side);
+  gap: var(--u);
+  background: var(--slab);
+  color: var(--paper);
+  font-size: var(--text-size);
+  box-shadow: inset 0 -1px color-mix(in srgb, currentColor 28%, transparent);
+}
+#stats::after {
+  content: "";
+  width: .55em;
+  height: .55em;
+  background: currentColor;
+  clip-path: polygon(0 0, 30% 0, 30% 20%, 55% 20%, 55% 40%, 80% 40%,
+    80% 60%, 55% 60%, 55% 80%, 30% 80%, 30% 100%, 0 100%, 0 75%, 25% 75%,
+    25% 60%, 42% 60%, 42% 40%, 25% 40%, 25% 25%, 0 25%);
+}
+#stats.down { background: var(--paper); color: var(--slab); }
+#stats.down .stat .v { color: inherit; }
+
+#controls {
+  display: flex;
+  flex-direction: column;
+  gap: calc(.75 * var(--u));
+  padding: 0 var(--control-side) max(calc(2 * var(--u)), env(safe-area-inset-bottom, 0px));
+}
+#buttons,
+#navigation {
+  display: flex;
+  align-items: stretch;
+  min-height: var(--control-height);
+  gap: calc(2 * var(--u));
+}
+#buttons .btn { padding-inline: var(--u); }
+#btn-context,
+#btn-secondary,
+#btn-use {
+  flex: 1 1 auto;
+  justify-content: flex-start;
+}
+#btn-act { flex: 0 0 var(--control-height); }
+#buttons [hidden] { display: none; }
+
+#navigation {
+  justify-content: space-between;
+  align-items: center;
+}
+#navigation .btn {
+  width: var(--control-height);
+  height: var(--control-height);
+}
+#btn-sys,
+#btn-memories,
+#btn-inv {
+  color: var(--paper);
+  background: var(--slab);
+}
+#navigation .btn.down {
+  color: var(--slab);
+  background: var(--paper);
+}
+#btn-sys::before {
+  width: 1em;
+  height: 1em;
+  box-shadow: inset 0 0 0 .12em currentColor;
+}
+/* A book open at its crease and a satchel with a handle and clasp. Both use
+   square ink steps like the signs on the map. */
+#btn-memories::before,
+#btn-inv::before {
+  content: "";
+  width: 1.2em;
+  height: 1.2em;
+  background: currentColor;
+  -webkit-mask: var(--icon) center / contain no-repeat;
+  mask: var(--icon) center / contain no-repeat;
+}
+#btn-memories {
+  --icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 18 18' shape-rendering='crispEdges'%3E%3Cpath fill-rule='evenodd' d='M0 3h5v1h2v1h4V4h2V3h5v11h-4v1h-3v1H7v-1H4v-1H0zm2 2v7h3v1h3V7H6V6H4V5zm14 0h-2v1h-2v1h-2v6h3v-1h3z'/%3E%3C/svg%3E");
+}
+#btn-inv {
+  --icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 18 18' shape-rendering='crispEdges'%3E%3Cpath fill-rule='evenodd' d='M6 1h6v1h1v3h2v1h1v1h1v9h-1v1H2v-1H1V7h1V6h1V5h2V2h1zm1 2v2h4V3zM3 7v2h2v1h3V9h2v1h3V9h2V7zm0 4v4h12v-4h-2v1h-3v1H8v-1H5v-1z'/%3E%3C/svg%3E");
+}
+
+#screen[data-screen="inv"] #btn-memories,
+#screen[data-screen="inv"] #btn-secondary,
+#screen[data-screen="inv"] #btn-inv::before { display: none; }
+#screen[data-screen="inv"] #btn-inv {
+  order: -1;
+  width: auto;
+  min-width: var(--control-height);
+  padding-inline: var(--u);
+}
+
+#controls[data-menu] #options {
+  grid-template-rows: repeat(2, var(--control-height));
+  gap: var(--u);
+}
+#controls[data-menu] #navigation > :not(#btn-sys) { display: none; }
+#controls[data-menu="sys"] .brightness {
+  min-height: var(--control-height);
+}
+/* The arrow points to the selected link. Its accessible name is the link text. */
+.link.cursor::before { content: ">" / ""; }
+
+/* Keep the system menu's five rows reachable when a phone turns sideways. */
+@media (max-height: 450px) {
+  #screen {
+    --control-height: min(44px, 9dvh);
+    --board-gap: 2px;
+  }
+}

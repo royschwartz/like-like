@@ -9,24 +9,25 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <title>LIKE LIKE · esoteric</title>
 <link rel="icon" href="data:,">
-<link rel="preload" href="font/crooked-hand.woff2?v=2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="font/crooked-hand.woff2?v=6" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="../style.css?v=2">
-<link rel="stylesheet" href="edition.css?v=5">
-<link rel="stylesheet" href="type.css?v=4">
+<link rel="stylesheet" href="edition.css?v=6">
+<link rel="stylesheet" href="type.css?v=6">
+<link rel="stylesheet" href="controls.css?v=6">
 <!-- Load matching room geometry, pointer input and art even with a previous edition cached. -->
 <script type="importmap">
 {
   "imports": {
-    "../src/config.js": "../src/config.js?v=2",
-    "../src/game.js": "../src/game.js?v=4",
-    "../src/gen.js": "../src/gen.js?v=2",
+    "../src/config.js": "../src/config.js?v=6",
+    "../src/game.js": "../src/game.js?v=6",
+    "../src/gen.js": "../src/gen.js?v=6",
     "../src/fov.js": "../src/fov.js?v=2",
     "../src/path.js": "../src/path.js?v=2",
-    "../src/render.js": "../src/render.js?v=5",
+    "../src/render.js": "../src/render.js?v=6",
     "../src/marks.js": "../src/marks.js?v=4",
-    "../src/text.js": "../src/text.js?v=3",
-    "../src/input.js": "../src/input.js?v=4",
-    "./edition.js": "./edition.js?v=5",
+    "../src/text.js": "../src/text.js?v=6",
+    "../src/input.js": "../src/input.js?v=6",
+    "./edition.js": "./edition.js?v=6",
     "./symbols.js": "./symbols.js?v=5",
     "./terrain.js": "./terrain.js?v=2"
   }
@@ -51,7 +52,7 @@
       </div>
     </section>
 
-    <section id="stats"></section>
+    <button id="stats" class="btn" type="button" data-menu="psy"></button>
 
     <section id="event" hidden aria-live="polite">
       <div id="event-lines"></div>
@@ -62,8 +63,7 @@
     <section id="controls">
       <div id="buttons">
         <button id="btn-context" class="btn" type="button" data-action="context"></button>
-        <button id="btn-psy" class="btn" type="button" data-menu="psy"></button>
-        <button id="btn-inv" class="btn" type="button" data-menu="inv"></button>
+        <button id="btn-secondary" class="btn" type="button" hidden></button>
         <button id="btn-act" class="btn" type="button" data-menu="act"></button>
         <button id="btn-use" class="btn" type="button" data-action="use"></button>
       </div>
@@ -75,9 +75,11 @@
         <button class="btn opt" type="button" data-choose="3"></button>
       </div>
 
-      <button id="btn-wait" class="btn" type="button" data-action="wait"></button>
-
-      <button id="btn-sys" class="btn" type="button" data-menu="sys"></button>
+      <div id="navigation">
+        <button id="btn-sys" class="btn" type="button" data-menu="sys"></button>
+        <button id="btn-memories" class="btn" type="button" data-menu="memories"></button>
+        <button id="btn-inv" class="btn" type="button" data-menu="inv"></button>
+      </div>
     </section>
 
   </div>

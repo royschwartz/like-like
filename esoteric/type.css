@@ -1,20 +1,11 @@
-/* Crooked Hand has a 0.6 em advance. Give the log a taller, narrower cut so
-   the simulation's 41-character measure and two-line statuses still fit. */
 #screen {
-  --text-size: calc(var(--u) * 5.4);
+  --text-units: 5.4;
+  --text-size: calc(var(--u) * var(--text-units));
   --reading-ink: color-mix(in srgb, white var(--text-brightness, 100%), black);
   --reading-paper-ink: color-mix(in srgb, #17150f var(--text-brightness, 100%), #878477);
 }
 
-#log {
-  padding-inline: calc(var(--u) * 2.5);
-}
 .line {
-  --log-scale: 0.79;
-  width: calc(100% / var(--log-scale));
-  transform: scaleX(var(--log-scale));
-  transform-origin: left;
-  font-size: calc(var(--u) * 4.85);
   line-height: 1.25;
 }
 /* The log puts the newest entry first, even when one turn reports two things. */
@@ -24,10 +15,6 @@
 }
 #log-lines > .line ~ .line {
   color: color-mix(in srgb, var(--reading-ink) 60%, var(--slab));
-}
-
-#stats {
-  font-size: calc(var(--u) * 5.6);
 }
 
 #inv-title,
@@ -52,7 +39,7 @@
 /* The toad is the only letter drawn on the map. Its ink stands about
    four fifths of an em high, leaving space around it within its square. */
 .map {
-  font-size: calc(var(--u) * 94 / var(--room-size, 7));
+  font-size: calc(var(--u) * 94 / var(--room-size, 9));
 }
 
 /* The slab and event screens are dark in both looks. Inverse selections use

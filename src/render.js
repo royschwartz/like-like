@@ -25,7 +25,7 @@ export function createRenderer(root = document, { marks: withMarks = true, cellP
   const screen = $('screen');
   const map = $('map');
   const mapHost = map.parentElement; // the grid, its marks and any sliding copy share this box
-  const mapField = $('map-field'); // the esoteric room and its half-width wall tracks
+  const mapField = $('map-field'); // the inset frame of the esoteric room
   const logLines = $('log-lines');
   const invEl = $('inv');
   const invTitle = $('inv-title');
@@ -36,6 +36,9 @@ export function createRenderer(root = document, { marks: withMarks = true, cellP
   const eventMenu = $('btn-event-sys');
   const controls = $('controls');
   const btnContext = $('btn-context');
+  const btnSecondary = $('btn-secondary');
+  const btnMemories = $('btn-memories');
+  const statRow = $('stats');
   const menuButtons = { inv: $('btn-inv'), psy: $('btn-psy'), act: $('btn-act'), sys: $('btn-sys') };
   const btnWait = $('btn-wait');
   const btnUse = $('btn-use');
@@ -44,7 +47,7 @@ export function createRenderer(root = document, { marks: withMarks = true, cellP
   screen.style.setProperty('--room-size', size);
   const cells = buildMap(map, size);
   const lastPaint = new Array(size * size).fill(null);
-  const stats = buildStats($('stats'));
+  const stats = buildStats(statRow);
   const logEls = new Map(); // Line.id -> { el, text, turn }
   let invKey = null; // what the inventory screen last showed
   let eventKey = null; // what the event panel last showed
@@ -175,6 +178,10 @@ export function createRenderer(root = document, { marks: withMarks = true, cellP
       const last = lastPaint[i];
       const el = cells[i];
       el.classList.toggle('more', !!list[i]?.more);
+      if (last?.passage !== paint.passage) {
+        if (paint.passage) el.dataset.passage = paint.passage;
+        else delete el.dataset.passage;
+      }
       if (last?.mask !== paint.mask) {
         if (paint.mask) el.style.setProperty('--drawing', paint.mask);
         else el.style.removeProperty('--drawing');
@@ -435,6 +442,14 @@ export function createRenderer(root = document, { marks: withMarks = true, cellP
       if (!rec) {
         const el = logLines.ownerDocument.createElement('div');
         el.textContent = words(line.text);
+        if (mapField && line.id >= freshFrom) {
+          // Two messages share the action's two lines. A lone message can
+          // wrap at the word break nearest its middle. Most fit at full width.
+          const text = el.textContent;
+          const paired = lines.length > 1 && lines[1].id >= freshFrom;
+          const measure = paired ? text.length : twoLineMeasure(text);
+          el.style.setProperty('--log-measure', String(measure));
+        }
         rec = { el, text: line.text, turn: line.turn, kind: null };
         logEls.set(line.id, rec);
         el.className = 'line';
@@ -592,23 +607,48 @@ export function createRenderer(root = document, { marks: withMarks = true, cellP
     setStat(stats.hp, hpKnown ? `${s.hp}/${s.maxHp}` : null);
     stats.hp.wrap.classList.toggle('hurt', hpKnown && s.hp < s.maxHp);
     stats.hp.wrap.classList.toggle('low', s.hp != null && s.hp <= 1);
+    if (statRow.dataset.menu === 'psy') {
+      const values = [stats.str, stats.love, stats.hp].map(({ wrap, v }) =>
+        wrap.firstChild.textContent + ' ' + v.textContent
+      );
+      setAttr(statRow, 'aria-label', [TEXT.button.psyche, ...values].join(', '));
+      setAttr(statRow, 'title', TEXT.button.psyche);
+    }
   }
 
   // --- buttons ---
 
   function drawButtons(view) {
-    for (const id of Object.keys(menuButtons)) {
-      if (id === 'sys') nameOnly(menuButtons.sys, TEXT.button.sys);
-      else setText(menuButtons[id], TEXT.button[id] ?? '');
+    nameOnly(menuButtons.sys, TEXT.button.sys);
+    setText(menuButtons.act, TEXT.button.act);
+    setText(menuButtons.psy, TEXT.button.psy);
+    if (btnMemories) {
+      nameOnly(btnMemories, TEXT.button.memories);
+      setAttr(btnMemories, 'title', TEXT.button.memories);
+      setAttr(menuButtons.act, 'aria-label', TEXT.button.abilities);
+      setAttr(menuButtons.act, 'title', TEXT.button.abilities);
+      const invLabel = view.inv ? TEXT.menu.back : TEXT.button.inventory;
+      setText(menuButtons.inv, view.inv ? invLabel : '');
+      setAttr(menuButtons.inv, 'aria-label', invLabel);
+      setAttr(menuButtons.inv, 'title', invLabel);
+    } else {
+      setText(menuButtons.inv, view.inv ? TEXT.menu.back : TEXT.button.inv);
     }
-    // On the inventory screen the inv button is the way back.
-    if (view.inv) setText(menuButtons.inv, TEXT.menu.back ?? '');
     setText(btnWait, TEXT.button.wait ?? '');
     setText(btnUse, TEXT.button.use ?? '');
     // the two labels that are marks, not words: their ink in the middle of the button
     centreInk(menuButtons.act);
     centreInk(btnWait);
-    const ctx = view.context || {};
+    const shortcuts = view.abilities || [];
+    const ctx = shortcuts[0] || view.context || {};
+    if (btnSecondary) {
+      btnSecondary.hidden = !shortcuts[1];
+      setText(btnSecondary, shortcuts[1]?.label);
+      if (shortcuts[1]) setAttr(btnSecondary, 'data-ability', shortcuts[1].id);
+      else btnSecondary.removeAttribute('data-ability');
+      if (shortcuts[0]) setAttr(btnContext, 'data-ability', shortcuts[0].id);
+      else btnContext.removeAttribute('data-ability');
+    }
     setText(btnContext, ctx.label == null ? '' : ctx.label);
     if (ctx.id) setAttr(btnContext, 'data-context', ctx.id);
     else btnContext.removeAttribute('data-context');
@@ -744,6 +784,15 @@ function setText(el, text) {
 // tell it is one (it is still drawn in the slot's grey); the screen leaves them off.
 function words(text) {
   return text == null ? '' : String(text).replace(/[[\]]/g, '');
+}
+
+// Narrowest monospaced measure that fits the complete text in two lines.
+function twoLineMeasure(text) {
+  let measure = text.length;
+  for (let i = text.indexOf(' '); i >= 0; i = text.indexOf(' ', i + 1)) {
+    measure = Math.min(measure, Math.max(i, text.length - i - 1));
+  }
+  return measure;
 }
 
 // Put the ink of a short mark ("*", "...") in the middle of its button. A line of type is

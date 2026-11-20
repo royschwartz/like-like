@@ -52,7 +52,18 @@ export function bindInput(root, dispatch, timing = {}, size = CONFIG.roomSize) {
 
   function onPointerDown(e) {
     if (e.button != null && e.button !== 0) return;
-    const el = e.target && e.target.closest ? e.target.closest('.btn, .link, [data-cell], [data-pick]') : null;
+    let target = e.target;
+    // Touch browsers can redirect the bottom row to the stats button, or a
+    // press in the gutter onto the nearest tile. Check the contact center.
+    if (e.pointerType === 'touch' && doc.documentElement?.dataset.edition === 'esoteric') {
+      const point = doc.elementFromPoint?.(e.clientX, e.clientY);
+      if (target?.closest?.('#stats')) {
+        target = point?.closest('#map [data-cell]') ?? target;
+      } else if (target?.closest?.('#map [data-cell]') && point && !point.closest('#map-wrap')) {
+        target = point;
+      }
+    }
+    const el = target?.closest?.('.btn, .link, [data-cell], [data-pick]') ?? null;
     const cell = el && root.contains(el) ? cellOf(el, size) : null;
     if (cell) {
       e.preventDefault(); // no focus, no emulated mouse events, no selecting
@@ -232,6 +243,7 @@ function sameCell(a, b) {
 
 function elementAction(el) {
   const d = el.dataset || {};
+  if (d.ability) return { type: 'ability', id: d.ability };
   if (d.action === 'context') return { type: 'context' };
   if (d.action === 'wait') return { type: 'wait' };
   if (d.action === 'use') return { type: 'use' };

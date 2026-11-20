@@ -38,6 +38,18 @@ test('open doors are bare gaps and the locked gate keeps its gold mark', () => {
   assert.equal(player.mask, paintEsoteric(visible('floor', { kind: 'player' }), 1, 1, room).mask);
 });
 
+test('only known room exits extend their touch target through the frame', () => {
+  const room = env();
+  for (const [x, y, side] of [[1, 0, 'north'], [2, 1, 'east'], [1, 2, 'south'], [0, 1, 'west']]) {
+    for (const state of ['visible', 'remembered']) {
+      assert.equal(paintEsoteric({ t: 'door', state }, x, y, room).passage, side);
+    }
+    assert.equal(paintEsoteric({ t: 'door', state: 'unknown' }, x, y, room).passage, undefined);
+    assert.equal(paintEsoteric(visible('wall'), x, y, room).passage, undefined);
+  }
+  assert.equal(paintEsoteric(visible('opendoor'), 1, 1, room).passage, undefined);
+});
+
 test('wall joins follow only known terrain', () => {
   const room = env();
   room.cells[4] = visible('wall');
@@ -52,15 +64,25 @@ test('wall joins follow only known terrain', () => {
   assert.notEqual(wall(), pillar);
 });
 
-test('the opening matches the five-by-five drawing on every seed and restart', () => {
+test('the nine-by-nine opening keeps the drawn landmarks on every seed and restart', () => {
   const signs = { player: '@', grass: '"', statue: '&', stairs: '>', floor: '.', wall: '#' };
-  const drawing = ['#######', '#""...#', '#""...#', '#....&#', '#..@..#', '#..>..#', '#######'];
+  const drawing = [
+    '#########',
+    '#"".....#',
+    '#"".....#',
+    '#.......#',
+    '#......&#',
+    '#.......#',
+    '#...@...#',
+    '#...>...#',
+    '#########',
+  ];
   for (const seed of [0, 7, 19]) {
     const g = newGame({ edition: 'esoteric', seed });
     for (let run = 0; run < 2; run++) {
       const v = view(g);
-      assert.equal(v.room.size, 7);
-      assert.equal(v.cells.length, 49);
+      assert.equal(v.room.size, 9);
+      assert.equal(v.cells.length, 81);
       const symbols = v.cells.map(c => signs[c.thing?.kind ?? c.t]).join('');
       assert.equal(symbols, drawing.join(''));
       assert.equal(view(newGame({ seed })).room.size, 11);
@@ -76,14 +98,14 @@ test('the opening matches the five-by-five drawing on every seed and restart', (
 
 test('the stairs below the drawing are guarded and DEE remembers speaking upstairs', () => {
   const g = newGame({ edition: 'esoteric', seed: 19 });
-  for (const dir of ['e', 'e', 'n']) act(g, { type: 'move', dir });
+  for (const dir of ['e', 'e', 'e', 'n', 'n']) act(g, { type: 'move', dir });
   assert.equal(view(g).event.id, 'dee');
   act(g, { type: 'choose', index: 0 });
   act(g, { type: 'back' });
-  for (const dir of ['w', 'w', 's']) act(g, { type: 'move', dir });
+  for (const dir of ['w', 'w', 'w', 's', 's']) act(g, { type: 'move', dir });
   act(g, { type: 'context' });
   assert.equal(g.depth, 2);
-  assert.ok(g.level.rooms.every(room => room.t.length === 49));
+  assert.ok(g.level.rooms.every(room => room.t.length === 81));
   const sentryRoom = g.level.rooms[g.level.toadRoom];
   assert.ok(sentryRoom.toad.asleep);
   assert.ok(sentryRoom.statue.spoke);

@@ -27,6 +27,16 @@ export function paintEsoteric(cell, x, y, env) {
   const fg = cell.state === 'remembered' ? `color-mix(in srgb, ${color} 44%, ${bg})` : color;
   const label = name.replace(/[[\]]/g, '');
   if (kind === 'toad') return { ch: 't', fg, bg, label };
+  if (kind === 'door') {
+    // Only room exits reach through the frame. An unlocked gold gate is inside the room.
+    const edge = env.size - 1;
+    let passage;
+    if (x === 0) passage = 'west';
+    else if (x === edge) passage = 'east';
+    else if (y === 0) passage = 'north';
+    else if (y === edge) passage = 'south';
+    return { ch: '', fg, bg, label, passage };
+  }
 
   if (kind === 'grass') {
     const { green: mask, white: glints } = grassMasks(x, y, env.cells, env.size, env.key);
