@@ -71,7 +71,7 @@ test('the esoteric edition has no sense: the first place is what is here, and wa
   assert.equal(g.turn, t + 1);
 });
 
-test('a corpse: eat or take items, no back, stepping off closes it; the stairs are walked into', () => {
+test('a corpse: eat, take items or back, and stepping off closes it too; the stairs are walked into', () => {
   const g = start();
   act(g, { type: 'move', dir: 's' });
   assert.deepEqual(shortcuts(g), []);
@@ -80,9 +80,17 @@ test('a corpse: eat or take items, no back, stepping off closes it; the stairs a
   assert.deepEqual(openList(g), [TEXT.context.corpse, TEXT.button.waitName, TEXT.menu.rest, TEXT.menu.back]);
   act(g, { type: 'choose', index: 0 });
   assert.equal(view(g).menu.id, 'corpse');
-  // eat and take items, and no back
-  assert.deepEqual(view(g).menu.options.map((o) => o?.label ?? null), [TEXT.menu.eat, TEXT.menu.takeItems, null, null]);
-  assert.deepEqual(act(g, { type: 'back' }), []);
+  // eat, take items and back (decision 275)
+  assert.deepEqual(view(g).menu.options.map((o) => o?.label ?? null), [TEXT.menu.eat, TEXT.menu.takeItems, null, TEXT.menu.back]);
+  act(g, { type: 'choose', index: 3 });
+  assert.equal(view(g).menu, null, 'back closes it');
+  act(g, { type: 'choose', index: 0 });
+  assert.equal(view(g).menu, null, 'nothing to choose with it closed');
+  act(g, { type: 'context' });
+  assert.equal(view(g).menu.id, 'corpse');
+  act(g, { type: 'back' });
+  assert.equal(view(g).menu, null, 'the back key closes it too');
+  act(g, { type: 'context' });
   assert.equal(view(g).menu.id, 'corpse');
   // take items: a view of its own, the corpse's things and back
   act(g, { type: 'choose', index: 1 });

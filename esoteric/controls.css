@@ -229,18 +229,18 @@
 /* The arrow points to the selected link. Its accessible name is the link text. */
 .link.cursor::before { content: ">" / ""; }
 
-/* The tint is the label's colour alone: no filled box behind the stairs. A corpse keeps
-   its red box, with the word in the middle of it. */
-#btn-context[data-context]:not([data-context="corpse"]):not(.down) {
+/* The tint is the label's colour alone: no filled box behind stairs or a corpse.
+   A corpse is just its word in red (decision 274). */
+#btn-context[data-context]:not(.down) {
   background: var(--slab);
   box-shadow: none;
 }
-#btn-context[data-context="corpse"] { justify-content: center; }
 
-/* A corpse's eat and take items sit where the abilities row is (decision 264). */
+/* A corpse's eat and take items sit where the abilities row is (decision 264),
+   and back at its end, where wait and the star were (decision 275). */
 #controls[data-menu="corpse"] #options {
   margin-top: auto;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 1fr auto;
   grid-template-rows: var(--control-height);
   gap: calc(2 * var(--u));
 }
@@ -252,5 +252,8 @@
   background: var(--slab);
   box-shadow: none;
 }
+/* back is white, as wait is */
+#controls[data-menu="corpse"] #options .opt[data-kind="back"] { justify-content: flex-end; }
+#controls[data-menu="corpse"] #options .opt[data-kind="back"]:not(.down) { color: var(--paper); }
 #controls[data-menu="corpse"] #options .opt:disabled { opacity: .45; }
 #controls[data-menu="corpse"] #options .opt.cursor::before { content: "> " / ""; white-space: pre; }

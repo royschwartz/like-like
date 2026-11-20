@@ -924,13 +924,10 @@ function pages(list) {
   return out;
 }
 
-// A corpse in the esoteric edition has no back: stepping off it is the way out.
-const noBack = (g, menu) => g.edition === 'esoteric' && menu.id === 'corpse';
-
 function slots(g, menu) {
   const all = pages(entries(g, menu));
   const page = all[Math.min(menu.page, all.length - 1)];
-  return [page[0] ?? null, page[1] ?? null, page[2] ?? null, noBack(g, menu) ? null : BACK];
+  return [page[0] ?? null, page[1] ?? null, page[2] ?? null, BACK];
 }
 
 const choosable = (s) => !!s && !s.disabled;
@@ -944,8 +941,8 @@ function menuTitle(g, menu) {
   return TEXT.button[menu.id];
 }
 
-// ---- a corpse, in the esoteric edition (decision 264) ------------------------------
-// Standing on it, its menu offers eat and take items, with no back: stepping off it closes
+// ---- a corpse, in the esoteric edition (decisions 264, 275) -------------------------
+// Standing on it, its menu offers eat, take items and back; stepping off it also closes
 // the menu. Take items opens a view of its own, its things as links and back, which goes
 // back to the corpse's menu.
 
@@ -978,7 +975,7 @@ function eatCorpse(g, ev) {
 }
 
 // Is the esoteric corpse menu open? Moving, tapping or dragging closes it and goes.
-const corpseMenuOpen = (g) => !!g.menu && noBack(g, g.menu);
+const corpseMenuOpen = (g) => g.edition === 'esoteric' && g.menu?.id === 'corpse';
 
 function openMenu(g, id) {
   g.inv = null;
@@ -1675,7 +1672,6 @@ export function act(g, a) {
       chooseSlot(g, a.index, ev);
       break;
     case 'back':
-      if (corpseMenuOpen(g)) return []; // no back: stepping off is the way out
       if (g.inv) g.inv = null;
       else if (g.menu) back(g);
       break;
