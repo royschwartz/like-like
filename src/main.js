@@ -119,11 +119,19 @@ const isPlayer = (x, y) => {
   return !!p && p.x === x && p.y === y;
 };
 
+// In the esoteric edition a wall, or the black outside a room, that you can see and that
+// has nothing on it, is nothing to drag to: letting go there goes nowhere (decision 262).
+function obstruction(at) {
+  if (!esoteric || !at) return false;
+  const c = view(game).cells?.[at.y * size + at.x];
+  return !!c && c.state !== 'unknown' && !c.thing && (c.t === 'wall' || c.t === 'void');
+}
+
 // A drag is over the cell `at` (null: off the map). Its way is drawn, bright, and the
 // cell is marked; over your own cell or one never seen there is nothing to go to.
 function aimAt(at) {
   renderer.dropLook();
-  const seen = at ? lookAt(at.x, at.y) : null;
+  const seen = at && !obstruction(at) ? lookAt(at.x, at.y) : null;
   if (!seen || isPlayer(at.x, at.y)) {
     aim = null;
     renderer.clearAim();
@@ -138,7 +146,7 @@ function drop() {
   const at = aim;
   aim = null;
   renderer.clearAim();
-  if (!at || isPlayer(at.x, at.y) || !lookAt(at.x, at.y)) return;
+  if (!at || isPlayer(at.x, at.y) || obstruction(at) || !lookAt(at.x, at.y)) return;
   if (!esoteric) renderer.flashAim(at.x, at.y);
   run({ type: 'travel', x: at.x, y: at.y });
 }
@@ -178,7 +186,8 @@ function dispatch(action) {
       // let go before the blink was done: go there (or hit what's there, or wait).
       // Somewhere else, its corners flash, to show which square the finger hit.
       renderer.dropLook();
-      if (!isPlayer(action.x, action.y) && lookAt(action.x, action.y)) renderer.flashAim(action.x, action.y);
+      // (not in the esoteric edition: no corners on a tap, decision 261)
+      if (!esoteric && !isPlayer(action.x, action.y) && lookAt(action.x, action.y)) renderer.flashAim(action.x, action.y);
       return run({ type: 'travel', x: action.x, y: action.y });
     case 'interrupt':
       return;
