@@ -18,6 +18,8 @@
   --control-height: min(max(44px, calc(10 * var(--u))), calc((var(--room-margin) - var(--footer-space)) / 3));
   width: var(--board-side);
   height: 100dvh;
+  /* one column, the square's width: a row too long for it never widens the screen */
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: calc(var(--room-margin) - var(--lift)) var(--board-side) calc(var(--control-height) + var(--control-gap)) minmax(0, 1fr);
 }
 #map-wrap {
@@ -106,6 +108,12 @@
 #buttons .btn {
   padding-inline: var(--u);
   white-space: nowrap;
+}
+/* Two actions, wait and the star too long for the row ("inspect", "dig for worms"): their
+   words are set a little smaller to fit (render.js sets --row-fit), before the second is left
+   off the row. */
+#buttons .btn:not(#btn-act) {
+  font-size: calc(var(--row-fit, 1) * var(--text-size));
 }
 #btn-context,
 #btn-secondary,

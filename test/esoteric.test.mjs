@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { paintEsoteric } from '../esoteric/edition.js';
 import { newGame, act, view } from '../src/game.js';
 import { levelDistances } from '../src/gen.js';
+import { TEXT } from '../src/text.js';
 
 const visible = (t, thing = null) => ({ t, thing, state: 'visible' });
 const env = () => ({ size: 3, key: 17, cells: Array.from({ length: 9 }, () => visible('floor')) });
@@ -102,16 +103,16 @@ test('grass keeps its sprigs as more of the patch comes into view', () => {
   }
 });
 
-test('the seven-by-seven opening keeps the drawn landmarks on every seed and restart', () => {
-  const signs = { player: '@', grass: '"', statue: '&', stairs: '>', floor: '.', wall: '#' };
+test('the seven-by-seven opening keeps the drawn grass and entrance, and two ways out, on every seed and restart', () => {
+  const signs = { player: '@', grass: '"', door: '+', floor: '.', wall: '#' };
   const drawing = [
     '#######',
     '#""...#',
     '#""...#',
-    '#....&#',
+    '+.....+',
     '#..@..#',
     '#.....#',
-    '###>###',
+    '#######',
   ];
   for (const seed of [0, 7, 19]) {
     const g = newGame({ edition: 'esoteric', seed });
@@ -121,10 +122,13 @@ test('the seven-by-seven opening keeps the drawn landmarks on every seed and res
       assert.equal(v.cells.length, 49);
       const symbols = v.cells.map(c => signs[c.thing?.kind ?? c.t]).join('');
       assert.equal(symbols, drawing.join(''));
+      // you stand on the entrance; the grass glows
+      assert.equal(g.level.rooms[0].t[4 * 7 + 3], 'entrance');
+      assert.ok(v.cells.filter((c) => c.t === 'grass').every((c) => c.grass === 'glowing'));
       assert.equal(view(newGame({ seed })).room.size, 11);
       if (run === 0) {
-        act(g, { type: 'move', dir: 's' });
-        act(g, { type: 'move', dir: 's' });
+        act(g, { type: 'move', dir: 'n' });
+        act(g, { type: 'move', dir: 'w' });
         act(g, { type: 'menu', id: 'sys' });
         act(g, { type: 'choose', index: 0 });
       }
@@ -132,22 +136,60 @@ test('the seven-by-seven opening keeps the drawn landmarks on every seed and res
   }
 });
 
-test('the stairs below the drawing are guarded and DEE remembers speaking upstairs', () => {
+test('the first floor: the mother\'s room one way, the toad\'s room with the bust the other, the stairs behind its golden door', () => {
+  for (let seed = 1; seed <= 25; seed++) {
+    const g = newGame({ edition: 'esoteric', seed });
+    const [first, mother, toadRoom] = g.level.rooms;
+    assert.equal(g.level.rooms.length, 3);
+    assert.ok(g.level.rooms.every((room) => room.t.length === 49));
+    assert.deepEqual(first.nb, { n: null, e: 2, s: null, w: 1 });
+    assert.ok(!first.t.includes('stairs') && !first.t.includes('statue') && !first.statue && !first.toad);
+    // west, the mother, in the gap across from where you come in, which leads nowhere yet
+    assert.deepEqual(mother.nb, { n: null, e: 0, s: null, w: null });
+    assert.deepEqual(mother.mother, { x: 0, y: 3 });
+    assert.equal(mother.t[3 * 7], 'door');
+    assert.ok(!mother.toad && !mother.statue && !mother.t.includes('stairs') && !mother.t.includes('grass'));
+    // east, the toad asleep with its key, the bust, and the stairs behind the golden door
+    assert.equal(g.level.toadRoom, 2);
+    assert.deepEqual(toadRoom.nb, { n: null, e: null, s: null, w: 0 });
+    assert.ok(toadRoom.toad.asleep && toadRoom.toad.key);
+    assert.ok(toadRoom.statue && !toadRoom.statue.spoke);
+    assert.equal(toadRoom.grass, 'purple');
+    assert.ok(toadRoom.t.includes('grass'));
+    const { x, y, room } = g.level.stairs;
+    assert.equal(room, 2);
+    assert.equal(levelDistances(g.level, g.level.entrance, { locked: true })[room][y * 7 + x], -1);
+    assert.ok(levelDistances(g.level)[room][y * 7 + x] > 0);
+    // every open cell of the floor can be reached
+    const dist = levelDistances(g.level);
+    g.level.rooms.forEach((r, k) => r.t.forEach((c, i) => {
+      if (OPEN.includes(c)) assert.ok(dist[k][i] >= 0, `seed ${seed} room ${k} cell ${i}`);
+    }));
+  }
+});
+
+test('walking into the mother: a line, no turn, and never past her; observing her, her line', () => {
   const g = newGame({ edition: 'esoteric', seed: 19 });
-  for (const dir of ['e', 'e', 'n']) act(g, { type: 'move', dir });
-  assert.equal(view(g).event.id, 'dee');
-  act(g, { type: 'choose', index: 0 });
-  act(g, { type: 'back' });
-  for (const dir of ['w', 'w', 's', 's']) act(g, { type: 'move', dir });
-  assert.equal(g.depth, 2);
-  assert.ok(g.level.rooms.every(room => room.t.length === 49));
-  const sentryRoom = g.level.rooms[g.level.toadRoom];
-  assert.ok(sentryRoom.toad.asleep);
-  assert.ok(sentryRoom.statue.spoke);
-  const { x, y, room } = g.level.stairs;
-  const index = y * view(g).room.size + x;
-  assert.equal(levelDistances(g.level, g.level.entrance, { locked: true })[room][index], -1);
-  assert.ok(levelDistances(g.level)[room][index] > 0);
+  for (const dir of ['n', 'w', 'w', 'w']) act(g, { type: 'move', dir });
+  assert.equal(g.room, 1, 'through the west gap into her room');
+  assert.deepEqual([g.x, g.y], [5, 3]);
+  // just inside her gap
+  [g.x, g.y] = [1, 3];
+  const v = view(g);
+  assert.deepEqual(v.cells[3 * 7].thing, { kind: 'mother' });
+  const mark = paintEsoteric(v.cells[3 * 7], 0, 3, { size: 7, key: 1, cells: v.cells });
+  assert.ok(mark.mask.startsWith('url('));
+  assert.match(mark.fg, /--mother/);
+  assert.equal(mark.label, 'mother');
+  const turn = g.turn;
+  act(g, { type: 'move', dir: 'w' });
+  assert.deepEqual([g.room, g.x, g.y, g.turn], [1, 1, 3, turn]);
+  assert.equal(g.log.at(-1).text, TEXT.log.motherBlocks);
+  // a tap on her bumps her, as a toad's would, never a way through
+  act(g, { type: 'travel', x: 0, y: 3 });
+  assert.deepEqual([g.room, g.x, g.y], [1, 1, 3]);
+  act(g, { type: 'observe', x: 0, y: 3 });
+  assert.equal(g.log.at(-1).text, TEXT.observe.mother);
 });
 
 const STEPS = { n: [0, -1], e: [1, 0], s: [0, 1], w: [-1, 0] };
@@ -176,7 +218,7 @@ test('the esoteric stairs are always at the edge of the map, facing out of it, a
       assert.ok(OPEN.includes(at(x - dx, y - dy)), `seed ${seed} floor ${floor}: open ground inside`);
       assert.equal(at(x + dx, y + dy), null, 'at the edge of the map, facing out of it');
       for (const [px, py] of dx ? [[0, 1], [0, -1]] : [[1, 0], [-1, 0]]) assert.equal(at(x + px, y + py), 'wall', 'walls either side');
-      if (floor === 2) assert.equal(levelDistances(g.level, g.level.entrance, { locked: true })[room][y * size + x], -1);
+      if (floor === 1) assert.equal(levelDistances(g.level, g.level.entrance, { locked: true })[room][y * size + x], -1);
       assert.ok(levelDistances(g.level)[room][y * size + x] > 0);
       const depth = g.depth;
       assert.ok(goDown(g).some((e) => e.type === 'descend'));

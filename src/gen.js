@@ -289,6 +289,7 @@ export function levelDistances(level, from = level.entrance, { locked = false } 
       const c = room.t[idx(nx, ny)];
       if (!walkable(c) || (locked && c === 'golddoor')) continue;
       if (c === 'door') {
+        if (room.nb[d] === null) continue; // a way on not made yet
         nr = room.nb[d];
         [nx, ny] = arrivals[OPP[d]];
       }
@@ -352,22 +353,63 @@ function roomState(id, gx, gy, key, nb, t) {
   };
 }
 
-// The esoteric edition opens inside the drawing. Its stair is the only way out.
-function drawnLevel(grid) {
+// The esoteric edition's first floor (November 20): his drawn room, with only its grass and
+// the entrance ("in the first room the only special thing is the grass and the entrance"),
+// no stairs and two ways out ("there are no stairs but two exits out"). One goes to the
+// mother's room, where she stands in the way on ("a room with a mother figure ... blocking
+// the way out"); the other to the toad's room, with the bust, and the stairs behind the
+// golden door. The mother to the west, the toad and the bust to the east, where the bust
+// stood in the drawing. What lies past the mother isn't made yet: her gap leads nowhere.
+export const FIRST_FLOOR = { mother: 'w', toad: 'e' };
+
+function firstFloor(rng, grid) {
   const { idx, mid, size } = grid;
   const farEdge = size - 2;
-  const nb = { n: null, e: null, s: null, w: null };
+  const none = { n: null, e: null, s: null, w: null };
+  const ids = { [FIRST_FLOOR.mother]: 1, [FIRST_FLOOR.toad]: 2 };
+  const salt = int(rng, 1, 1 << 20);
+
+  // the drawing: its grass in the corner, the entrance below the middle, a gap either way
+  const nb = { ...none, ...ids };
   const t = emptyRoom(nb, grid);
-  const room = roomState(0, 0, 0, 0, nb, t);
-  const entrance = { room: 0, x: mid, y: farEdge - 1, ground: 'dirt' };
-  // The stairs are in the wall below where the drawing had them (decision 251).
-  const stairs = { room: 0, x: mid, y: size - 1, side: 's' };
   for (const y of [1, 2]) for (const x of [1, 2]) t[idx(x, y)] = 'grass';
+  const entrance = { room: 0, x: mid, y: farEdge - 1, ground: 'dirt' };
   t[idx(entrance.x, entrance.y)] = 'entrance';
-  t[idx(stairs.x, stairs.y)] = 'stairs';
-  room.statue = { x: farEdge, y: mid, spoke: false };
-  t[idx(room.statue.x, room.statue.y)] = 'statue';
-  return { depth: 1, rooms: [room], entrance, stairs, toadRoom: null };
+  const first = roomState(0, 0, 0, 0, nb, t);
+  first.grass = 'glowing'; // "it looks like regular grass, except it is glowing"
+
+  // the mother's room: shaped, its gap to the drawing and, across from it, the way out,
+  // where she stands
+  const md = FIRST_FLOOR.mother;
+  const back = OPP[md];
+  const motherNb = { ...none, [back]: 0 };
+  const motherT = makeRoom(rng, { ...motherNb, [md]: -1 }, grid, true);
+  // nothing in it but her, for now: no grass
+  for (let i = 0; i < motherT.length; i++) if (motherT[i] === 'grass') motherT[i] = 'floor';
+  const mother = roomState(1, STEP[md][0], STEP[md][1], salt * 8 + 1, motherNb, motherT);
+  const [wx, wy] = grid.doors[md];
+  mother.mother = { x: wx, y: wy };
+
+  // the toad's room: whole, for its small room in the corner, and its grass purple-green
+  const td = FIRST_FLOOR.toad;
+  const toadNb = { ...none, [OPP[td]]: 0 };
+  const toad = roomState(2, STEP[td][0], STEP[td][1], salt * 8 + 2, toadNb, makeRoom(rng, toadNb, grid));
+  toad.grass = 'purple'; // "the grass here is different, purple-green"
+  const level = { depth: 1, rooms: [first, mother, toad], entrance, stairs: null, toadRoom: null };
+  makeToadRoom(rng, toad, level, true);
+  ensureGrass(rng, toad);
+  return level;
+}
+
+// A room with no grass gets a patch, on open ground you can reach from where you come in
+// without the golden door ("purple green grass will have worms underneath").
+function ensureGrass(rng, room) {
+  if (room.t.includes('grass')) return;
+  const { idx } = terrainGrid(room.t);
+  const [ax, ay] = arrivalCells(room)[0];
+  const reach = roomDistances(room.t, ax, ay, (c) => walkable(c) && c !== 'golddoor');
+  const spots = interiorCells(room.t, (c, x, y) => c === 'floor' && reach[idx(x, y)] > 0);
+  if (spots.length) growGrass(rng, room.t, pick(rng, spots));
 }
 
 // In the esoteric edition the stairs up and the stairs down are each anywhere on the edge of
@@ -376,8 +418,9 @@ export function makeLevel(rng, depth, edition) {
   const drawn = edition === 'esoteric';
   const grid = drawn ? roomGrid(CONFIG.esotericInteriorSize + 2) : standardGrid;
   const { idx } = grid;
-  if (drawn && depth === 1) return drawnLevel(grid);
-  const toadLevel = depth === CONFIG.toadLevel + (drawn ? 1 : 0);
+  if (drawn && depth === 1) return firstFloor(rng, grid);
+  // the esoteric edition's toad is on its first floor
+  const toadLevel = !drawn && depth === CONFIG.toadLevel;
   const spots = placeRooms(rng, toadLevel ? CONFIG.toadExtraRoom : 0);
   const salt = int(rng, 1, 1 << 20);
   const at = new Map(spots.map(([gx, gy], i) => [`${gx},${gy}`, i]));

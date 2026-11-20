@@ -49,7 +49,7 @@ test('the esoteric edition has no sense: the first place is what is here, and wa
   assert.equal(g.turn, 0);
   assert.ok(!texts(g).includes(TEXT.log.senseNothing));
 
-  // in the grass, inspect comes first; hurt, rest beside it; knowing of worms, dig as well
+  // in the grass, inspect comes first; hurt, rest beside it
   [g.x, g.y] = [2, 2];
   assert.equal(currentRoom(g).t[2 * 7 + 2], 'grass');
   assert.deepEqual(shortcuts(g), ['inspect']);
@@ -57,6 +57,11 @@ test('the esoteric edition has no sense: the first place is what is here, and wa
   g.hp--;
   g.knowsWorms = true;
   assert.deepEqual(shortcuts(g), ['inspect', 'rest']);
+  // the first room's grass glows, and has no worms: no digging there
+  assert.deepEqual(openList(g), [TEXT.context.inspect, TEXT.menu.rest, TEXT.button.waitName, TEXT.menu.back]);
+  act(g, { type: 'back' });
+  // in the toad's purple-green grass, knowing of worms, dig as well
+  [g.x, g.y] = grassIn(toadRoom(g));
   assert.deepEqual(openList(g), [TEXT.context.inspect, TEXT.menu.rest, TEXT.menu.dig, TEXT.button.waitName, TEXT.menu.back]);
   act(g, { type: 'choose', index: 1 });
   assert.equal(g.hp, g.maxHp);
@@ -115,10 +120,13 @@ test('a corpse: eat, take items or back, and stepping off closes it too; the sta
   act(g, { type: 'move', dir: 'n' });
   assert.equal(view(g).menu, null);
   assert.deepEqual([g.x, g.y], [3, 4]);
-  act(g, { type: 'move', dir: 's' });
+  // the stairs are in the wall: a step into them goes down
   const { depth } = g;
-  // the stairs are in the wall below: a step into them goes down
-  act(g, { type: 'move', dir: 's' });
+  const { room, x, y, side } = g.level.stairs;
+  const [dx, dy] = { n: [0, -1], e: [1, 0], s: [0, 1], w: [-1, 0] }[side];
+  [g.room, g.x, g.y] = [room, x - dx, y - dy];
+  currentRoom(g).toad = null;
+  act(g, { type: 'move', dir: side });
   assert.equal(g.depth, depth + 1);
 
   const original = newGame({ seed: 7 });
@@ -144,38 +152,54 @@ test('an awake toad blocks quiet actions and shortcuts cannot act through anothe
   assert.equal(g.turn, turn);
 });
 
-test('inspecting the grass of the toad\'s room tells of the worms, once; then of the grass', () => {
-  let found = false;
-  for (let seed = 1; seed <= 40 && !found; seed++) {
+test('inspecting the first room\'s grass: it glows; nothing under it, and no digging there', () => {
+  const g = start();
+  [g.x, g.y] = [1, 1];
+  for (let k = 0; k < 3; k++) {
+    const turn = g.turn;
+    act(g, { type: 'ability', id: 'inspect' });
+    assert.equal(g.turn, turn + 1);
+    assert.equal(texts(g).at(-1), TEXT.inspect.glowing);
+  }
+  assert.equal(g.knowsWorms, false);
+  assert.ok(!shortcuts(g).includes('dig'));
+});
+
+test('inspecting the toad\'s purple-green grass: the ground struggles, and you can dig for worms', () => {
+  for (let seed = 1; seed <= 30; seed++) {
     const g = newGame({ seed, edition: 'esoteric' });
     const room = toadRoom(g);
     const spot = grassIn(room);
-    if (!spot) continue;
-    found = true;
+    assert.ok(spot, `seed ${seed}: the toad's room has grass`);
     [g.x, g.y] = spot;
     assert.deepEqual(shortcuts(g), ['inspect']);
-    const worms = TEXT.toadRoom[TEXT.toadRoom.length - 1];
+    assert.ok(view(g).cells.filter((c) => c.t === 'grass').every((c) => c.grass === 'purple'));
+    const from = g.nextLogId;
     act(g, { type: 'ability', id: 'inspect' });
-    assert.equal(texts(g).at(-1), worms);
+    // his two lines, one after the other: the one time an action says past two lines
+    const { struggles, gained } = TEXT.inspect.purple;
+    assert.deepEqual(g.log.filter((l) => l.id >= from).map((l) => [l.text, l.kind]), [[struggles, 'observe'], [gained, 'good']]);
     assert.equal(g.knowsWorms, true);
+    assert.deepEqual(shortcuts(g), ['inspect', 'dig']);
+    // again: the ground, and no more
+    const again = g.nextLogId;
     act(g, { type: 'ability', id: 'inspect' });
-    assert.equal(texts(g).filter((t) => t === worms).length, 1);
-    assert.equal(texts(g).at(-1), [].concat(TEXT.observe.grass)[0]);
+    assert.deepEqual(g.log.filter((l) => l.id >= again).map((l) => l.text), [struggles]);
+    // digging elsewhere: none, not even on the dirt beside it
+    const { size } = terrainGrid(room.t);
+    const dirt = room.t.findIndex((c) => c === 'floor');
+    [g.x, g.y] = [dirt % size, Math.floor(dirt / size)];
+    assert.ok(!shortcuts(g).includes('dig'));
   }
-  assert.ok(found, 'some toad room has grass');
 });
 
-test('going about the toad\'s room, its air and ground come by themselves, but never the worms', () => {
+test('going about the toad\'s room, nothing comes by itself: what was sensed is gone', () => {
   const g = newGame({ seed: 3, edition: 'esoteric' });
   toadRoom(g);
-  const ambient = TEXT.toadRoom.slice(0, -1);
   for (let k = 0; k < 400; k++) act(g, { type: 'wait' });
-  for (const line of ambient) assert.ok(texts(g).includes(line), line);
-  assert.ok(!texts(g).includes(TEXT.toadRoom.at(-1)));
+  for (const line of TEXT.toadRoom) assert.ok(!texts(g).includes(line), line);
+  assert.ok(!texts(g).includes(TEXT.log.sounds));
   assert.equal(g.knowsWorms, false);
-  // one at a time
-  const at = (t) => g.log.find((l) => l.text === t).id;
-  assert.equal(new Set(ambient.map(at)).size, ambient.length);
 });
 
 test('beside a sleeping toad you notice its details, never its plain line, and nothing blinks', () => {

@@ -1,6 +1,6 @@
 import { TEXT } from '../src/text.js';
 import { symbolMask, stairsDownMask, stairsUpMask, itemMask } from './symbols.js';
-import { terrainMask, grassMasks } from './terrain.js';
+import { terrainMask, grassMasks, SPRIG_PURPLE, GRASS_SIZE } from './terrain.js';
 
 const tiles = {
   floor:     ['--chalk', TEXT.observe.dirt],
@@ -16,7 +16,27 @@ const tiles = {
   opendoor:  ['--stone', TEXT.observe.door],
   corpse:    ['--blood-ink', TEXT.observe.corpse],
   toad:      ['--toad', TEXT.unit.who.toad], // "a deep olive green", asleep or awake
+  mother:    ['--mother', TEXT.observe.mother], // Claude's lilac, provisional
 };
+
+// Grass by its kind, all of it the same sprigs, green with white tips. The first room's
+// glows: a halo round each sprig. The toad's room's is purple-green: each sprig's left leaf
+// purple (SPRIG_PURPLE).
+const GRASS = {
+  glowing: { glow: true },
+  purple: { purple: true },
+};
+
+// A background for the sprigs at `points`: green, with a purple rectangle over the part of
+// each that is purple, sized and placed as fractions of the square.
+function purpleFill(points, green, purple) {
+  const [px, py, w, h] = SPRIG_PURPLE;
+  const n = GRASS_SIZE;
+  const pct = (v) => `${+(v * 100).toFixed(3)}%`;
+  const patches = points.map(([x, y]) =>
+    `linear-gradient(${purple}, ${purple}) ${pct((x + px) / (n - w))} ${pct((y + py) / (n - h))} / ${pct(w / n)} ${pct(h / n)} no-repeat`);
+  return [...patches, green].join(', ');
+}
 
 // Items on the floor: the sword steel, the golden key gold, the worms pink.
 const ITEM_INK = { sword: '--steel', key: '--sulphur', worms: '--worm' };
@@ -58,9 +78,11 @@ export function paintEsoteric(cell, x, y, env) {
   }
 
   if (kind === 'grass') {
-    const { green: mask, white: glints } = grassMasks(x, y, env.cells, env.size, env.key);
-    const glintInk = cell.state === 'remembered' ? 'color-mix(in srgb, var(--chalk) 44%, var(--unknown))' : 'var(--chalk)';
-    return { ch: '', fg, bg, mask, label, glints, glintInk };
+    const sort = GRASS[cell.grass] ?? {};
+    const { green: mask, white: glints, points } = grassMasks(x, y, env.cells, env.size, env.key, !!sort.glow);
+    const dim = (ink) => (cell.state === 'remembered' ? `color-mix(in srgb, var(${ink}) 44%, var(--unknown))` : `var(${ink})`);
+    const fill = sort.purple ? purpleFill(points, dim('--shoot'), dim('--grass-purple')) : undefined;
+    return { ch: '', fg, bg, mask, label, glints, glintInk: dim('--chalk'), fill };
   }
   const terrain = kind === 'wall' || kind === 'floor';
   const mask = terrain ? terrainMask(kind, x, y, env.cells, env.size, env.key) : symbolMask(kind);

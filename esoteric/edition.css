@@ -31,6 +31,8 @@
   --rope: #c99c64;
   --steel: #a9bdd6;
   --worm: #f09aa6;
+  --mother: #c8a2ec;
+  --grass-purple: #a35ff0;
   --trail-hot: rgb(255 255 195 / 36%);
   --trail-dim: rgb(255 255 195 / 16%);
 }
@@ -49,6 +51,8 @@
   --rope: #7c5629;
   --steel: #46586e;
   --worm: #a8455a;
+  --mother: #6d3f94;
+  --grass-purple: #6a2aa8;
 }
 
 /* Seven equal tracks run to the edge. The drawn walls have their own
@@ -76,7 +80,7 @@
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background: currentColor;
+  background: var(--fill, currentColor);
   -webkit-mask: var(--drawing) center / 100% 100% no-repeat;
   mask: var(--drawing) center / 100% 100% no-repeat;
   image-rendering: pixelated;

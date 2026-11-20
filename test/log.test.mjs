@@ -5,6 +5,16 @@ import { TEXT } from '../src/text.js';
 import { newGame, act, view, currentRoom } from '../src/game.js';
 import { putToad, openRoom, findSpot, plainFloor, logLines, saidSince } from './helpers.mjs';
 
+// Down the first floor's stairs, from just inside them, with nothing said on the way: they
+// are in the toad's room, behind its golden door.
+function downStairs(g) {
+  const { room, x, y, side } = g.level.stairs;
+  const [dx, dy] = { n: [0, -1], e: [1, 0], s: [0, 1], w: [-1, 0] }[side];
+  [g.room, g.x, g.y] = [room, x - dx, y - dy];
+  g.level.rooms[room].toad = null;
+  return act(g, { type: 'move', dir: side });
+}
+
 function tough(g) {
   g.hp = g.maxHp = 100000;
 }
@@ -14,8 +24,7 @@ test('consecutive matching esoteric arrivals share a row and keep both floor tra
   const start = view(g).log;
   // his opening is a screen of its own, so the log begins with where you land
   assert.deepEqual(start.map((l) => l.text), [TEXT.log.descend.dirt]);
-  act(g, { type: 'move', dir: 's' });
-  const events = act(g, { type: 'move', dir: 's' });
+  const events = downStairs(g);
   assert.equal(events.filter((e) => e.type === 'descend').length, 1);
   assert.equal(g.depth, 2);
   const v = view(g);
@@ -34,8 +43,7 @@ test('different arrivals and arrivals separated by another message keep their ow
     const g = newGame({ edition: 'esoteric', seed });
     // a message between the two arrivals: observing yourself
     if (sense) act(g, { type: 'observe', x: g.x, y: g.y });
-    act(g, { type: 'move', dir: 's' });
-    act(g, { type: 'move', dir: 's' });
+    downStairs(g);
     const rows = view(g).log.filter((l) => l.arrival);
     assert.deepEqual(rows.map((l) => l.text), [TEXT.log.descend.dirt, TEXT.log.descend[ground]]);
     assert.ok(rows.every((l) => l.count === undefined));

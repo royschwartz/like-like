@@ -60,6 +60,8 @@ export const TEXT = {
     toad: '[toad, awake]',
     // HIS.
     golddoor: 'the door at the far corner of the room is golden',
+    // The mother, standing in the way out of her room (esoteric): his to write.
+    mother: '[mother]',
     // The bust. "statue description is short": before it has spoken, [...], his to write.
     statue: '[bust]',
     // HIS. After it has spoken. It is also the text of its event from then on.
@@ -155,15 +157,26 @@ export const TEXT = {
   },
 
   // HIS. The toad's room's own lines, in this order: its air and its ground. The last tells
-  // you about the worms. In the esoteric edition there is no sense ("there is no more sense
-  // in the game"): the first three come to you as you go about or wait, as observations, and
-  // the worms only from inspecting the grass. The archived original still senses them.
+  // you about the worms. The archived original senses them. The esoteric edition starts over
+  // without them ("in general we should remove everything else that we sense, we're starting
+  // over with game content", November 20): its grass is inspected instead (TEXT.inspect).
   toadRoom: [
     'there is the smell of cinnamon in the air',
     'you have a feeling you have been here before',
     'the ground struggles gently beneath your feet',
     'worms are down there you think',
   ],
+
+  // HIS. Inspecting the grass you stand in (esoteric), by its kind (November 20). The first
+  // room's grass glows; the toad's room's is purple-green, with worms underneath. "gained"
+  // comes with the first time only, and from then on you can dig for worms.
+  inspect: {
+    glowing: 'it looks like regular grass, except it is glowing',
+    purple: {
+      struggles: 'the ground struggles gently beneath your hand',
+      gained: 'gained new ability: dig for worms',
+    },
+  },
 
   // What you can do with an item, on its page (esoteric). HIS: equip and throw, from "inspect
   // / equip / throw / do other things to the item"; inspect is TEXT.context.inspect.
@@ -239,6 +252,8 @@ export const TEXT = {
     memory: 'you have a memory',
     // [...]. Sounds from the bust's opening, his to write.
     sounds: '[sounds from the opening, DEE]',
+    // [...]. Walking into the mother (esoteric), who blocks the way out: his to write.
+    motherBlocks: '[the mother blocks the way]',
     // [...]. The toad woken by noise, his to write.
     toadWakes: '[the toad wakes]',
     // HIS. Sensing when there is nothing new to find: "it should always say you sense nothing new".

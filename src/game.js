@@ -97,6 +97,16 @@ export function toadAt(room, x, y) {
   return t && t.x === x && t.y === y ? t : null;
 }
 
+// The mother (esoteric, first floor): she stands in the way on out of her room, and never
+// moves.
+export function motherAt(room, x, y) {
+  const m = room.mother;
+  return m && m.x === x && m.y === y ? m : null;
+}
+
+// What kind of grass a room has: 'glowing', 'purple' (purple-green) or plain (null).
+const grassOf = (room) => room.grass ?? null;
+
 function hasItem(g, key) {
   return g.items.some((it) => it.key === key);
 }
@@ -376,6 +386,11 @@ function step(g, dx, dy, ev) {
   const c = room.t[idx(x, y)];
   if (c === 'wall' || c === 'void') return; // no turn, nothing
   if (c === 'statue') return openBust(g, ev); // into the bust, never onto it: its event, no turn
+  // into the mother, never past her: a line, and no turn
+  if (motherAt(room, x, y)) {
+    say(g, TEXT.log.motherBlocks, 'plain');
+    return;
+  }
   if (c === 'golddoor') return goldDoor(g, room, x, y, ev);
   if ((c === 'stairs' && g.edition === 'esoteric') || c === 'upstairs') {
     // Stairs in the wall (esoteric, decisions 251, 257) are walked into, as a gap is, and
@@ -392,7 +407,7 @@ function step(g, dx, dy, ev) {
   } else if (c === 'door') {
     // a door is in the wall's ring: only a straight step reaches it
     const dir = DIRS.find((d) => STEP[d][0] === dx && STEP[d][1] === dy);
-    if (!dir) return;
+    if (!dir || room.nb[dir] === null) return;
     g.room = room.nb[dir];
     [g.x, g.y] = arrivals[OPP[dir]];
     ev.push({ type: 'room', dir });
@@ -597,6 +612,8 @@ function holdsMemory(g, it) {
 
 // Stepping beside the bust with an item that holds a memory: sounds, once each time you come near.
 function hearSounds(g) {
+  // sounds were sensed: the esoteric edition starts over without them (November 20)
+  if (g.edition === 'esoteric') return;
   const s = currentRoom(g).statue;
   if (!s || chebyshev(g.x, g.y, s.x, s.y) > 1) {
     g.heardSounds = false; // away from it: the next approach is a new one
@@ -634,17 +651,12 @@ function enchant(g, i, ev) {
 }
 
 function descend(g, ev) {
-  const spoke = currentRoom(g).statue?.spoke;
   const esoteric = g.edition === 'esoteric';
   // esoteric: each floor is kept as you left it, so you can go back up and down again
   // (decision 257). The stairs up below are anywhere on its edge (decision 323).
   if (esoteric) g.floors[g.depth] = g.level;
   g.depth++;
   g.level = (esoteric && g.floors[g.depth]) || makeLevel(g.rng, g.depth, g.edition);
-  // In the esoteric edition the same bust is accessible beneath the drawing.
-  if (esoteric && g.depth === 2 && spoke) {
-    g.level.rooms[g.level.toadRoom].statue.spoke = true;
-  }
   const e = g.level.entrance;
   g.room = e.room;
   g.x = e.x;
@@ -682,9 +694,11 @@ function ascend(g, ev) {
 }
 
 // The room's own lines, in order: [{ id, text, worms }]. Only the toad's room has any yet;
-// its last tells of the worms.
+// its last tells of the worms. The archived original's only: the esoteric edition starts
+// over without what was sensed ("in general we should remove everything else that we
+// sense, we're starting over with game content", November 20).
 function roomLines(g) {
-  if (g.room !== g.level.toadRoom) return [];
+  if (g.edition === 'esoteric' || g.room !== g.level.toadRoom) return [];
   const last = TEXT.toadRoom.length - 1;
   return TEXT.toadRoom.map((text, k) => ({ id: `toad.${k}`, text, worms: k === last }));
 }
@@ -800,26 +814,21 @@ function noticeIdly(g, waiting) {
 }
 
 // The esoteric edition has no sense ("there is no more sense in the game", decisions 244,
-// 297). As you go about, or wait, now and then the air or the ground comes to you as an
-// observation, a line of the room's own, never the worms, which only inspecting the grass
-// tells; or you notice a detail of something in sight, as if you had observed it: the
-// nearer, the likelier. Waiting, both are likelier. One at a time, never over anything said.
+// 297). As you go about, or wait, now and then you notice a detail of something in sight,
+// as if you had observed it: the nearer, the likelier, and likelier still waiting. One at a
+// time, never over anything said. The room's air and ground no longer come by themselves:
+// they were sensed, and the game starts over without them (November 20).
 function noticeEsoteric(g, waiting = false) {
   if (g.said > 0) return;
   const room = currentRoom(g);
-  const { detail, reach, ambient, waiting: more } = CONFIG.notice.esoteric;
+  const { detail, reach, waiting: more } = CONFIG.notice.esoteric;
   const k = waiting ? more : 1;
   const t = room.toad;
   if (t && los(room.t, g.x, g.y, t.x, t.y)) {
     const steps = chebyshev(t.x, t.y, g.x, g.y);
     const o = unitCycle(g, room, 'toad').find((it, n) => n > 0 && !g.observed[it.id]);
     const p = Math.min(1, k * detail * Math.max(0, 1 - (steps - 1) / reach));
-    if (o && chance(g.noticeRng, p) && sayObserved(g, 'toad', o)) return;
-  }
-  const line = roomLines(g).find((l) => !g.observed[l.id] && !l.worms);
-  if (line && chance(g.noticeRng, Math.min(1, k * ambient)) && canSay(g, line.text)) {
-    say(g, line.text, 'observe');
-    g.observed[line.id] = true;
+    if (o && chance(g.noticeRng, p)) sayObserved(g, 'toad', o);
   }
 }
 
@@ -832,22 +841,29 @@ function wait(g, ev) {
   return endTurn(g, ev, undefined, true, true);
 }
 
-// Inspecting the grass you stand in: in the toad's room, what is under it (the worms,
-// once); otherwise, or after, what the grass is, going round as observing does.
+// Inspecting the grass you stand in (esoteric), by its kind. The glowing grass of the first
+// room: what it looks like. The purple-green grass of the toad's room: the ground struggling
+// under your hand, and the first time, that you can dig for worms now ("purple green grass
+// will have worms underneath which you will realize after inspecting"). Plain grass: its
+// line, going round as observing does.
 function inspectGround(g, ev) {
   ev.push({ type: 'inspect', x: g.x, y: g.y });
+  const kind = grassOf(currentRoom(g));
   endTurn(g, ev, () => {
-    const find = roomLines(g).find((l) => l.worms && !g.observed[l.id]);
-    if (find) {
-      if (!canSay(g, find.text)) return;
-      say(g, find.text, 'observe');
-      g.observed[find.id] = true;
+    const lines = TEXT.inspect[kind];
+    if (kind === 'purple') {
+      if (!canSay(g, lines.struggles)) return;
+      say(g, lines.struggles, 'observe');
+      // An ability gained is said with what gained it, though the two run past two lines:
+      // his two lines, one after the other (provisional).
+      if (!g.knowsWorms) say(g, lines.gained, 'good');
       g.knowsWorms = true;
       return;
     }
-    const list = sayings('grass');
-    const last = list.findIndex((it) => it.id === g.lastObserved.grass);
-    sayObserved(g, 'grass', list.find((it) => !g.observed[it.id]) ?? list[(last + 1) % list.length]);
+    const name = kind ? `inspect.${kind}` : 'grass';
+    const list = kind ? [].concat(lines).map((text, k) => ({ id: `${name}.${k}`, text })) : sayings('grass');
+    const last = list.findIndex((it) => it.id === g.lastObserved[name]);
+    sayObserved(g, name, list.find((it) => !g.observed[it.id]) ?? list[(last + 1) % list.length]);
   }, false);
 }
 
@@ -924,11 +940,13 @@ function rest(g, ev) {
   recallDue(g, ev);
 }
 
-// Digging for worms: a few turns on grass or dirt.
+// Digging for worms: a few turns on grass or dirt. In the esoteric edition, only in the
+// purple-green grass, which has worms underneath.
 function canDig(g) {
-  const { t } = currentRoom(g);
-  const { idx } = terrainGrid(t);
-  const c = t[idx(g.x, g.y)];
+  const room = currentRoom(g);
+  const { idx } = terrainGrid(room.t);
+  const c = room.t[idx(g.x, g.y)];
+  if (g.edition === 'esoteric') return c === 'grass' && grassOf(room) === 'purple';
   return c === 'grass' || c === 'floor';
 }
 
@@ -1201,6 +1219,8 @@ function thingAt(g, room, i, vis, shown, sensed) {
   if (!shown[i] && !room.seen[i]) return undefined;
   const toad = toadAt(room, x, y);
   if (toad && (vis[i] || sensed)) return { kind: 'toad', asleep: toad.asleep };
+  // she stands in a gap, in the wall's ring: drawn whenever her square is
+  if (motherAt(room, x, y)) return { kind: 'mother' };
   const item = looseAt(room, x, y);
   if (item) return { kind: 'item', key: item.key };
   if (vis[i] ? corpseAt(room, x, y) : room.memCorpse[i]) return { kind: 'corpse' };
@@ -1260,6 +1280,7 @@ const hasNew = (g, list) => list.some((o) => !o.plain && !g.observed[o.id]);
 // by; unit: the kind of unit, which can blink, or null.
 function observable(g, room, i, thing) {
   if (thing?.kind === 'toad') return { key: 'toad', unit: 'toad', list: unitCycle(g, room, 'toad') };
+  if (thing?.kind === 'mother') return { key: 'mother', unit: null, list: sayings('mother') };
   // an item on the floor: its name
   if (thing?.kind === 'item') return { key: 'item', unit: null, list: [{ id: `item.${thing.key}`, text: TEXT.thing[thing.key] }] };
   if (thing) {
@@ -1715,7 +1736,7 @@ function plan(g, tx, ty) {
   const t = room.t.map((c, i) => (room.seen[i] || shown[i] || c === 'void' ? c : 'floor'));
   const there = idx(tx, ty);
   if (tx === g.x && ty === g.y) return { bump: false, path: [] };
-  const drawnToad = (i) => thingAt(g, room, i, vis, shown, sensed)?.kind === 'toad';
+  const drawnToad = (i) => ['toad', 'mother'].includes(thingAt(g, room, i, vis, shown, sensed)?.kind);
   // gaps and stairs up are gone to, never through
   const pass = (i) => !PATH_STOPS.has(t[i]) && t[i] !== 'door' && t[i] !== 'upstairs' && !drawnToad(i);
   const isBump = t[there] === 'statue' || t[there] === 'golddoor' || drawnToad(there);
@@ -1897,7 +1918,9 @@ export function view(g) {
       // Nothing blinks in the esoteric edition (decision 245).
       more = g.edition !== 'esoteric' && !!o.unit && !!noticedIn(room)[o.unit] && hasNew(g, o.list);
     }
-    cells.push({ t: room.t[i], state, thing, more });
+    const cell = { t: room.t[i], state, thing, more };
+    if (room.t[i] === 'grass' && grassOf(room)) cell.grass = grassOf(room);
+    cells.push(cell);
   }
   const ctx = contextId(g);
   let menu = null;
