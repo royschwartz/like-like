@@ -1,5 +1,5 @@
 import { TEXT } from '../src/text.js';
-import { symbolMask, stairsDownMask } from './symbols.js';
+import { symbolMask, stairsDownMask, stairsUpMask } from './symbols.js';
 import { terrainMask, grassMasks } from './terrain.js';
 
 const tiles = {
@@ -11,6 +11,7 @@ const tiles = {
   door:      ['--chalk', TEXT.observe.door],
   entrance:  ['--stone', TEXT.observe.entrance],
   stairs:    ['--sulphur', TEXT.observe.stairs],
+  upstairs:  ['--sulphur', TEXT.observe.upstairs],
   golddoor:  ['--sulphur', TEXT.observe.golddoor],
   opendoor:  ['--stone', TEXT.observe.door],
   corpse:    ['--blood-ink', TEXT.observe.corpse],
@@ -41,6 +42,11 @@ export function paintEsoteric(cell, x, y, env) {
     // In the wall, the treads narrow toward the edge: the way down (decision 251).
     const side = y === 0 ? 'n' : y === edge ? 's' : x === 0 ? 'w' : x === edge ? 'e' : null;
     if (side) return { ch: '', fg, bg, label, mask: stairsDownMask(side) };
+  }
+  if (kind === 'upstairs') {
+    // The way you came down: the treads widen toward the edge (decision 253).
+    const side = y === 0 ? 'n' : y === edge ? 's' : x === 0 ? 'w' : 'e';
+    return { ch: '', fg, bg, label, mask: stairsUpMask(side) };
   }
 
   if (kind === 'grass') {

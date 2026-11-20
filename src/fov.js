@@ -6,7 +6,7 @@
 
 const blocksSight = (c) => c === 'wall' || c === 'golddoor' || c === 'statue';
 // Drawn with the walls: shown when a walkable cell beside it is in sight.
-const solid = (c) => c === 'wall' || c === 'door' || c === 'golddoor' || c === 'statue';
+const solid = (c) => c === 'wall' || c === 'door' || c === 'golddoor' || c === 'statue' || c === 'upstairs';
 
 // Is every cell strictly between a and b free of wall? (Bresenham, a to b.)
 function clearLine(t, ax, ay, bx, by, size) {

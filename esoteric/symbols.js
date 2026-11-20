@@ -183,6 +183,13 @@ export function stairsDownMask(side) {
   return downMasks[side];
 }
 
+// The stairs up: the same treads widening toward the edge, as the stairs down on the
+// opposite side are drawn.
+const OPPOSITE = { n: 's', s: 'n', e: 'w', w: 'e' };
+export function stairsUpMask(side) {
+  return downMasks[OPPOSITE[side]];
+}
+
 // Open doors have no ink. An actor or corpse on the same cell supplies its own stamp.
 export function symbolMask(kind) {
   return masks[kind];

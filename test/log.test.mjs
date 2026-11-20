@@ -31,7 +31,7 @@ test('consecutive matching esoteric arrivals share a row and keep both floor tra
 });
 
 test('different arrivals and arrivals separated by another message keep their own rows', () => {
-  for (const [seed, sense, ground] of [[1, false, 'grass'], [7, true, 'dirt']]) {
+  for (const [seed, sense, ground] of [[4, false, 'grass'], [7, true, 'dirt']]) {
     const g = newGame({ edition: 'esoteric', seed });
     // a message between the two arrivals: observing yourself
     if (sense) act(g, { type: 'observe', x: g.x, y: g.y });

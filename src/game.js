@@ -168,7 +168,7 @@ function see(g) {
 // the bust, arrival cells. The only terrain that changes after a level is made is the
 // golden door opening, and both are blocked, so this is worked out once per room.
 const blockCache = new WeakMap();
-const CREATURE_BLOCKED = new Set(['wall', 'door', 'golddoor', 'opendoor', 'statue']);
+const CREATURE_BLOCKED = new Set(['wall', 'door', 'golddoor', 'opendoor', 'statue', 'upstairs']);
 function creatureBlocked(room) {
   const { idx } = terrainGrid(room.t);
   let b = blockCache.get(room);
@@ -364,7 +364,7 @@ function step(g, dx, dy, ev) {
   const y = g.y + dy;
   if (!isStep(room.t, g.x, g.y, x, y)) return;
   const c = room.t[idx(x, y)];
-  if (c === 'wall') return; // no turn, nothing
+  if (c === 'wall' || c === 'upstairs') return; // no turn, nothing (nothing goes up yet)
   if (c === 'statue') return openBust(g, ev); // into the bust, never onto it: its event, no turn
   if (c === 'golddoor') return goldDoor(g, room, x, y, ev);
   if (c === 'stairs' && onRing(x, y, terrainGrid(room.t).size)) {
@@ -550,8 +550,10 @@ function enchant(g, i, ev) {
 
 function descend(g, ev) {
   const spoke = currentRoom(g).statue?.spoke;
+  // esoteric: the stairs up below are where these stairs down are (decision 253)
+  const up = g.edition === 'esoteric' ? { x: g.level.stairs.x, y: g.level.stairs.y } : null;
   g.depth++;
-  g.level = makeLevel(g.rng, g.depth, g.edition);
+  g.level = makeLevel(g.rng, g.depth, g.edition, up);
   // In the esoteric edition the same bust is accessible beneath the drawing.
   if (g.edition === 'esoteric' && g.depth === 2 && spoke) {
     g.level.rooms[g.level.toadRoom].statue.spoke = true;
@@ -1014,6 +1016,7 @@ const TERRAIN_NAME = {
   opendoor: 'door',
   stairs: 'stairs',
   entrance: 'entrance',
+  upstairs: 'upstairs',
 };
 
 // The lines of a name in TEXT.observe, going round: [{ id, text }].
@@ -1440,7 +1443,7 @@ function chooseSlot(g, i, ev) {
 // you bump rather than step on (the bust, the locked golden door, a toad you can see)
 // it never steps: it stops beside it, and from there a travel to it is the bump.
 
-const PATH_STOPS = new Set(['wall', 'statue', 'golddoor']);
+const PATH_STOPS = new Set(['wall', 'statue', 'golddoor', 'upstairs']);
 
 // The way to (tx, ty): { bump, path }. bump: (tx, ty) is a bump one legal step away.
 // path: [{ x, y }] from the first step to where it stops; [] if there is no way, or you

@@ -51,6 +51,7 @@ export const TEXT = {
     door: '[door]',
     stairs: '[stairs]',
     entrance: '[entrance]',
+    upstairs: '[stairs up]', // the way you came down, in the wall (esoteric)
     // The awake toad's plain line, his to write: what it is doing.
     toad: '[toad, awake]',
     // HIS.

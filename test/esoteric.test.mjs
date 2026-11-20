@@ -141,3 +141,42 @@ test('the esoteric stairs are always in the wall, narrowing toward it, and walke
   const marks = [[3, 6], [3, 0], [0, 3], [6, 3]].map(([x, y]) => paintEsoteric(visible('stairs'), x, y, look).mask);
   assert.equal(new Set(marks).size, 4, 'each side turns the treads to narrow toward its own edge');
 });
+
+test('going down, you arrive just inside stairs up where the stairs down were, without moving', () => {
+  for (let seed = 1; seed <= 25; seed++) {
+    const g = newGame({ edition: 'esoteric', seed });
+    for (let floor = 1; floor <= 4; floor++) {
+      const { room, x, y } = g.level.stairs;
+      const t = g.level.rooms[room].t;
+      const size = Math.sqrt(t.length);
+      const edge = size - 1;
+      const dir = y === 0 ? 'n' : y === edge ? 's' : x === 0 ? 'w' : 'e';
+      const [ix, iy] = dir === 'n' ? [x, 1] : dir === 's' ? [x, edge - 1] : dir === 'w' ? [1, y] : [edge - 1, y];
+      g.room = room;
+      g.level.rooms[room].toad = null;
+      [g.x, g.y] = [ix, iy];
+      act(g, { type: 'move', dir });
+      assert.equal(g.depth, floor + 1);
+      // the same square on the screen, beside stairs up in the same place in the wall
+      assert.deepEqual([g.x, g.y], [ix, iy], `seed ${seed} floor ${floor}`);
+      const here = g.level.rooms[g.room].t;
+      assert.equal(here[y * size + x], 'upstairs');
+      assert.deepEqual(g.level.entrance, { room: g.room, x: ix, y: iy, ground: here[iy * size + ix] === 'grass' ? 'grass' : 'dirt' });
+      // nothing goes up yet: walking into them does nothing and takes no turn
+      const turn = g.turn;
+      assert.deepEqual(act(g, { type: 'move', dir }), []);
+      assert.equal(g.turn, turn);
+      assert.equal(g.depth, floor + 1);
+      // every open cell of the floor can still be reached
+      const dist = levelDistances(g.level);
+      g.level.rooms.forEach((r, k) => r.t.forEach((c, i) => {
+        if (!['wall', 'statue', 'upstairs', 'golddoor', 'door'].includes(c)) assert.ok(dist[k][i] >= 0, `seed ${seed} floor ${floor + 1} room ${k} cell ${i}`);
+      }));
+    }
+  }
+  const look = { size: 7, key: 3, cells: Array.from({ length: 49 }, () => visible('wall')) };
+  const down = paintEsoteric(visible('stairs'), 3, 6, look).mask;
+  const up = paintEsoteric(visible('upstairs'), 3, 6, look).mask;
+  assert.notEqual(up, down);
+  assert.equal(up, paintEsoteric(visible('stairs'), 3, 0, look).mask, 'up widens toward its edge');
+});

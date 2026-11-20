@@ -14,7 +14,8 @@ export const DIRS = ['n', 'e', 's', 'w'];
 export const STEP = { n: [0, -1], e: [1, 0], s: [0, 1], w: [-1, 0] };
 export const OPP = { n: 's', e: 'w', s: 'n', w: 'e' };
 // Nothing walks onto a wall or the bust.
-export const walkable = (t) => t !== 'wall' && t !== 'statue';
+// Stairs up in the wall (esoteric) are drawn with it, and nothing goes up them yet.
+export const walkable = (t) => t !== 'wall' && t !== 'statue' && t !== 'upstairs';
 
 const isArrivalSpot = (x, y, grid) => DIRS.some((d) => grid.arrivals[d][0] === x && grid.arrivals[d][1] === y);
 
@@ -264,13 +265,23 @@ function drawnLevel(grid) {
   return { depth: 1, rooms: [room], entrance, stairs, toadRoom: null };
 }
 
-export function makeLevel(rng, depth, edition) {
+// `up`: in the esoteric edition, where in the wall the stairs you came down were, { x, y }.
+// The stairs up are in the same place on the floor below, and you arrive just inside them,
+// so you don't move on the screen (decision 253).
+export function makeLevel(rng, depth, edition, up = null) {
   const drawn = edition === 'esoteric';
   const grid = drawn ? roomGrid(CONFIG.esotericInteriorSize + 2) : standardGrid;
   const { idx } = grid;
   if (drawn && depth === 1) return drawnLevel(grid);
   const toadLevel = depth === CONFIG.toadLevel + (drawn ? 1 : 0);
-  const spots = placeRooms(rng, toadLevel ? CONFIG.toadExtraRoom : 0);
+  const upSide = drawn && up ? ringSide(up.x, up.y, grid.size) : null;
+  // Stairs up in the middle of a side need that side of the first room to be wall, not a gap.
+  const gapAt = upSide && (upSide === 'n' || upSide === 's' ? up.x : up.y) === grid.mid ? STEP[upSide] : null;
+  let spots;
+  for (let tries = 0; ; tries++) {
+    spots = placeRooms(rng, toadLevel ? CONFIG.toadExtraRoom : 0);
+    if (!gapAt || tries > 60 || !spots.some(([gx, gy]) => gx === gapAt[0] && gy === gapAt[1])) break;
+  }
   const salt = int(rng, 1, 1 << 20);
   const at = new Map(spots.map(([gx, gy], i) => [`${gx},${gy}`, i]));
   const rooms = spots.map(([gx, gy], i) => {
@@ -282,10 +293,11 @@ export function makeLevel(rng, depth, edition) {
     return roomState(i, gx, gy, salt * 8 + i, nb, makeRoom(rng, nb, grid));
   });
 
-  // The entrance, in the first room, in grass or on dirt.
+  // The entrance, in the first room, in grass or on dirt. In the esoteric edition, the
+  // stairs up in the wall, and you arrive just inside them.
   const first = rooms[0];
-  const [ex, ey, ground] = placeEntrance(rng, first.t);
-  first.t[idx(ex, ey)] = 'entrance';
+  const [ex, ey, ground] = drawn ? placeUpstairs(rng, first, grid, up) : placeEntrance(rng, first.t);
+  if (!drawn) first.t[idx(ex, ey)] = 'entrance';
   const level = { depth, rooms, entrance: { room: 0, x: ex, y: ey, ground }, stairs: null, toadRoom: null };
 
   // The stairs, in the room farthest from the first.
@@ -301,7 +313,7 @@ export function makeLevel(rng, depth, edition) {
     const from = rooms.length === 1 ? [ex, ey] : arrivalCells(room)[0];
     let spots = edgeStairSpots(room, from);
     if (rooms.length === 1) spots = spots.filter((s) => s.steps >= CONFIG.stairsAway);
-    if (spots.length === 0) return makeLevel(rng, depth, edition); // very unlikely; try again
+    if (spots.length === 0) return makeLevel(rng, depth, edition, up); // very unlikely; try again
     const { x: sx, y: sy } = pick(rng, spots);
     room.t[idx(sx, sy)] = 'stairs';
     level.stairs = { room: room.id, x: sx, y: sy };
@@ -382,6 +394,60 @@ function placeStatue(rng, t, shape, door, toad, from) {
 
 // Is (x, y) in the wall's ring of a room `size` across?
 export const onRing = (x, y, size) => x === 0 || y === 0 || x === size - 1 || y === size - 1;
+
+// Which side of the ring (x, y) is on: 'n', 'e', 's' or 'w'; null inside or at a corner.
+export function ringSide(x, y, size) {
+  const edge = size - 1;
+  if ((x === 0 || x === edge) && (y === 0 || y === edge)) return null;
+  if (y === 0) return 'n';
+  if (y === edge) return 's';
+  if (x === 0) return 'w';
+  if (x === edge) return 'e';
+  return null;
+}
+
+// The open cell just inside ring cell (x, y).
+const inward = (x, y, size) => {
+  const side = ringSide(x, y, size);
+  return [x - STEP[side][0], y - STEP[side][1]];
+};
+
+// The stairs up in the first room's wall, at `up` if given, else anywhere stairs may go.
+// The cell inside them is made open ground if it isn't, as long as the room stays whole.
+// Returns where you arrive: [x, y, 'grass' | 'dirt'].
+function placeUpstairs(rng, room, grid, up) {
+  const { idx, size, mid } = grid;
+  const fits = (x, y) => {
+    const side = ringSide(x, y, size);
+    if (!side || room.t[idx(x, y)] !== 'wall') return false;
+    const k = side === 'n' || side === 's' ? x : y;
+    return !(k === mid && room.nb[side] !== null);
+  };
+  for (;;) {
+    let spot = up && fits(up.x, up.y) ? [up.x, up.y] : null;
+    if (!spot) {
+      const open = interiorCells(room.t, openSpot);
+      const from = arrivalCells(room)[0] ?? open[0];
+      const spots = edgeStairSpots(room, from);
+      if (spots.length) {
+        const s = pick(rng, spots);
+        spot = [s.x, s.y];
+      }
+      if (spot && !fits(...spot)) spot = null;
+    }
+    if (spot) {
+      const [ix, iy] = inward(spot[0], spot[1], size);
+      const t = room.t.slice();
+      if (!['floor', 'grass'].includes(t[idx(ix, iy)])) t[idx(ix, iy)] = 'floor';
+      t[idx(...spot)] = 'upstairs';
+      if (roomConnected(t)) {
+        room.t = t;
+        return [ix, iy, t[idx(ix, iy)] === 'grass' ? 'grass' : 'dirt'];
+      }
+    }
+    room.t = makeRoom(rng, room.nb, grid); // this room will not do: make it again
+  }
+}
 
 // Where stairs may go in a room's wall: [{ x, y, steps }]. Not a corner, not where a gap
 // to the next room is or could be, nor beside one, and with open ground inside it that can
