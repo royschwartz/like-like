@@ -89,7 +89,9 @@ export const CONFIG = {
   // Esoteric: holding wait waits once, then again after firstMs, then every everyMs, until
   // you let go or something happens.
   holdWait: { firstMs: 400, everyMs: 220 },
-  // Esoteric: living things take a new pose each turn, nudged up to this many of the
-  // drawing's 36 pixels each way and tilted up to this many degrees (decision 299).
-  shift: { px: 1, deg: 5 },
+  // Esoteric: living things move in parts and stay square in their cells (decision 309).
+  // Every turn the tail curls another way. The toad's arms reach out up to `reach` of its
+  // pixels each, and its top leans up to `lean` pixels either way (the spiral's middle
+  // marks and its top flick move instead); each holds for `every` turns.
+  shift: { reach: 2, lean: 1, every: { arms: 2, lean: 3 } },
 };

@@ -1,11 +1,13 @@
-// Convert each run of ink on the pixel grid into one unit-high rectangle.
-export function stamp(left, top, drawing) {
+// Convert each run of ink on the pixel grid into one rectangle, a pixel high. A pixel is
+// one unit of the square, or `k` units for a drawing set larger or smaller, every pixel kept.
+export function stamp(left, top, drawing, k = 1) {
   const rows = drawing.trimEnd().split('\n');
+  const n = (v) => +v.toFixed(3);
   let path = '';
   rows.forEach((row, y) => {
     for (const run of row.matchAll(/#+/g)) {
-      const length = run[0].length;
-      path += `M${left + run.index} ${top + y}h${length}v1h-${length}z`;
+      const length = n(run[0].length * k);
+      path += `M${n(left + run.index * k)} ${n(top + y * k)}h${length}v${n(k)}h-${length}z`;
     }
   });
   return path;

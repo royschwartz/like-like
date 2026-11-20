@@ -210,19 +210,6 @@ export function createRenderer(root = document, { marks: withMarks = true, cellP
       if (!last || last.fg !== paint.fg) el.style.setProperty('--fg', paint.fg);
       if (!last || last.bg !== paint.bg) el.style.setProperty('--bg', paint.bg);
       if (!last || last.bold !== paint.bold) el.classList.toggle('b', !!paint.bold);
-      // A living thing's pose this turn (esoteric): nudged and tilted, a little.
-      const pose = paint.pose ? `${paint.pose.x} ${paint.pose.y} ${paint.pose.deg}` : '';
-      if ((last?.poseKey ?? '') !== pose) {
-        el.toggleAttribute('data-pose', !!paint.pose);
-        if (paint.pose) {
-          el.style.setProperty('--pose-x', paint.pose.x);
-          el.style.setProperty('--pose-y', paint.pose.y);
-          el.style.setProperty('--pose-deg', paint.pose.deg + 'deg');
-        } else {
-          for (const k of ['--pose-x', '--pose-y', '--pose-deg']) el.style.removeProperty(k);
-        }
-      }
-      paint.poseKey = pose;
       lastPaint[i] = paint;
     }
   }

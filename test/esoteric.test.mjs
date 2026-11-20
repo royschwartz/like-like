@@ -1,24 +1,68 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { paintEsoteric } from '../esoteric/edition.js';
+import { poseAt, drawingOf } from '../esoteric/living.js';
+import { CONFIG } from '../src/config.js';
 import { newGame, act, view } from '../src/game.js';
 import { levelDistances } from '../src/gen.js';
 
 const visible = (t, thing = null) => ({ t, thing, state: 'visible' });
 const env = () => ({ size: 3, key: 17, cells: Array.from({ length: 9 }, () => visible('floor')) });
 
-test('each drawn object has its own mark and the living toad is the font letter', () => {
+test('each drawn object has its own mark, the toad and the player included', () => {
   const room = env();
   const tiles = ['stairs', 'entrance', 'statue', 'golddoor'].map(t => visible(t));
-  tiles.push(visible('floor', { kind: 'player' }), visible('grass', { kind: 'corpse' }));
+  tiles.push(visible('floor', { kind: 'player' }), visible('grass', { kind: 'corpse' }), visible('grass', { kind: 'toad' }));
   const masks = tiles.map(cell => paintEsoteric(cell, 1, 1, room).mask);
   assert.ok(masks.every(mask => mask.startsWith('url(')));
   assert.equal(new Set(masks).size, masks.length);
   for (const asleep of [false, true]) {
     const toad = paintEsoteric(visible('grass', { kind: 'toad', asleep }), 1, 1, room);
-    assert.equal(toad.ch, 't');
-    assert.equal(toad.mask, undefined);
+    assert.equal(toad.ch, '');
+    assert.equal(toad.pose, undefined, 'never nudged or tilted as a whole');
   }
+});
+
+test('living things move in parts and stay square in their cells', () => {
+  const ink = (rows) => rows.split('\n').flatMap((row, y) => [...row].map((c, x) => (c === '#' ? `${x},${y}` : null))).filter(Boolean);
+  for (const kind of ['toad', 'player']) {
+    const masks = [];
+    for (let turn = 0; turn < 60; turn++) {
+      const room = { ...env(), turn };
+      masks.push(paintEsoteric(visible('floor', { kind }), 1, 1, room).mask);
+      const pose = poseAt(kind, turn);
+      if (turn) assert.notEqual(masks[turn], masks[turn - 1], `${kind} moves every turn`);
+      assert.notDeepEqual(pose, poseAt(kind, turn + 1));
+    }
+    assert.ok(new Set(masks).size > 10, `${kind} has many poses`);
+  }
+  // The toad at rest is the font's t, pixel for pixel; whatever its pose, its stem stays put.
+  const t = ['...##..', '..###..', '...##.#', '#######', '.#.##..', '...#...', '..##...', '..##...', '..##.#.', '...###.'];
+  const pad = '.'.repeat(CONFIG.shift.reach);
+  assert.equal(drawingOf('toad', { lean: 0, left: 0, right: 0, tail: 0 }), t.map(row => pad + row + pad).join('\n'));
+  const stem = ['3,3', '4,3', '5,4', '4,6', '5,6', '4,7', '5,7', '4,8', '5,8', '5,9'].map(p => p.replace(/^\d+/, x => +x + CONFIG.shift.reach - 2));
+  for (let turn = 0; turn < 60; turn++) {
+    const drawn = new Set(ink(drawingOf('toad', poseAt('toad', turn))));
+    for (const p of stem) assert.ok(drawn.has(p), `the stem at ${p} on turn ${turn}`);
+  }
+  // The spiral keeps its body: only its tail, its middle marks and its top flick move.
+  const rest = ink(drawingOf('player', { lean: 0, middle: 0, tail: 0 }));
+  for (let turn = 0; turn < 60; turn++) {
+    const drawn = new Set(ink(drawingOf('player', poseAt('player', turn))));
+    const body = rest.filter(p => { const [x, y] = p.split(',').map(Number); return y > 0 && y < 21 && !(x >= 10 && x <= 15 && y >= 11 && y <= 15); });
+    for (const p of body) assert.ok(drawn.has(p), `the spiral's body at ${p} on turn ${turn}`);
+  }
+});
+
+test('the spiral is two thirds of the 26 pixels it was traced at, every pixel kept', () => {
+  const mask = paintEsoteric(visible('floor', { kind: 'player' }), 1, 1, env()).mask;
+  const path = decodeURIComponent(mask).match(/ d="([^"]+)"/)[1];
+  const xs = [...path.matchAll(/M([\d.]+) ([\d.]+)h([\d.]+)v([\d.]+)/g)];
+  const left = Math.min(...xs.map(m => +m[1]));
+  const right = Math.max(...xs.map(m => +m[1] + +m[3]));
+  assert.ok(Math.abs(right - left - 26 * 2 / 3) < 0.01, `${right - left} across`);
+  assert.ok(Math.abs((left + right) / 2 - 18) < 0.01, 'centred');
+  assert.ok(xs.every(m => Math.abs(+m[4] - 2 / 3) < 0.01), 'each pixel two thirds of the square\'s');
 });
 
 test('open doors are bare gaps and the locked gate keeps its gold mark', () => {

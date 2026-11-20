@@ -1,7 +1,7 @@
 import { TEXT } from '../src/text.js';
-import { CONFIG } from '../src/config.js';
 import { symbolMask, stairsDownMask, stairsUpMask, itemMask } from './symbols.js';
 import { terrainMask, grassMasks } from './terrain.js';
+import { livingMask } from './living.js';
 
 const tiles = {
   floor:     ['--chalk', TEXT.observe.dirt],
@@ -19,31 +19,11 @@ const tiles = {
   toad:      ['--toad', TEXT.unit.who.toad], // "a deep olive green", asleep or awake
 };
 
-// Living things take a new pose every turn, moving or waiting ("make all living entities
-// shift!", decision 299): nudged up to CONFIG.shift.px of the drawing's 36 pixels each way
-// and tilted up to CONFIG.shift.deg, snapped, not smooth. Even turns take a pose from one
-// half of the list and odd turns from the other, so it is never the same two turns running.
+// Living things move in parts, each turn, and stay square in their cells (decisions 301,
+// 309): living.js draws them.
 const LIVING = new Set(['player', 'toad']);
 // Items on the floor: the sword steel, the golden key gold, the worms pink.
 const ITEM_INK = { sword: '--steel', key: '--sulphur', worms: '--worm' };
-const POSES = (() => {
-  const { px, deg } = CONFIG.shift;
-  const out = [];
-  for (const x of [-px, 0, px]) for (const y of [-px, 0, px]) for (const d of [-deg, 0, deg]) {
-    if (x || y || d) out.push({ x, y, deg: d });
-  }
-  return out; // 26: every pose but the still one
-})();
-function mix(n) {
-  n = Math.imul(n ^ (n >>> 16), 0x45d9f3b);
-  n = Math.imul(n ^ (n >>> 16), 0x45d9f3b);
-  return (n ^ (n >>> 16)) >>> 0;
-}
-export function poseAt(turn, salt) {
-  const half = POSES.length / 2;
-  return POSES[2 * (mix(turn * 977 + salt) % half) + (turn & 1)];
-}
-const SALT = { player: 17, toad: 4099 };
 
 export function paintEsoteric(cell, x, y, env) {
   const bg = 'var(--unknown)';
@@ -62,8 +42,8 @@ export function paintEsoteric(cell, x, y, env) {
   const color = `var(${ink})`;
   const fg = cell.state === 'remembered' ? `color-mix(in srgb, ${color} 44%, ${bg})` : color;
   const label = name.replace(/[[\]]/g, '');
-  const pose = LIVING.has(kind) ? poseAt(env.turn ?? 0, SALT[kind]) : null;
-  if (kind === 'toad') return { ch: 't', fg, bg, label, pose };
+  // The toad is his lowercase t, drawn in its pixels so its parts can move (309).
+  if (LIVING.has(kind)) return { ch: '', fg, bg, label, mask: livingMask(kind, env.turn ?? 0) };
   const edge = env.size - 1;
   if (kind === 'door') {
     // An ordinary room exit lies on an edge. An unlocked gold gate is inside.
@@ -88,7 +68,7 @@ export function paintEsoteric(cell, x, y, env) {
   }
   const terrain = kind === 'wall' || kind === 'floor';
   const mask = terrain ? terrainMask(kind, x, y, env.cells, env.size, env.key) : symbolMask(kind);
-  return { ch: '', fg, bg, mask, label, ...(pose ? { pose } : {}) };
+  return { ch: '', fg, bg, mask, label };
 }
 
 // Which way stairs in the wall at (x, y) face: from the open ground beside them toward
