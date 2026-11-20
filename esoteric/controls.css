@@ -229,11 +229,13 @@
 /* The arrow points to the selected link. Its accessible name is the link text. */
 .link.cursor::before { content: ">" / ""; }
 
-/* The tint is the label's colour alone: no filled box behind stairs or a corpse. */
-#btn-context[data-context]:not(.down) {
+/* The tint is the label's colour alone: no filled box behind the stairs. A corpse keeps
+   its red box, with the word in the middle of it. */
+#btn-context[data-context]:not([data-context="corpse"]):not(.down) {
   background: var(--slab);
   box-shadow: none;
 }
+#btn-context[data-context="corpse"] { justify-content: center; }
 
 /* A corpse's eat and take items sit where the abilities row is (decision 264). */
 #controls[data-menu="corpse"] #options {
