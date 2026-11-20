@@ -208,10 +208,12 @@ test('entering the mother’s room brings its cold, and observing her reveals a 
   assert.equal(view(g).log.at(-1).text, cold);
   act(g, { type: 'wait' });
   act(g, { type: 'move', dir: 'e' }); // leave by the gap behind you
-  assert.equal(view(g).log.filter((l) => l.text === cold).length, 1);
+  assert.equal(g.log.filter((l) => l.text === cold).length, 1);
   act(g, { type: 'move', dir: 'w' });
-  assert.equal(view(g).log.filter((l) => l.text === cold).length, 2);
-  assert.equal(view(g).log.at(-1).text, cold);
+  assert.equal(g.log.filter((l) => l.text === cold).length, 2);
+  const roomMessages = view(g).log.filter((l) => l.text === cold);
+  assert.equal(roomMessages.length, 1);
+  assert.equal(roomMessages[0].count, 2);
   for (let i = 0; i < 4; i++) act(g, { type: 'move', dir: 'w' });
   const v = view(g);
   assert.deepEqual(v.cells[3 * 7].thing, { kind: 'mother' });

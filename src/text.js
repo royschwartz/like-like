@@ -16,7 +16,7 @@ export const TEXT = {
     lines: ['you have been asked to retrieve the amulet of yendor', 'it’s at the bottom of this dungeon probably'],
     jump: 'jump into the hole',
   },
-  repeated: (text, count) => `${text} ×${count}`,
+  repeated: (text, count) => `${text} ×${count > 9 ? '?' : count}`,
 
   // HIS, from his drawing of the screen.
   stat: { str: 'str', love: 'love', hp: 'hp', will: 'will', unknown: '??' },

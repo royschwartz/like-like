@@ -38,6 +38,33 @@ test('consecutive matching esoteric arrivals share a row and keep both floor tra
   assert.deepEqual(view(g).log, v.log);
 });
 
+test('inspecting glowing grass counts consecutive repeats and starts over after another message', () => {
+  const g = newGame({ edition: 'esoteric', seed: 7 });
+  [g.x, g.y] = [1, 1];
+  const inspect = () => act(g, { type: 'ability', id: 'inspect' });
+  const grassRows = () => view(g).log.filter((line) => line.text === TEXT.inspect.glowing);
+
+  inspect();
+  assert.deepEqual(grassRows().map((line) => line.count), [undefined]);
+  for (let count = 2; count <= 11; count++) {
+    inspect();
+    const rows = grassRows();
+    assert.deepEqual(rows.map((line) => line.count), [count]);
+    assert.equal(rows[0].id, g.fresh);
+  }
+  assert.equal(g.log.filter((line) => line.text === TEXT.inspect.glowing).length, 11);
+  const grass = TEXT.inspect.glowing;
+  assert.equal(TEXT.repeated(grass, 9), `${grass} ×9`);
+  assert.equal(TEXT.repeated(grass, 10), `${grass} ×?`);
+  assert.equal(TEXT.repeated(grass, 11), `${grass} ×?`);
+
+  act(g, { type: 'observe', x: g.x, y: g.y });
+  inspect();
+  assert.deepEqual(grassRows().map((line) => line.count), [11, undefined]);
+  inspect();
+  assert.deepEqual(grassRows().map((line) => line.count), [11, 2]);
+});
+
 test('different arrivals and arrivals separated by another message keep their own rows', () => {
   for (const [seed, sense, ground] of [[3, false, 'grass'], [7, true, 'dirt']]) {
     const g = newGame({ edition: 'esoteric', seed });

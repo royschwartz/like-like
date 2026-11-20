@@ -164,8 +164,8 @@ function logView(g) {
   const rows = [];
   for (const line of g.log) {
     const previous = rows[rows.length - 1];
-    if (g.edition === 'esoteric' && line.arrival && previous?.arrival && line.text === previous.text) {
-      // Both descents happened. Keep their history and show one row with the latest id.
+    if (g.edition === 'esoteric' && previous && previous.text === line.text) {
+      // Keep every occurrence in the history. The visible row belongs to the latest action.
       rows[rows.length - 1] = { ...line, count: (previous.count ?? 1) + 1 };
     } else {
       rows.push({ ...line });
