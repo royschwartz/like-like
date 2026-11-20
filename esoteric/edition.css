@@ -39,18 +39,31 @@
   --blood-ink: #a23327;
 }
 
-/* The viewport cuts each outside wall at its centerline. For seven tiles
-   across, the six visible tile widths leave half a tile outside each edge.
-   The live grid, room slides and finger marks all sit in this one frame. */
+/* Five full squares between two half-width wall tracks. The viewport ends
+   at each wall's centerline; on impact the entire track comes into view. */
+#screen {
+  --wall-fraction: 0.5;
+}
 #map-field {
+  --interior: calc(var(--room-size, 7) - 2);
+  --wall-width: calc(100% * var(--wall-fraction) / (var(--interior) + 2 * var(--wall-fraction)));
+  --tracks: var(--wall-width) repeat(var(--interior), minmax(0, 1fr)) var(--wall-width);
   position: absolute;
-  inset: calc(-50% / (var(--room-size, 7) - 1));
+  inset: calc(-50% * var(--wall-fraction) / (var(--interior) + var(--wall-fraction)));
+}
+#map-field .map {
+  grid-template-columns: var(--tracks);
+  grid-template-rows: var(--tracks);
 }
 
 /* Landed hits show the whole perimeter in one hard cut. On a lethal hit,
    keep it open for two frames after the existing six-frame death flash. */
 #map-field.fx-wall-reveal {
+  --jolt-room: var(--u);
   animation: fx-wall-reveal calc(var(--f) * 3) steps(1, end);
+}
+#map-field.fx-wall-reveal:is([data-hit="hurt"], [data-hit="death"]) {
+  --jolt-room: calc(2 * var(--u));
 }
 #map-field.fx-wall-reveal[data-hit="hurt"] {
   animation-duration: calc(var(--f) * 4);
@@ -58,8 +71,13 @@
 #map-field.fx-wall-reveal[data-hit="death"] {
   animation-duration: calc(var(--f) * 8);
 }
+/* Allow the strongest offset in the shake to fit inside the screen.
+   With reduced motion the board stays still and needs no extra margin. */
 @keyframes fx-wall-reveal {
-  from, to { inset: 0; }
+  from, to { inset: var(--jolt-room); }
+}
+@media (prefers-reduced-motion: reduce) {
+  #map-field.fx-wall-reveal[data-hit] { --jolt-room: 0px; }
 }
 .map {
   font-size: calc(var(--u) * 72 / var(--room-size, 7));

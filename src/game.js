@@ -196,16 +196,17 @@ export function playerDamage(g) {
 
 // ---- the turn ----------------------------------------------------------
 
-// After your action: the toad acts if it is here, the turn goes up, you look
-// around, and a memory on its way may come back.
+// After your action the toad acts, the turn goes up and sight is updated. A
+// discovery gets reported if you survived, before idle notices and memories.
 // `idle`: you may notice things without trying this turn (not while sensing, which is
 // the strong search, and not while resting or digging).
-function endTurn(g, ev, recallAfter = true, idle = true) {
+function endTurn(g, ev, report, idle = true) {
   const r = toadActs(g, ev);
   g.turn++;
   see(g);
+  if (!r.died) report?.();
   if (idle && !r.died && !g.busy) noticeIdly(g);
-  if (recallAfter) recallDue(g, ev);
+  recallDue(g, ev);
   return r;
 }
 
@@ -623,8 +624,7 @@ function sense(g, ev) {
   const here = g.room;
   // A blow or a death has priority over a discovery. An unsaid discovery stays
   // available for the next sense; a memory waits for spare room.
-  const outcome = endTurn(g, ev, false, false);
-  if (!outcome.died) {
+  endTurn(g, ev, () => {
     const text = find?.text ?? TEXT.log.senseNothing;
     if (canSay(g, text)) {
       say(g, text, 'sense');
@@ -636,8 +636,7 @@ function sense(g, ev) {
     g.selfUntil = g.turn + CONFIG.senseSelfTurns;
     g.sensedTurn = g.turn;
     g.sensedRoom = here;
-  }
-  recallDue(g, ev);
+  }, false);
 }
 
 function awakeInSight(g) {
@@ -962,14 +961,19 @@ function observe(g, x, y, ev) {
   const { key, list } = observable(g, room, i, thing);
   const last = list.findIndex((it) => it.id === g.lastObserved[key]);
   const o = list.find((it) => !g.observed[it.id]) ?? list[(last + 1) % list.length];
-  g.observed[o.id] = true;
-  g.lastObserved[key] = o.id;
-  // "it" only right after an observation of the same thing; otherwise its name (183)
-  const prev = g.log[g.log.length - 1];
-  const text = key === 'toad' && prev?.about !== 'toad' ? TEXT.unit.named(o.text, TEXT.unit.the.toad) : o.text;
-  say(g, text, 'observe');
-  if (key === 'toad') g.log[g.log.length - 1].about = 'toad';
+  // Look at the thing under the finger before it gets its turn to move.
   ev.push({ type: 'observe', x, y });
+  endTurn(g, ev, () => {
+    // "it" only right after an observation of the same thing, including when a
+    // combat line intervenes. Leave a detail unread if its line doesn't fit.
+    const prev = g.log[g.log.length - 1];
+    const text = key === 'toad' && prev?.about !== 'toad' ? TEXT.unit.named(o.text, TEXT.unit.the.toad) : o.text;
+    if (!canSay(g, text)) return;
+    say(g, text, 'observe');
+    if (key === 'toad') g.log[g.log.length - 1].about = 'toad';
+    g.observed[o.id] = true;
+    g.lastObserved[key] = o.id;
+  });
 }
 
 // ---- events ----------------------------------------------------------------

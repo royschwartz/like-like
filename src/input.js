@@ -28,8 +28,8 @@ export function bindInput(root, dispatch, timing = {}, size = CONFIG.roomSize) {
   const held = new Map(); // pointerId -> the pressed button
   // The one gesture on the map, while a pointer is down on it:
   // { id, from, x0, y0, timer, held, drag, over, el }. from and over are cells, { x, y };
-  // over is the cell last aimed at in a drag (null off the map). held: the blink ran its
-  // course and the cell was observed. timer: the grace, then the blink.
+  // over is the cell last aimed at in a drag (null off the map). held: the hold completed
+  // and consumes this gesture, even on a square you have never seen.
   let gesture = null;
 
   function onKey(e) {
@@ -96,19 +96,19 @@ export function bindInput(root, dispatch, timing = {}, size = CONFIG.roomSize) {
   function onGrace() {
     if (!gesture) return;
     gesture.timer = null;
-    if (dispatch({ type: 'blink', x: gesture.from.x, y: gesture.from.y }) === false) return;
-    gesture.timer = setTimeout(onHold, timing.lookMs ?? 280);
+    const canObserve = dispatch({ type: 'blink', x: gesture.from.x, y: gesture.from.y }) !== false;
+    gesture.timer = setTimeout(onHold, timing.lookMs ?? 280, canObserve);
   }
 
-  function onHold() {
+  function onHold(canObserve) {
     if (!gesture) return;
     gesture.timer = null;
     gesture.held = true;
-    dispatch({ type: 'hold', x: gesture.from.x, y: gesture.from.y });
+    if (canObserve) dispatch({ type: 'hold', x: gesture.from.x, y: gesture.from.y });
   }
 
   function onPointerMove(e) {
-    if (!gesture || e.pointerId !== gesture.id) return;
+    if (!gesture || gesture.held || e.pointerId !== gesture.id) return;
     const cell = cellUnder(e.clientX, e.clientY);
     if (!gesture.drag) {
       const far = Math.hypot(e.clientX - gesture.x0, e.clientY - gesture.y0) > DRAG_PX;

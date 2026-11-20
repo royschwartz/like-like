@@ -107,7 +107,10 @@ test('observing the toad goes round: its plain line, that it seems stronger, and
   // Awake: its awake line, and it still seems stronger; no song.
   t.asleep = false;
   t.lastSeen = null;
-  assert.deepEqual([at(), at(), at(), at()], [TEXT.observe.toad, STRONGER, TEXT.observe.toad, STRONGER]);
+  assert.deepEqual([at(), at(), at()], [TEXT.observe.toad, STRONGER, TEXT.observe.toad]);
+  const answer = look(g, t.x, t.y);
+  assert.ok(answer.ev.some((e) => e.type === 'attack' && e.by === 'toad'));
+  assert.equal(answer.texts[1], NAMED(STRONGER), 'it reached you: its attack line now precedes the observation');
   assert.equal(view(g).event, null);
 });
 
@@ -139,16 +142,15 @@ test('sensing never finds anything about the toad, near or far: what is about it
   assert.ok(!Object.keys(g.sensed).some((id) => id.startsWith('unit.')));
 });
 
-test('the toad awake; on a corpse, the toad is what you see', () => {
+test('the observation sees the toad on a corpse before it moves; the next hold sees the corpse', () => {
   const { g, room } = openGame();
   room.corpses.push({ x: 8, y: 5, items: [] });
-  putToad(g, 8, 5, false).lastSeen = null;
-  // (observing takes no time, so the toad does not move)
-  assert.deepEqual(look(g, 8, 5).texts, [TEXT.observe.toad]); // (a slot: no name in it)
-  assert.deepEqual(look(g, 8, 5).texts, [STRONGER]);
+  const t = putToad(g, 8, 5, false);
   assert.deepEqual(look(g, 8, 5).texts, [TEXT.observe.toad]);
-  room.toad.asleep = true;
-  assert.deepEqual(look(g, 8, 5).texts, [PLAIN]);
+  assert.notDeepEqual([t.x, t.y], [8, 5]);
+  assert.deepEqual(look(g, 8, 5).texts, [TEXT.observe.corpse]);
+  t.asleep = true;
+  assert.deepEqual(look(g, t.x, t.y).texts, [PLAIN]);
 });
 
 test('nothing you observe makes a unit blink, sensed or not', () => {
@@ -198,12 +200,14 @@ test('a cell never seen says nothing', () => {
   assert.deepEqual(view(g), before);
 });
 
-test('observing takes no time, moves fresh, and is ignored with a menu or the inventory open', () => {
+test('observing takes one turn after a free preview, and is ignored with a menu or the inventory open', () => {
   const { g } = openGame();
   const turn = g.turn;
   const from = g.nextLogId;
-  look(g, 3, 3);
+  act(g, { type: 'look', x: 3, y: 3 });
   assert.equal(g.turn, turn);
+  look(g, 3, 3);
+  assert.equal(g.turn, turn + 1);
   assert.equal(view(g).fresh, from);
   for (const id of ['act', 'inv']) {
     act(g, { type: 'menu', id });
@@ -216,6 +220,32 @@ test('observing takes no time, moves fresh, and is ignored with a menu or the in
     const before = view(g);
     assert.deepEqual(act(g, { type: 'observe', ...bad }), []);
     assert.deepEqual(view(g), before);
+  }
+});
+
+test('combat can interrupt a two-line observation without using up its detail', () => {
+  const hits = CONFIG.toad.hits;
+  try {
+    for (const outcome of ['miss', 'hit', 'death']) {
+      const { g, room } = openGame();
+      room.t[idx(3, 3)] = 'golddoor';
+      const t = putToad(g, 6, 5, false);
+      CONFIG.toad.hits = outcome === 'miss' ? 0 : 1;
+      g.hp = outcome === 'death' ? 1 : 3;
+      const turn = g.turn;
+      const r = look(g, 3, 3);
+      assert.equal(g.turn, turn + 1);
+      assert.ok(r.ev.some((e) => e.type === 'attack' && e.by === 'toad'));
+      const expected = { miss: TEXT.log.toadMisses, hit: TEXT.log.toadHits(CONFIG.toad.damage), death: TEXT.log.youDie };
+      assert.deepEqual(r.texts, [expected[outcome]]);
+      assert.equal(g.observed['golddoor.0'], undefined);
+      assert.equal(g.lastObserved.golddoor, undefined);
+      t.asleep = true;
+      assert.deepEqual(look(g, 3, 3).texts, [TEXT.observe.golddoor]);
+      assert.equal(g.observed['golddoor.0'], true);
+    }
+  } finally {
+    CONFIG.toad.hits = hits;
   }
 });
 

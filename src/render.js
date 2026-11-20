@@ -81,7 +81,7 @@ export function createRenderer(root = document, { marks: withMarks = true, cellP
     slideMs: (frameMs / 2) * size, // a room sliding in: --slide-step, half a frame, a tile
   };
   // the marks round the square under a finger (--mark-* in style.css)
-  const marks = withMarks ? createMarks(mapHost, { size, frameMs, num }) : null;
+  const marks = withMarks ? createMarks(mapHost, { size, frameMs, num, dragCorners: !mapField }) : null;
   // The blink: about every two seconds, all in step. An item in the inventory goes white for
   // a couple of frames ("blink"); a unit's icon on the map steps to white and back ("stepping").
   // Nothing blinks while a sense wave is going; when the wave ends the blinking starts

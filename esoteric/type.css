@@ -17,6 +17,14 @@
   font-size: calc(var(--u) * 4.85);
   line-height: 1.25;
 }
+/* The log puts the newest entry first, even when one turn reports two things. */
+#log-lines > .line:first-child {
+  color: var(--reading-ink);
+  -webkit-text-stroke: 0.02em currentColor;
+}
+#log-lines > .line ~ .line {
+  color: color-mix(in srgb, var(--reading-ink) 60%, var(--slab));
+}
 
 #stats {
   font-size: calc(var(--u) * 5.6);

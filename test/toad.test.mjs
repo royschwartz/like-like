@@ -206,7 +206,7 @@ test('observing the toad never opens its event: its plain line, that it seems st
     assert.deepEqual(r.said, [want]);
     assert.deepEqual(r.ev, [{ type: 'observe', x: t.x, y: t.y }]);
   }
-  assert.equal(g.turn, turn, 'observing takes no time');
+  assert.equal(g.turn, turn + 6, 'a turn for each completed observation');
   assert.equal(view(g).event, null, 'the song is only observed: it opens nothing');
   // and sensing, beside it, finds nothing about it: only the room
   assert.deepEqual(senseOnce(g), [TEXT.senseToad[0]]);
@@ -257,7 +257,9 @@ test('observing the golden door, and the awake toad', () => {
   t.asleep = false;
   from = g.nextLogId;
   const ev = act(g, { type: 'observe', x: t.x, y: t.y });
-  assert.deepEqual(texts(g, from), ['[toad, awake]']);
+  const attack = ev.find((e) => e.type === 'attack' && e.by === 'toad');
+  assert.ok(attack, 'the adjacent awake toad gets its turn');
+  assert.deepEqual(texts(g, from), [attack.hit ? TEXT.log.toadHits(attack.dmg) : TEXT.log.toadMisses, TEXT.observe.toad]);
   assert.equal(g.log[g.log.length - 1].kind, 'slot');
   assert.ok(!ev.some((e) => e.type === 'event'));
 });

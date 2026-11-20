@@ -139,7 +139,7 @@ function drop() {
   aim = null;
   renderer.clearAim();
   if (!at || isPlayer(at.x, at.y) || !lookAt(at.x, at.y)) return;
-  renderer.flashAim(at.x, at.y);
+  if (!esoteric) renderer.flashAim(at.x, at.y);
   run({ type: 'travel', x: at.x, y: at.y });
 }
 

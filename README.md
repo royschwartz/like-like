@@ -10,7 +10,7 @@ The [esoteric edition](https://royschwartz.github.io/like-like/esoteric/) has fi
 you have been asked to retrieve the amulet of yendor. it is at the bottom of this dungeon, probably
 ```
 
-In the esoteric edition, open the square menu to set text brightness from 40% to 100%. The browser remembers your setting. The outer walls sit halfway offscreen until a hit briefly brings the whole room into view.
+In the esoteric edition, open the square menu to set text brightness from 40% to 100%. The browser remembers your setting. The newest log message uses the brightest ink and older messages dim. The outer walls are half a playable square wide. Half of each wall sits offscreen until a hit brings the whole perimeter into view.
 
 ## Play
 
@@ -25,7 +25,7 @@ Then go to `http://localhost:5173`. Add `?seed=7` to the address to play the sam
 | | Phone | Keyboard |
 |---|---|---|
 | Go there, step by step (or hit what's there, if it's beside you; your own square waits a turn) | tap it | click it |
-| Observe a thing on the map: hold it while it blinks, and when the blink is done you observe it. Let go before and you go there instead. Takes no time | hold it | hold the button down on it |
+| Observe a thing on the map: hold it while it blinks, and when the blink is done you observe it. A completed observation takes one turn. Let go early to go there instead | hold it | hold the button down on it |
 | See the way somewhere: drag from the map; the way lights up and the square under your finger is marked. Let go to go there. Drag back onto yourself or off the map, and let go, to go nowhere | drag | drag |
 | Stop going | tap anywhere | any key |
 | Move a step, or hit what's in the way | | arrow keys |
@@ -44,7 +44,7 @@ Then go to `http://localhost:5173`. Add `?seed=7` to the address to play the sam
 
 - A level is one to four rooms. A room is 11 by 11 characters, walls included, and fills the screen. Walk through a door (`+`) and the next room slides in.
 - The log at the top says what happens. Its newest lines are bright; older ones are dimmer. One action adds at most two wrapped lines of text. The opening is kept in full above the arrival status.
-- Tap or click a square on the map to go there, a step at a time; the way still ahead stays lit, and any press stops you. Tap a thing beside you to hit it or use it. Hold a thing instead and it blinks; held through the blink, you observe it. It takes no time and gives one observation. Hold it again and it goes round what there is to see: for a creature, what it is doing and on what ground, then what sensing has found about it, wherever you are. Drag across the map to see the way to a square, and let go to go there. A finger hides the square it's on, so the squares round it are marked: corners round where a drag would go (a tap flashes them), and a box that closes in on a square while you hold it, reaching it as the hold ends. Nothing blinks for being there to look at. Once you've noticed a thing, by sensing or now and then without trying (the nearer, the likelier), it blinks white while it has something you haven't observed. In the inventory, an item you haven't inspected blinks.
+- Tap or click a square on the map to go there, a step at a time; the way still ahead stays lit, and any press stops you. Tap a thing beside you to hit it or use it. Hold a thing instead and it blinks; held through the blink, you observe it. Observing takes one turn. An awake toad can move or strike while you look. Hold again to cycle through the observations. Coming closer can reveal more about the toad. Drag across the map to see the way to a square, and let go to go there. In the original edition, corners mark the destination during a drag. In the five-by-five esoteric rooms, the trail and the highlighted square show where you’ll go. In both editions, a tap flashes the corners and a box closes in while you hold to observe. Nothing blinks for being there to look at. Once you've noticed a thing, by sensing or now and then without trying (the nearer, the likelier), it blinks white while it has something you haven't observed. In the inventory, an item you haven't inspected blinks.
 - `inv` replaces the map with what you carry. Move up and down to choose an item.
 - You see what's in your line of sight. `sense` takes a turn: it spreads out from you through everywhere you could walk, and the walls take it in; it shows you your own numbers for a while, shows the whole room, and finds one new thing: first about the creatures it reaches, nearest first (some only from close by), then the room's own secrets. When there's nothing new it says so. Combat messages take priority; a find that cannot fit waits for a later sensing. Now and then a secret of the room comes to you without sensing, but never the worms.
 - Stand on the stairs (`>`) and the wide button says `stairs`.
