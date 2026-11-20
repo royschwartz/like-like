@@ -53,7 +53,8 @@ function save(key, value) {
 
 // Measure the ink of the wait and action buttons after the edition's face has loaded.
 if (esoteric && document.fonts) await document.fonts.load('1em "Crooked Hand"').catch(() => {});
-const game = newGame({ seed: readSeed(), look: readLook(), outlines: readOutlines(), edition: document.documentElement.dataset.edition });
+// The esoteric edition begins on its opening screen.
+const game = newGame({ seed: readSeed(), look: readLook(), outlines: readOutlines(), edition: document.documentElement.dataset.edition, opening: esoteric });
 const opening = view(game);
 const size = opening.room.size ?? Math.sqrt(opening.cells.length);
 const renderer = createRenderer(document, { cellPainter: edition?.paintEsoteric, size });

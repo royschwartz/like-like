@@ -13,12 +13,13 @@ const SQUARE_MENUS = ['inv', 'act', 'psy', 'sys'];
 
 // ---- a new game --------------------------------------------------------
 
-function makeState(seed, look, nextLogId, outlines = CONFIG.outlines.start, edition) {
+function makeState(seed, look, nextLogId, outlines = CONFIG.outlines.start, edition, opening = false) {
   const rng = makeRng(seed);
   const level = makeLevel(rng, 1, edition);
   const g = {
     seed,
     edition,
+    opening, // esoteric: the game begins on its opening screen (and so does a restart)
     look,
     outlines, // the lines round the buttons in the dark look: 0 none, up to CONFIG.outlines.levels
     rng,
@@ -59,20 +60,30 @@ function makeState(seed, look, nextLogId, outlines = CONFIG.outlines.start, edit
     going: null, // a fast move under way: where to, { x, y }, or null
   };
   // The opening is already behind you: what you arrive in is the status. Each of its lines
-  // is an entry of its own.
-  for (const line of edition === 'esoteric' ? TEXT.openingEsoteric : TEXT.opening) {
-    say(g, line, 'story');
-    g.said = 0;
+  // is an entry of its own. The esoteric edition's opening is a screen of its own instead,
+  // so its log begins with where you land.
+  if (edition !== 'esoteric') {
+    for (const line of TEXT.opening) {
+      say(g, line, 'story');
+      g.said = 0;
+    }
   }
   sayDescend(g);
   see(g);
+  // Its one choice, jump into the hole, closes it and you are in the room (eventChoose).
+  if (edition === 'esoteric' && opening) {
+    g.event = { id: 'opening', passages: TEXT.openingEsoteric.lines.map((l) => [prose(l)]), now: 0, cursor: 0 };
+  }
   return g;
 }
 
-export function newGame({ seed, look, outlines, edition } = {}) {
+// opening: begin on the esoteric edition's opening screen. The page asks for it; a game
+// made without it starts in the room, as the tests do.
+export function newGame({ seed, look, outlines, edition, opening } = {}) {
   const s = Number.isInteger(seed) ? seed : Date.now() % 2147483647;
   const lines = Number.isInteger(outlines) && outlines >= 0 && outlines <= CONFIG.outlines.levels ? outlines : undefined;
-  return makeState(s, look === 'dark' ? 'dark' : 'paper', 1, lines, edition === 'esoteric' ? edition : undefined);
+  const ed = edition === 'esoteric' ? edition : undefined;
+  return makeState(s, look === 'dark' ? 'dark' : 'paper', 1, lines, ed, !!ed && opening === true);
 }
 
 // ---- small helpers -----------------------------------------------------
@@ -849,7 +860,7 @@ function dig(g, ev) {
 }
 
 function restart(g, ev) {
-  const fresh = makeState(deriveSeed(g.seed), g.look, g.nextLogId, g.outlines, g.edition);
+  const fresh = makeState(deriveSeed(g.seed), g.look, g.nextLogId, g.outlines, g.edition, g.opening);
   for (const k of Object.keys(g)) delete g[k];
   Object.assign(g, fresh);
   ev.push({ type: 'restart' });
@@ -1270,6 +1281,8 @@ function recall(g, id, ev) {
 // DEE's first page has no way back: it ends at its greeting, and you answer.
 function eventOptions(g) {
   const e = g.event;
+  // The opening has one way on and no way back.
+  if (e.id === 'opening') return [{ label: TEXT.openingEsoteric.jump, kind: 'action', run: 'jump' }];
   if (!e.over && e.id === 'dee') return [{ label: TEXT.dee.ask, kind: 'action', run: 'ask' }];
   const list = [];
   if (e.id === 'memories') {
@@ -1306,6 +1319,11 @@ function eventChoose(g, i, ev) {
   const room = currentRoom(g);
   const toad = room.toad;
   switch (o.run) {
+    case 'jump':
+      // into the room, with the same cover as going down stairs; no turn passes
+      g.event = null;
+      ev.push({ type: 'descend' });
+      break;
     case 'ability':
       g.event = null;
       runAbility(g, o.arg, ev);

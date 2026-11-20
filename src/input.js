@@ -42,6 +42,9 @@ export function bindInput(root, dispatch, timing = {}, size = CONFIG.roomSize) {
       return;
     }
     e.preventDefault();
+    // Every choice is marked with an arrow, so the one the keys are on is shown another way,
+    // and only while the keys are in use: a press anywhere puts it away.
+    if (action.type === 'move') root.classList.add('keys');
     dispatch(action);
     // When tab focus is on a choice, arrow navigation must move that focus with
     // the visible cursor so the next native Enter/Space activates the same choice.
@@ -52,6 +55,7 @@ export function bindInput(root, dispatch, timing = {}, size = CONFIG.roomSize) {
 
   function onPointerDown(e) {
     if (e.button != null && e.button !== 0) return;
+    root.classList.remove('keys');
     let target = e.target;
     // Touch browsers can redirect the bottom row to the stats button, or a
     // press in the gutter onto the nearest tile. Check the contact center.

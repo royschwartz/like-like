@@ -227,8 +227,83 @@
     height: 100%;
   }
 }
-/* The arrow points to the selected link. Its accessible name is the link text. */
-.link.cursor::before { content: ">" / ""; }
+/* ---------- choices ----------
+   Every choice is marked with an arrow, at the text's left margin as in his opening,
+   "> jump into the hole". Its accessible name is the link text. The one the arrow keys
+   are on is shown in inverse video, and only while the keys are in use (input.js puts
+   .keys on the screen; a press anywhere takes it off). */
+#screen .link::before,
+#screen .link.cursor::before {
+  content: "> " / "";
+  position: static;
+  white-space: pre;
+}
+#screen.keys .link.cursor:not(.down) {
+  background: var(--ev-link);
+  color: var(--ev-bg);
+}
+
+/* An event's choices are not at the bottom: they sit in the middle of the space between
+   the end of its text and the menu's dots. Text too long for the screen scrolls above
+   them, as before. With the menu open, its brightness goes with its choices. */
+#event-lines { flex: 0 1 auto; }
+#event-links {
+  margin: auto calc(var(--ev-side) * -1);
+  padding-block: calc(var(--u) * 5);
+}
+#btn-event-sys { margin-top: 0; }
+#event:has(#btn-event-sys.open) .brightness {
+  margin-top: auto;
+  padding-top: calc(var(--u) * 5);
+}
+#event:has(#btn-event-sys.open) #event-links { margin-top: 0; }
+
+/* The inventory is the same: its rows from the top, one to a map row, and inspect, use
+   and back as links in the middle of the space under the last of them. The buttons that
+   did those at the bottom are gone while it is up; the menu's dots stay. */
+#inv {
+  --ev-side: calc(var(--u) * 5);
+  --ev-size: var(--text-size);
+  --ev-link: var(--inv-ink);
+  --ev-link-quiet: var(--inv-ink);
+  --ev-bg: var(--inv-bg);
+  display: flex;
+  flex-direction: column;
+}
+#inv-title {
+  flex: none;
+  height: calc(var(--board-side) / 11);
+}
+#inv-rows {
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  grid-template-rows: none;
+  grid-auto-rows: calc(var(--board-side) / 11);
+}
+#inv-links {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  margin-block: auto;
+  padding-block: calc(var(--u) * 5);
+}
+#screen[data-screen="inv"] #btn-context,
+#screen[data-screen="inv"] #btn-use,
+#screen[data-screen="inv"] #btn-inv { display: none; }
+
+/* A menu's options are marked too. The menu's ring round the keys' option shows only
+   while the keys are in use. */
+#controls[data-menu] #options .opt:not(.empty)::before {
+  content: "> " / "";
+  white-space: pre;
+}
+#screen:not(.keys) #controls[data-menu="sys"] .opt.cursor:not(.down) {
+  box-shadow: inset 0 0 0 calc(var(--u) * 0.45) var(--btn-edge);
+}
+#screen:not(.keys) #controls[data-menu="sys"] .opt[data-kind="back"].cursor:not(.down) {
+  box-shadow: inset 0 0 0 calc(var(--u) * 0.45) var(--quiet-edge);
+}
 
 /* The tint is the label's colour alone: no filled box behind stairs or a corpse.
    A corpse is just its word in red (decision 275). */
@@ -241,12 +316,16 @@
    and back at its end, where wait and the star were (decision 276). */
 #controls[data-menu="corpse"] #options {
   margin-top: auto;
-  grid-template-columns: 1fr 1fr auto;
+  /* halves, unless "> take items" needs more on a narrow screen: then eat gives it room */
+  grid-template-columns: minmax(max-content, 1fr) minmax(max-content, 1fr) auto;
   grid-template-rows: var(--control-height);
   gap: calc(2 * var(--u));
 }
 #controls[data-menu="corpse"] #options .opt.empty { display: none; }
-#controls[data-menu="corpse"] #options .opt { justify-content: flex-start; }
+#controls[data-menu="corpse"] #options .opt {
+  justify-content: flex-start;
+  white-space: nowrap;
+}
 /* tinted as the corpse is, and the keyboard's place shown by an arrow, not a box */
 #controls[data-menu="corpse"] #options .opt:not(.down) {
   color: color-mix(in srgb, #ff7467 var(--text-brightness, 100%), black);
@@ -257,4 +336,12 @@
 #controls[data-menu="corpse"] #options .opt[data-kind="back"] { justify-content: flex-end; }
 #controls[data-menu="corpse"] #options .opt[data-kind="back"]:not(.down) { color: var(--paper); }
 #controls[data-menu="corpse"] #options .opt:disabled { opacity: .45; }
-#controls[data-menu="corpse"] #options .opt.cursor::before { content: "> " / ""; white-space: pre; }
+/* the keys' option, while they are in use: inverse video, in its own colour */
+#screen.keys #controls[data-menu="corpse"] #options .opt.cursor:not(.down) {
+  background: color-mix(in srgb, #ff7467 var(--text-brightness, 100%), black);
+  color: var(--slab);
+}
+#screen.keys #controls[data-menu="corpse"] #options .opt[data-kind="back"].cursor:not(.down) {
+  background: var(--paper);
+  color: var(--slab);
+}

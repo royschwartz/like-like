@@ -41,9 +41,6 @@
   --ev-side: calc(var(--u) * 6);
   line-height: 1.42;
 }
-.link.cursor::before {
-  left: calc(var(--u) * 1.7);
-}
 
 /* The toad's lowercase t follows the smaller of the room and the type slab.
    Widening a short phone's room still leaves space around the letter. */

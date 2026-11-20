@@ -30,6 +30,7 @@ export function createRenderer(root = document, { marks: withMarks = true, cellP
   const invEl = $('inv');
   const invTitle = $('inv-title');
   const invRows = $('inv-rows');
+  const invLinks = $('inv-links'); // esoteric: the inventory's own choices, under the list
   const eventEl = $('event');
   const eventLines = $('event-lines');
   const eventLinks = $('event-links');
@@ -511,6 +512,30 @@ export function createRenderer(root = document, { marks: withMarks = true, cellP
       row.appendChild(state);
       invRows.appendChild(row);
     });
+    drawInvLinks(open);
+  }
+
+  // The esoteric inventory's choices are links under the list, as an event's are, not the
+  // buttons at the bottom: inspect, use and back, which do what those buttons do.
+  function drawInvLinks(open) {
+    if (!invLinks) return;
+    if (!open) return invLinks.replaceChildren();
+    if (invLinks.childElementCount) return;
+    const doc = invLinks.ownerDocument;
+    const choices = [
+      [TEXT.context.inspect, 'action', { action: 'context' }],
+      [TEXT.button.use, 'action', { action: 'use' }],
+      [TEXT.menu.back, 'back', { menu: 'inv' }],
+    ];
+    for (const [label, kind, data] of choices) {
+      const link = doc.createElement('button');
+      link.type = 'button';
+      link.className = 'link';
+      link.dataset.kind = kind;
+      Object.assign(link.dataset, data);
+      link.textContent = words(label);
+      invLinks.appendChild(link);
+    }
   }
 
   // --- an event: its own scrollable text and links, with the system menu below ---

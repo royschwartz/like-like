@@ -9,9 +9,13 @@
 export const TEXT = {
   // HIS. The first line in the log. He asked for the two lines joined with a period.
   opening: ['you have been asked to retrieve the amulet of yendor. it is at the bottom of this dungeon, probably'],
-  // HIS. The esoteric edition's first lines (November 20), each its own entry, with space
-  // between them and before what you arrive in ("space between probably and you decend").
-  openingEsoteric: ['your mission is to retrieve the amulet', 'it’s at the bottom of this dungeon probably'],
+  // HIS. The esoteric edition begins on a black screen of its own ("let's start from the
+  // beginning / it's just a black screen that says", November 20): two paragraphs and one
+  // choice, which drops you into the first room. Kept as he wrote them, "tunder" included.
+  openingEsoteric: {
+    lines: ['you have been asked to retrieve the amulet of tunder', 'it’s at the bottom of this dungeon probably'],
+    jump: 'jump into the hole',
+  },
   repeated: (text, count) => `${text} ×${count}`,
 
   // HIS, from his drawing of the screen.

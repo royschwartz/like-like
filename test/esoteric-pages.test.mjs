@@ -129,3 +129,48 @@ test('restarting from a library memory clears its return page; the original psy 
   assert.equal(original.event, null);
   assert.equal(original.menu.id, 'psy');
 });
+
+test('the esoteric opening: his two lines on a screen of their own, one way on, none back', () => {
+  for (const seed of [7, 19, 39]) {
+    const g = newGame({ seed, edition: 'esoteric', opening: true });
+    const v = view(g);
+    assert.equal(v.event.id, 'opening');
+    assert.deepEqual(lines(g), TEXT.openingEsoteric.lines);
+    // each its own paragraph
+    assert.deepEqual(v.event.lines.map((l) => l.passage), [0, 1]);
+    assert.deepEqual(v.event.options.map((o) => o.label), [TEXT.openingEsoteric.jump]);
+    // the log already has where you land, and nothing of the opening
+    assert.deepEqual(v.log.map((l) => l.text), [TEXT.log.descend[g.level.entrance.ground]]);
+    // no way back, and nothing moves you while it is up
+    const at = [g.x, g.y];
+    assert.deepEqual(back(g), []);
+    act(g, { type: 'move', dir: 's' });
+    assert.deepEqual([g.x, g.y], at);
+    assert.equal(view(g).event.id, 'opening');
+    // jumping into the hole: the room, with the stairs' cover, and no turn gone
+    const turn = g.turn;
+    const events = act(g, { type: 'choose', index: 0 });
+    assert.deepEqual(events, [{ type: 'descend' }]);
+    assert.equal(view(g).event, null);
+    assert.equal(g.turn, turn);
+    assert.equal(g.depth, 1);
+  }
+});
+
+test('the opening comes back on a restart, and never without being asked for', () => {
+  const g = newGame({ seed: 7, edition: 'esoteric', opening: true });
+  act(g, { type: 'context' }); // the keys' choice: jump into the hole
+  assert.equal(view(g).event, null);
+  menu(g, 'sys');
+  const restart = view(g).menu.options.findIndex((o) => o && o.label === TEXT.menu.restart);
+  act(g, { type: 'choose', index: restart });
+  assert.equal(view(g).event?.id, 'opening');
+  // a game made without it starts in the room, and so does its restart
+  const plain = start();
+  assert.equal(view(plain).event, null);
+  menu(plain, 'sys');
+  act(plain, { type: 'choose', index: restart });
+  assert.equal(view(plain).event, null);
+  // the original edition never has it
+  assert.equal(view(newGame({ seed: 7, opening: true })).event, null);
+});
