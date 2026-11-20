@@ -33,7 +33,10 @@ function sense(g) {
 }
 
 const NEAR = CONFIG.observeClose;
-const PLAIN = 'a toad sleeping on dirt'; // his, on the plain ground of these rooms
+const FIRST = 'a toad sleeping on dirt'; // his, on the plain ground of these rooms: the first time
+const PLAIN = 'the toad sleeping on dirt'; // and after that (decision 183)
+// A line of his starting "it", as said when nothing about the toad came just before it.
+const NAMED = (text) => text.replace(/^it /, 'the toad ');
 const { stronger: STRONGER, chain: CHAIN } = TEXT.toadSeen;
 const SINGS = TEXT.toad.singing;
 
@@ -74,7 +77,7 @@ test('the sleeping toad says its plain line: who, doing what, on what ground; aw
   look(g, 7, 5); // that it seems stronger
   look(g, 7, 5); // its song: the plain line comes round after it
   room.t[idx(7, 5)] = 'grass';
-  assert.deepEqual(look(g, 7, 5).texts, ['a toad sleeping on grass']);
+  assert.deepEqual(look(g, 7, 5).texts, ['the toad sleeping on grass'], 'the second time, the toad');
   look(g, 7, 5);
   look(g, 7, 5);
   room.t[idx(7, 5)] = 'stairs'; // ground with no word of its own: the whole-line slot
@@ -90,7 +93,7 @@ test('observing the toad goes round: its plain line, that it seems stronger, and
   const { g } = openGame();
   const t = putToad(g, 5 + NEAR + 1, 5, true);
   const at = () => look(g, t.x, t.y).texts[0];
-  assert.deepEqual([at(), at(), at()], [PLAIN, STRONGER, PLAIN], 'from afar: plain, and that it seems stronger');
+  assert.deepEqual([at(), at(), at()], [FIRST, STRONGER, PLAIN], 'from afar: plain, and that it seems stronger');
   t.x = 5 + NEAR; // come closer
   assert.deepEqual([at(), at()], [CHAIN, SINGS], 'what is new first, in order');
   assert.deepEqual([at(), at(), at()], [PLAIN, STRONGER, CHAIN], 'then round from the one after the last said');
@@ -109,6 +112,24 @@ test('observing the toad goes round: its plain line, that it seems stronger, and
   assert.equal(view(g).event, null);
 });
 
+test('a toad the first time, the toad after; "it" only right after an observation of it', () => {
+  const { g, room } = openGame();
+  const t = putToad(g, 6, 5, true);
+  const at = () => look(g, t.x, t.y).texts[0];
+  assert.equal(at(), FIRST, 'the first time, a toad');
+  assert.equal(at(), STRONGER, 'right after it: it');
+  look(g, 5, 4); // the ground between
+  assert.equal(at(), NAMED(CHAIN), 'after something else, its name');
+  assert.equal(at(), SINGS, 'and then it again');
+  assert.equal(at(), PLAIN, 'the second time, the toad');
+  sense(g); // a sensing's line between
+  assert.equal(at(), NAMED(STRONGER));
+  assert.equal(NAMED(STRONGER), 'the toad seems stronger than you');
+  assert.equal(NAMED(CHAIN), 'the toad wears a chain with a golden key around its neck');
+  assert.equal(NAMED(SINGS), 'the toad is singing in its sleep, in an irish style');
+  assert.equal(room.toad.named, true);
+});
+
 test('sensing never finds anything about the toad, near or far: what is about it is observed', () => {
   const { g, room } = openGame();
   putToad(g, 5 + NEAR + 1, 5, true);
@@ -125,7 +146,7 @@ test('the toad awake; on a corpse, the toad is what you see', () => {
   room.corpses.push({ x: 8, y: 5, items: [] });
   putToad(g, 8, 5, false).lastSeen = null;
   // (observing takes no time, so the toad does not move)
-  assert.deepEqual(look(g, 8, 5).texts, [TEXT.observe.toad]);
+  assert.deepEqual(look(g, 8, 5).texts, [TEXT.observe.toad]); // (a slot: no name in it)
   assert.deepEqual(look(g, 8, 5).texts, [STRONGER]);
   assert.deepEqual(look(g, 8, 5).texts, [TEXT.observe.toad]);
   room.toad.asleep = true;
@@ -167,7 +188,7 @@ test('remembered cells: the corpse you remember, never the toad out of sight unl
   assert.deepEqual(look(g, 6, 2).texts, [TEXT.observe.dirt]);
   g.sensedTurn = g.turn;
   g.sensedRoom = g.room;
-  assert.deepEqual(look(g, 6, 2).texts, [PLAIN]);
+  assert.deepEqual(look(g, 6, 2).texts, [FIRST]);
 });
 
 test('a cell never seen says nothing', () => {

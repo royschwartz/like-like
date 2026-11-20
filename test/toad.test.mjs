@@ -68,12 +68,12 @@ test('walking into the toad tells you of its key if nothing has: then you can go
   act(g, { type: 'back' });
   // told once: after that the plain first line, and the chain is had, not new
   openItsEvent(g, t);
-  assert.equal(eventTexts(view(g))[0], SINGS);
+  assert.equal(eventTexts(view(g))[0], EVENT_SINGS);
   assert.deepEqual(labels(), ['listen more', 'go for the key', 'attack!', 'back']);
   act(g, { type: 'back' });
   const said = [0, 1, 2, 3, 4, 5].map(() => lookAtToad(g, t).said[0]);
-  const plain = said[0];
-  assert.deepEqual(said, [plain, SEEN.stronger, SINGS, plain, SEEN.stronger, SEEN.chain], 'the chain is had, not new, and in the round');
+  const ground = said[0].split(' on ')[1];
+  assert.deepEqual(said, [`a toad sleeping on ${ground}`, SEEN.stronger, SINGS, `the toad sleeping on ${ground}`, SEEN.stronger, SEEN.chain], 'the chain is had, not new, and in the round');
 });
 
 test('if you observed the chain first, walking in says only that it sings', () => {
@@ -81,7 +81,7 @@ test('if you observed the chain first, walking in says only that it sings', () =
   const said = [0, 1, 2].map(() => lookAtToad(g, t).said[0]);
   assert.equal(said[2], SEEN.chain);
   openItsEvent(g, t);
-  assert.equal(eventTexts(view(g))[0], SINGS);
+  assert.equal(eventTexts(view(g))[0], EVENT_SINGS);
   assert.deepEqual(view(g).event.options.map((o) => o.label), ['listen more', 'go for the key', 'attack!', 'back']);
 });
 
@@ -89,7 +89,7 @@ test('without its key, walking in never mentions one', () => {
   const { g, t } = atToad();
   t.key = false;
   openItsEvent(g, t);
-  assert.equal(eventTexts(view(g))[0], SINGS);
+  assert.equal(eventTexts(view(g))[0], EVENT_SINGS);
   assert.deepEqual(view(g).event.options.map((o) => o.label), ['listen more', 'attack!', 'back']);
 });
 
@@ -112,6 +112,8 @@ function openToadRoom(x, y, seed = 21) {
 
 const SEEN = TEXT.toadSeen;
 const SINGS = 'it is singing in its sleep, in an irish style';
+// the event's first line has nothing before it, so it names the toad (decision 183)
+const EVENT_SINGS = 'the toad is singing in its sleep, in an irish style';
 const NECKLACE = 'the toad wears a necklace with a golden key around its neck and is singing softly in its sleep, in an irish style';
 
 const labels = (v) => v.event.options.map((o) => o.label);
@@ -174,7 +176,7 @@ test('moving into the sleeping toad opens its song: no turn, no blow; in again, 
   act(g, { type: 'back' });
   assert.equal(view(g).event, null);
   intoToad(g, t);
-  assert.deepEqual(eventTexts(view(g)), [SINGS, ...TEXT.toad.verses[0]]);
+  assert.deepEqual(eventTexts(view(g)), [EVENT_SINGS, ...TEXT.toad.verses[0]]);
   assert.equal(view(g).event.now, 0);
   assert.equal(t.stirred, true, 'it has stirred, and that is kept');
   assert.equal(g.turn, turn);
@@ -194,8 +196,10 @@ test('moving into the toad awake strikes it, and a turn passes', () => {
 test('observing the toad never opens its event: its plain line, that it seems stronger, its chain and song up close, going round', () => {
   const { g, room, t } = atToad();
   const turn = g.turn;
-  const plain = `a toad sleeping on ${room.t[idx(t.x, t.y)] === 'grass' ? 'grass' : 'dirt'}`;
-  for (const want of [plain, SEEN.stronger, SEEN.chain, SINGS, plain, SEEN.stronger]) {
+  const ground = room.t[idx(t.x, t.y)] === 'grass' ? 'grass' : 'dirt';
+  const first = `a toad sleeping on ${ground}`;
+  const plain = `the toad sleeping on ${ground}`;
+  for (const want of [first, SEEN.stronger, SEEN.chain, SINGS, plain, SEEN.stronger]) {
     const r = lookAtToad(g, t);
     assert.deepEqual(r.said, [want]);
     assert.deepEqual(r.ev, [{ type: 'observe', x: t.x, y: t.y }]);

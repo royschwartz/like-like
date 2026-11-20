@@ -864,12 +864,14 @@ const TERRAIN_NAME = {
 const sayings = (name) => [].concat(TEXT.observe[name]).map((text, k) => ({ id: `${name}.${k}`, text }));
 
 // The toad's plain line, as Brogue's: who, doing what, on what ground. Its id is by what it
-// is doing, so a toad that wakes has a new line to observe.
+// is doing, so a toad that wakes has a new line to observe. "a toad" until you have
+// observed it once, then "the toad" (decision 183).
 function toadLine(room, toad) {
   if (!toad.asleep) return { id: 'unit.toad.awake', text: TEXT.observe.toad, plain: true };
   const u = TEXT.unit;
   const ground = u.ground[room.t[idx(toad.x, toad.y)]];
-  return { id: 'unit.toad.asleep', text: ground ? u.line(u.who.toad, u.doing.asleep, ground) : u.elsewhere.toad, plain: true };
+  const who = toad.named ? u.the.toad : u.who.toad;
+  return { id: 'unit.toad.asleep', text: ground ? u.line(who, u.doing.asleep, ground) : u.elsewhere.toad, plain: true };
 }
 
 // What observing a unit goes round, in order: [{ id, text }]. The toad: its plain line and
@@ -927,7 +929,14 @@ function observe(g, x, y, ev) {
   const o = list.find((it) => !g.observed[it.id]) ?? list[(last + 1) % list.length];
   g.observed[o.id] = true;
   g.lastObserved[key] = o.id;
-  say(g, o.text, 'observe');
+  // "it" only right after an observation of the same thing; otherwise its name (183)
+  const prev = g.log[g.log.length - 1];
+  const text = key === 'toad' && prev?.about !== 'toad' ? TEXT.unit.named(o.text, TEXT.unit.the.toad) : o.text;
+  say(g, text, 'observe');
+  if (key === 'toad') {
+    g.log[g.log.length - 1].about = 'toad';
+    room.toad.named = true;
+  }
   ev.push({ type: 'observe', x, y });
 }
 
@@ -953,7 +962,8 @@ function openEvent(g, e, ev, keepMenu = false) {
 // on its chain is one of what observing it goes round, already had, and you can go for it.
 function openToad(g, ev) {
   const toad = currentRoom(g).toad;
-  let first = TEXT.toad.singing;
+  // the event's first line has nothing before it, so "it" is the toad (183)
+  let first = TEXT.unit.named(TEXT.toad.singing, TEXT.unit.the.toad);
   if (toad.key && !g.observed['unit.toad.chain']) {
     first = TEXT.toad.necklace;
     g.observed['unit.toad.chain'] = true;

@@ -59,9 +59,16 @@ export const TEXT = {
   // HIS: "a toad sleeping on grass" ("unit type / activity / what terrain they're on").
   // "dirt" is his word for the bare ground (decision 52). Ground with no word here, or a
   // toad awake, says the whole-line slot instead.
+  //
+  // HIS (decision 183): "the first time you see something it should be a toad, the second
+  // time, the toad". And a line of his that starts "it" keeps it only right after an
+  // observation of the same thing; otherwise "it" becomes its name ("sometimes its unclear
+  // what the obsveration is in reference to"): "the toad seems stronger than you".
   unit: {
     line: (who, doing, ground) => `${who} ${doing} on ${ground}`,
     who: { toad: 'a toad' },
+    the: { toad: 'the toad' },
+    named: (text, name) => text.replace(/^it /, `${name} `),
     doing: { asleep: 'sleeping' },
     ground: { grass: 'grass', floor: 'dirt' },
     elsewhere: { toad: '[toad, asleep]' },
