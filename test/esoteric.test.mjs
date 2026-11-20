@@ -179,6 +179,12 @@ test('walking into the mother: a line, no turn, and never past her; observing he
   assert.deepEqual(v.cells[3 * 7].thing, { kind: 'mother' });
   const mark = paintEsoteric(v.cells[3 * 7], 0, 3, { size: 7, key: 1, cells: v.cells });
   assert.ok(mark.mask.startsWith('url('));
+  // the draft he chose, as drawn: 26 pixels across and 21 down, centred, every pixel one of the square's
+  const runs = [...decodeURIComponent(mark.mask).matchAll(/M([\d.]+) ([\d.]+)h([\d.]+)v([\d.]+)/g)].map((m) => m.slice(1).map(Number));
+  const [left, right] = [Math.min(...runs.map((r) => r[0])), Math.max(...runs.map((r) => r[0] + r[2]))];
+  const [top, bottom] = [Math.min(...runs.map((r) => r[1])), Math.max(...runs.map((r) => r[1] + r[3]))];
+  assert.deepEqual([right - left, bottom - top, left, top], [26, 21, 5, 7]);
+  assert.ok(runs.every((r) => r[3] === 1));
   assert.match(mark.fg, /--mother/);
   assert.equal(mark.label, 'mother');
   const turn = g.turn;

@@ -16,7 +16,7 @@ const tiles = {
   opendoor:  ['--stone', TEXT.observe.door],
   corpse:    ['--blood-ink', TEXT.observe.corpse],
   toad:      ['--toad', TEXT.unit.who.toad], // "a deep olive green", asleep or awake
-  mother:    ['--mother', TEXT.observe.mother], // Claude's lilac, provisional
+  mother:    ['--mother', TEXT.observe.mother], // "make it a purple color"
 };
 
 // Grass by its kind, all of it the same sprigs, green with white tips. The first room's
