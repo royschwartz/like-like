@@ -99,3 +99,31 @@
 #event[data-id="toad"] {
   --ev-song: #b7cf9c;
 }
+
+/* --- going up and down stairs (decision 346, esoteric/stairs.js) ---
+   You go as the first tread folds away, the treads go one a frame, the screen rolls over
+   the way you went at half a frame a tile (as between rooms), the treads come back one a
+   frame, and you come with the last. In frames of --f. With no roll, black instead. */
+#screen {
+  --stairs-tread: 1;
+  --stairs-gone: 0;
+  --stairs-roll: 0.5;
+  --stairs-wait: 0;
+  --stairs-black: 1;
+}
+/* the copies of the two floors, over the map */
+.stairway {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  overflow: hidden;
+  pointer-events: none;
+  background: var(--unknown);
+}
+.stairway .map {
+  background: transparent;
+  pointer-events: none;
+}
+.stairway .map .c {
+  cursor: default;
+}

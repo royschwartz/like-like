@@ -22,7 +22,9 @@ const CELL_FX = ['fx-hit', 'fx-miss', 'fx-kill', 'fx-observe', 'fx-dig', 'fx-unl
 // draws its own, so it turns these off.
 // moreMark: the esoteric edition's square for "more", a new version of it each call: given,
 // it is set as --more on the stat row once and on each item listed as it is made.
-export function createRenderer(root = document, { marks: withMarks = true, cellPainter = paintCell, size = CONFIG.roomSize, moreMark = null } = {}) {
+// stairs: the edition's way of going up and down stairs (esoteric/stairs.js), made with
+// { host, size, num, paint }; without it, taking stairs blacks the map for two frames.
+export function createRenderer(root = document, { marks: withMarks = true, cellPainter = paintCell, size = CONFIG.roomSize, moreMark = null, stairs: makeStairs = null } = {}) {
   const $ = (id) => root.querySelector('#' + id);
   const screen = $('screen');
   const map = $('map');
@@ -87,6 +89,8 @@ export function createRenderer(root = document, { marks: withMarks = true, cellP
     stepMs: frameMs * num('--travel-step', 1), // a fast move's step
     slideMs: (frameMs / 2) * size, // a room sliding in: --slide-step, half a frame, a tile
   };
+  // going up and down stairs, if the edition has its own way (decision 346)
+  const stairs = makeStairs ? makeStairs({ host: mapHost, size, num, paint: cellPainter }) : null;
   // the marks round the square under a finger (--mark-* in style.css)
   const marks = withMarks ? createMarks(mapHost, { size, frameMs, num, dragCorners: !mapField }) : null;
   // The blink: about every two seconds, all in step. An item in the inventory goes white for
@@ -114,6 +118,7 @@ export function createRenderer(root = document, { marks: withMarks = true, cellP
   function draw(view, events = []) {
     if (!view) return;
     events = Array.isArray(events) ? events : [];
+    const before = shown;
     shown = view;
 
     const nextRoom = `${view.depth}:${view.room?.id}:${view.room?.key}`;
@@ -128,6 +133,7 @@ export function createRenderer(root = document, { marks: withMarks = true, cellP
       if (marks) marks.clear();
       for (const cell of cells) for (const cls of CELL_FX) fx.stop(cell, cls);
       endSlide();
+      if (stairs) stairs.stop();
       roomKey = nextRoom;
     }
     // An event or the inventory takes the map's place: a wave under it is dropped, so
@@ -138,8 +144,13 @@ export function createRenderer(root = document, { marks: withMarks = true, cellP
     const room = events.find((e) => e && e.type === 'room' && DIRS.includes(e.dir));
     if (room) startSlide(room.dir);
 
+    // Taking stairs: the map still shows the floor you were on until it is drawn.
+    const stairway = stairs ? events.find((e) => e && (e.type === 'descend' || e.type === 'ascend')) : null;
+    const oldMap = stairway ? map.cloneNode(true) : null;
+
     drawLook(view);
     drawMap(view);
+    const onStairs = !!oldMap && stairs.play({ oldMap, newMap: map.cloneNode(true), before, after: view, way: stairway.type === 'descend' ? 'down' : 'up' });
     drawLog(view.log, view.fresh);
     drawScreenMode(view);
     drawInv(view.inv);
@@ -159,7 +170,8 @@ export function createRenderer(root = document, { marks: withMarks = true, cellP
       // The map already shows the entrance after death; the old room's tile effects
       // must not flash unrelated squares there. The screen still jolts and flashes.
       if (!died) cellEffect(e, view);
-      screenEffect(e);
+      // the stairs' own animation takes the place of the black
+      if (!(onStairs && (e.type === 'descend' || e.type === 'ascend'))) screenEffect(e);
     }
     if (!died) drawTrail(view, events);
     lastTurn = view.turn;
@@ -700,7 +712,9 @@ export function createRenderer(root = document, { marks: withMarks = true, cellP
     });
   }
 
-  return { draw, timing, showAim, clearAim, flashAim, showLook, dropLook, destroy() {
+  // busy: the stairs are animating, and presses wait. stairs: for checking it by hand.
+  return { draw, timing, showAim, clearAim, flashAim, showLook, dropLook, busy: () => !!stairs && stairs.playing(), stairs, destroy() {
+    if (stairs) stairs.stop();
     clearTimeout(blinkNext);
     if (marks) marks.destroy();
     clearTrail();

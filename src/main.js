@@ -59,7 +59,9 @@ const opening = view(game);
 const size = opening.room.size ?? Math.sqrt(opening.cells.length);
 // the square that means more, a new version of it each time one is made (esoteric)
 const more = esoteric ? await import('../esoteric/more.js') : null;
-const renderer = createRenderer(document, { cellPainter: edition?.paintEsoteric, moreMark: more?.moreMark, size });
+// going up and down stairs: the treads fold away and the screen rolls over (decision 346)
+const stairs = esoteric ? await import('../esoteric/stairs.js') : null;
+const renderer = createRenderer(document, { cellPainter: edition?.paintEsoteric, moreMark: more?.moreMark, size, stairs: stairs?.createStairs });
 renderer.draw(opening);
 const timing = renderer.timing;
 
@@ -157,6 +159,8 @@ function drop() {
 // Every press comes here. During a fast move a press only stops it.
 // A press on the map is a gesture (see input.js); its later parts come only if it started.
 function dispatch(action) {
+  // nothing is pressed while the stairs are animating
+  if (renderer.busy()) return false;
   switch (action.type) {
     case 'aim':
       return aimAt(action.at);
@@ -218,4 +222,4 @@ document.addEventListener('visibilitychange', () => {
   if (stepTimer || view(game).going) stop();
 });
 
-window.__likelike = { game, act, view };
+window.__likelike = { game, act, view, renderer };
