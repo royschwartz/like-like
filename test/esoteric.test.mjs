@@ -209,7 +209,42 @@ test('going down, you arrive just inside stairs up where the stairs down were; u
   const down = paintEsoteric(visible('stairs'), 3, 6, look).mask;
   const up = paintEsoteric(visible('upstairs'), 3, 6, look).mask;
   assert.notEqual(up, down);
-  assert.equal(up, paintEsoteric(visible('stairs'), 3, 0, look).mask, 'up widens toward its edge');
+});
+
+// The ink of a stair mark, in the square as drawn on the screen: each rectangle as its
+// depth in from the map's edge on that side and its span across.
+function stairInk(mask, side) {
+  const svg = decodeURIComponent(mask.slice('url("data:image/svg+xml,'.length, -2));
+  const transform = svg.match(/transform="([^"]*)"/)[1];
+  const turn = ([x, y]) => transform.startsWith('matrix') ? [x, 36 - y]
+    : transform.startsWith('rotate(90') ? [36 - y, x]
+      : transform.startsWith('rotate(-90') ? [y, 36 - x] : [x, y];
+  const depth = { n: ([, y]) => y, s: ([, y]) => 36 - y, w: ([x]) => x, e: ([x]) => 36 - x }[side];
+  const across = { n: ([x]) => x, s: ([x]) => x, w: ([, y]) => y, e: ([, y]) => y }[side];
+  return [...svg.matchAll(/M([\d.]+) ([\d.]+)h([\d.]+)v([\d.]+)/g)].map((m) => {
+    const [x, y, w, h] = m.slice(1).map(Number);
+    const corners = [[x, y], [x + w, y + h]].map(turn);
+    const ds = corners.map(depth), as = corners.map(across);
+    return { near: Math.min(...ds), far: Math.max(...ds), from: Math.min(...as), to: Math.max(...as) };
+  });
+}
+
+test('stairs shrink across and down, packed against the map edge: narrower there going down, wider going up', () => {
+  const look = { size: 7, key: 3, cells: Array.from({ length: 49 }, () => visible('wall')) };
+  const span = (ink) => Math.max(...ink.map((r) => r.to)) - Math.min(...ink.map((r) => r.from));
+  for (const [x, y, side] of [[3, 6, 's'], [3, 0, 'n'], [0, 3, 'w'], [6, 3, 'e']]) {
+    for (const kind of ['stairs', 'upstairs']) {
+      const ink = stairInk(paintEsoteric(visible(kind), x, y, look).mask, side);
+      const nearest = Math.min(...ink.map((r) => r.near));
+      const farthest = Math.max(...ink.map((r) => r.far));
+      assert.ok(Math.abs(nearest - 1) < 0.01, `${kind} on ${side}: one pixel in from the edge`);
+      assert.ok(farthest < 23, `${kind} on ${side}: shorter than the 25 rows drawn, the room side left clear`);
+      const edgeTread = span(ink.filter((r) => r.far < nearest + 6));
+      const roomTread = span(ink.filter((r) => r.near > farthest - 6));
+      if (kind === 'stairs') assert.ok(edgeTread < roomTread, `stairs down on ${side} narrow toward the edge`);
+      else assert.ok(edgeTread > roomTread, `stairs up on ${side} widen toward the edge`);
+    }
+  }
 });
 
 test('esoteric rooms come in many shapes, all whole, with walls round what is open', () => {
