@@ -1,100 +1,11 @@
 <!doctype html>
-<html lang="en" data-edition="esoteric">
+<html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
-<meta name="theme-color" content="#000000">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black">
-<title>LIKE LIKE · esoteric</title>
-<link rel="icon" href="data:,">
-<link rel="preload" href="font/crooked-hand.woff2?v=6" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="../style.css?v=7">
-<link rel="stylesheet" href="edition.css?v=8">
-<link rel="stylesheet" href="type.css?v=8">
-<link rel="stylesheet" href="controls.css?v=13">
-<!-- Load matching room geometry, pointer input and art even with a previous edition cached. -->
-<script type="importmap">
-{
-  "imports": {
-    "../src/config.js": "../src/config.js?v=10",
-    "../src/game.js": "../src/game.js?v=12",
-    "../src/gen.js": "../src/gen.js?v=11",
-    "../src/fov.js": "../src/fov.js?v=4",
-    "../src/path.js": "../src/path.js?v=4",
-    "../src/render.js": "../src/render.js?v=9",
-    "../src/marks.js": "../src/marks.js?v=4",
-    "../src/text.js": "../src/text.js?v=11",
-    "../src/input.js": "../src/input.js?v=6",
-    "./edition.js": "./edition.js?v=9",
-    "./symbols.js": "./symbols.js?v=8",
-    "./terrain.js": "./terrain.js?v=12"
-  }
-}
-</script>
+<title>LIKE LIKE</title>
+<!-- The esoteric edition is the main game at the root now (November 20, 2026). -->
+<meta http-equiv="refresh" content="0; url=../">
+<script>location.replace('../' + location.search + location.hash);</script>
 </head>
-<body>
-<main id="stage">
-  <div id="screen" data-look="dark">
-
-    <section id="log" aria-live="polite">
-      <div id="log-lines"></div>
-    </section>
-
-    <section id="map-wrap">
-      <div id="map-field">
-        <div id="map" class="map"></div>
-      </div>
-      <div id="inv" hidden>
-        <div id="inv-title"></div>
-        <div id="inv-rows"></div>
-      </div>
-    </section>
-
-    <button id="stats" class="btn" type="button" data-menu="psy"></button>
-
-    <section id="event" hidden aria-live="polite">
-      <div id="event-lines"></div>
-      <div id="event-links"></div>
-      <button id="btn-event-sys" class="link" type="button" data-menu="sys"></button>
-    </section>
-
-    <section id="controls">
-      <div id="buttons">
-        <button id="btn-context" class="btn" type="button" data-action="context"></button>
-        <button id="btn-secondary" class="btn" type="button" hidden></button>
-        <button id="btn-wait" class="btn" type="button" data-action="wait"></button>
-        <button id="btn-act" class="btn" type="button" data-menu="act"></button>
-        <button id="btn-use" class="btn" type="button" data-action="use"></button>
-      </div>
-
-      <div id="options">
-        <button class="btn opt" type="button" data-choose="0"></button>
-        <button class="btn opt" type="button" data-choose="1"></button>
-        <button class="btn opt" type="button" data-choose="2"></button>
-        <button class="btn opt" type="button" data-choose="3"></button>
-      </div>
-
-      <div id="navigation">
-        <button id="btn-sys" class="btn" type="button" data-menu="sys"></button>
-        <button id="btn-memories" class="btn" type="button" data-menu="memories"></button>
-        <button id="btn-inv" class="btn" type="button" data-menu="inv"></button>
-      </div>
-    </section>
-
-  </div>
-</main>
-<template id="brightness-control">
-  <label class="brightness">
-    <span class="brightness-label"></span>
-    <input type="range" min="40" max="100" value="100">
-    <span class="brightness-value" aria-hidden="true"></span>
-  </label>
-</template>
-<script type="module" src="center.js?v=1"></script>
-<script type="module" src="icons.js?v=2"></script>
-<script type="module" src="brightness.js?v=3"></script>
-<script type="module" src="../src/main.js?v=7"></script>
-</body>
+<body><a href="../">LIKE LIKE</a></body>
 </html>
