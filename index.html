@@ -11,24 +11,24 @@
 <link rel="icon" href="data:,">
 <link rel="preload" href="esoteric/font/crooked-hand.woff2?v=6" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="style.css?v=7">
-<link rel="stylesheet" href="esoteric/edition.css?v=9">
+<link rel="stylesheet" href="esoteric/edition.css?v=10">
 <link rel="stylesheet" href="esoteric/type.css?v=9">
-<link rel="stylesheet" href="esoteric/controls.css?v=18">
+<link rel="stylesheet" href="esoteric/controls.css?v=19">
 <!-- Load matching room geometry, pointer input and art even with a previous edition cached. -->
 <script type="importmap">
 {
   "imports": {
     "./src/config.js": "./src/config.js?v=11",
-    "./src/game.js": "./src/game.js?v=15",
-    "./src/gen.js": "./src/gen.js?v=11",
+    "./src/game.js": "./src/game.js?v=16",
+    "./src/gen.js": "./src/gen.js?v=12",
     "./src/fov.js": "./src/fov.js?v=4",
     "./src/path.js": "./src/path.js?v=4",
-    "./src/render.js": "./src/render.js?v=11",
+    "./src/render.js": "./src/render.js?v=12",
     "./src/marks.js": "./src/marks.js?v=4",
-    "./src/text.js": "./src/text.js?v=13",
-    "./src/input.js": "./src/input.js?v=8",
-    "./esoteric/edition.js": "./esoteric/edition.js?v=10",
-    "./esoteric/symbols.js": "./esoteric/symbols.js?v=9",
+    "./src/text.js": "./src/text.js?v=14",
+    "./src/input.js": "./src/input.js?v=9",
+    "./esoteric/edition.js": "./esoteric/edition.js?v=11",
+    "./esoteric/symbols.js": "./esoteric/symbols.js?v=10",
     "./esoteric/terrain.js": "./esoteric/terrain.js?v=12"
   }
 }
@@ -56,6 +56,7 @@
 
     <section id="event" hidden aria-live="polite">
       <div id="event-lines"></div>
+      <div id="event-items"></div>
       <div id="event-links"></div>
       <button id="btn-event-sys" class="link" type="button" data-menu="sys"></button>
     </section>

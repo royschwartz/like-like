@@ -137,6 +137,46 @@ const stamps = {
 ##.....................`,
 };
 
+// Items lying on the floor, thrown there (decision 307): small, rough, each its own.
+const items = {
+  sword: `
+............###
+...........###.
+..........###..
+.........###...
+........###....
+.......###.....
+..##..###......
+...#####.......
+....###........
+...#####.......
+..##..##.......
+.##............
+##.............`,
+
+  key: `
+..####...
+.##..##..
+.#....#..
+.##..##..
+..####...
+...##....
+...##....
+...####..
+...##....
+...###...
+...##....`,
+
+  worms: `
+.##.....##.....
+#..#...#..#...#
+....###....###.
+...............
+..##.....##....
+.#..#...#..#..#
+#....###....##.`,
+};
+
 function stampUrl(rows) {
   const lines = rows.trim().split('\n');
   const left = Math.floor((36 - Math.max(...lines.map((line) => line.length))) / 2);
@@ -146,6 +186,12 @@ function stampUrl(rows) {
 }
 
 const masks = Object.fromEntries(Object.entries(stamps).map(([kind, rows]) => [kind, stampUrl(rows)]));
+const itemMasks = Object.fromEntries(Object.entries(items).map(([key, rows]) => [key, stampUrl(rows)]));
+
+// An item on the floor, by its key.
+export function itemMask(key) {
+  return itemMasks[key] ?? itemMasks.sword;
+}
 
 // Stairs in the wall (decision 251): treads that get smaller toward the edge go down;
 // bigger toward the edge go up (253). The drawn stair narrows toward its top, so it is

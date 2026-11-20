@@ -33,6 +33,7 @@ export function createRenderer(root = document, { marks: withMarks = true, cellP
   const eventEl = $('event');
   const eventLines = $('event-lines');
   const eventLinks = $('event-links');
+  const eventItems = $('event-items'); // esoteric: things listed under the text, not choices
   const eventMenu = $('btn-event-sys');
   const controls = $('controls');
   const btnContext = $('btn-context');
@@ -593,6 +594,7 @@ export function createRenderer(root = document, { marks: withMarks = true, cellP
     if (key !== linksKey) {
       linksKey = key;
       eventLinks.replaceChildren();
+      eventItems?.replaceChildren();
       opts.forEach((o, i) => {
         if (!o) return;
         const link = eventLinks.ownerDocument.createElement('button');
@@ -602,10 +604,12 @@ export function createRenderer(root = document, { marks: withMarks = true, cellP
         link.dataset.kind = o.kind;
         link.textContent = words(o.label);
         link.disabled = !!o.disabled;
-        eventLinks.appendChild(link);
+        // Items (and memories) are things in a list, under the text, not choices; the
+        // choices, marked with an arrow, come after them (decision 305).
+        (o.kind === 'item' && eventItems ? eventItems : eventLinks).appendChild(link);
       });
     }
-    for (const link of eventLinks.children) {
+    for (const link of [...(eventItems?.children ?? []), ...eventLinks.children]) {
       link.classList.toggle('cursor', Number(link.dataset.choose) === choices?.cursor);
     }
     nameOnly(eventMenu, TEXT.button.sys);

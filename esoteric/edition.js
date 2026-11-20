@@ -1,6 +1,6 @@
 import { TEXT } from '../src/text.js';
 import { CONFIG } from '../src/config.js';
-import { symbolMask, stairsDownMask, stairsUpMask } from './symbols.js';
+import { symbolMask, stairsDownMask, stairsUpMask, itemMask } from './symbols.js';
 import { terrainMask, grassMasks } from './terrain.js';
 
 const tiles = {
@@ -24,6 +24,8 @@ const tiles = {
 // and tilted up to CONFIG.shift.deg, snapped, not smooth. Even turns take a pose from one
 // half of the list and odd turns from the other, so it is never the same two turns running.
 const LIVING = new Set(['player', 'toad']);
+// Items on the floor: the sword steel, the golden key gold, the worms pink.
+const ITEM_INK = { sword: '--steel', key: '--sulphur', worms: '--worm' };
 const POSES = (() => {
   const { px, deg } = CONFIG.shift;
   const out = [];
@@ -48,6 +50,13 @@ export function paintEsoteric(cell, x, y, env) {
   if (!cell || cell.state === 'unknown') return { ch: '', bg, fg: bg };
 
   if (cell.t === 'void') return { ch: '', bg, fg: bg };
+  // An item on the floor, in its own colour (decision 307).
+  if (cell.thing?.kind === 'item') {
+    const key = cell.thing.key;
+    const ink = `var(${ITEM_INK[key] ?? '--chalk'})`;
+    const fg = cell.state === 'remembered' ? `color-mix(in srgb, ${ink} 44%, ${bg})` : ink;
+    return { ch: '', fg, bg, mask: itemMask(key), label: TEXT.thing[key].replace(/[[\]]/g, '') };
+  }
   const kind = cell.thing?.kind ?? cell.t;
   const [ink, name] = tiles[kind];
   const color = `var(${ink})`;

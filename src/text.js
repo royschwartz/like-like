@@ -165,6 +165,11 @@ export const TEXT = {
     'worms are down there you think',
   ],
 
+  // What you can do with an item, on its page (esoteric). HIS: equip and throw, from "inspect
+  // / equip / throw / do other things to the item"; inspect is TEXT.context.inspect.
+  // PLAIN: unequip, the way back from equip.
+  item: { equip: 'equip', unequip: 'unequip', throw: 'throw' },
+
   // HIS. Memories, by what wakes them. Each line is a paragraph of the event.
   memories: {
     worms: [
@@ -210,6 +215,10 @@ export const TEXT = {
     restStopped: 'you stop resting',
     inHand: (name) => `${name}, in hand`,
     putAway: (name) => `${name}, put away`,
+    // PLAIN. Throwing an item, and picking one up off the floor (esoteric).
+    throws: (name) => `you throw the ${name}`,
+    thrownHits: (name, n) => (n ? `the ${name} hits the toad for ${n} damage` : `the ${name} hits the toad`),
+    pickUp: (name) => `you pick up the ${name}`,
     take: (name) => `you take the ${name}`,
     corpseEmpty: 'the corpse has nothing',
     // PLAIN, on the pattern of his line "you strike the goblin for x damage".

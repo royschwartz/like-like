@@ -244,9 +244,22 @@
 }
 
 /* An event's choices are not at the bottom: they sit in the middle of the space between
-   the end of its text and the menu's dots. Text too long for the screen scrolls above
-   them, as before. With the menu open, its brightness goes with its choices. */
+   the end of its text, and of any list of things under it, and the bottom of the screen.
+   The pages have no menu dots (decision 304). Text too long for the screen scrolls above
+   them, as before. */
 #event-lines { flex: 0 1 auto; }
+#btn-event-sys { display: none; }
+/* Things listed under the text (items, memories) are not choices: no arrow, at the text's
+   margin, close under it as one more paragraph (decision 305). */
+#event-items {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  margin: calc(var(--ev-gap) - var(--u) * 2.5) calc(var(--ev-side) * -1) 0;
+}
+#event-items:empty { display: none; }
+#screen #event-items .link::before { content: none; }
+#event-items .link { height: calc(var(--u) * 9); }
 #event-links {
   margin: auto calc(var(--ev-side) * -1);
   padding-block: calc(var(--u) * 5);

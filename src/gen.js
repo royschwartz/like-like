@@ -367,6 +367,7 @@ function roomState(id, gx, gy, key, nb, t) {
   return {
     id, gx, gy, key, nb, t,
     corpses: [], toad: null, statue: null,
+    loose: [], // items lying on the floor, thrown there (esoteric): [{ key, x, y, ... }]
     seen: new Array(t.length).fill(false),
     memCorpse: new Array(t.length).fill(false),
   };

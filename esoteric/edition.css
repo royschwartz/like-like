@@ -29,6 +29,8 @@
   --bust: #6fa8ff;
   --toad: #74892c;
   --rope: #c99c64;
+  --steel: #a9bdd6;
+  --worm: #f09aa6;
   --trail-hot: rgb(255 255 195 / 36%);
   --trail-dim: rgb(255 255 195 / 16%);
 }
@@ -45,6 +47,8 @@
   --bust: #1f5aa8;
   --toad: #4e5e16;
   --rope: #7c5629;
+  --steel: #46586e;
+  --worm: #a8455a;
 }
 
 /* A living thing's pose this turn (decision 299), from render.js: a nudge in the drawing's

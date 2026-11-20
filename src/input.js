@@ -50,7 +50,7 @@ export function bindInput(root, dispatch, timing = {}, size = CONFIG.roomSize) {
     // When tab focus is on a choice, arrow navigation must move that focus with
     // the visible cursor so the next native Enter/Space activates the same choice.
     if (action.type === 'move' && e.target.closest?.('button')) {
-      root.querySelector('#event:not([hidden]) #event-links .cursor, #controls[data-menu] .opt.cursor')?.focus({ preventScroll: true });
+      root.querySelector('#event:not([hidden]) :is(#event-links, #event-items) .cursor, #controls[data-menu] .opt.cursor')?.focus({ preventScroll: true });
     }
   }
 

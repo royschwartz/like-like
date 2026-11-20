@@ -223,10 +223,7 @@ function swordInHand(g) {
 // An enchanted sword does more; twice the more if it held a memory.
 export function playerDamage(g) {
   const sword = swordInHand(g);
-  const k = sword ? CONFIG.swordDamagePerStr : CONFIG.fistDamagePerStr;
-  let dmg = Math.max(1, Math.round(g.str * k));
-  if (sword && sword.enchanted) dmg += CONFIG.enchant.swordDamage * (sword.strong ? 2 : 1);
-  return dmg;
+  return sword ? swordDamage(g, sword) : Math.max(1, Math.round(g.str * CONFIG.fistDamagePerStr));
 }
 
 // ---- the turn ----------------------------------------------------------
@@ -403,6 +400,7 @@ function step(g, dx, dy, ev) {
   } else {
     g.x = x;
     g.y = y;
+    pickUp(g, room);
     hearSounds(g);
   }
   endTurn(g, ev);
@@ -433,6 +431,11 @@ function attack(g, room, toad, ev) {
     return;
   }
   say(g, TEXT.log.youHitToad(dmg), 'plain');
+  wound(g, room, toad, dmg, ev);
+}
+
+// The toad takes dmg; at none left it dies, and its corpse keeps its key.
+function wound(g, room, toad, dmg, ev) {
   toad.hp -= dmg;
   if (toad.hp <= 0) {
     room.toad = null;
@@ -440,6 +443,75 @@ function attack(g, room, toad, ev) {
     room.corpses.push({ x: toad.x, y: toad.y, items: hasItem(g, 'key') ? [] : [{ key: 'key' }] });
     say(g, TEXT.log.toadDies, 'good');
     ev.push({ type: 'kill', x: toad.x, y: toad.y });
+  }
+}
+
+// ---- throwing (esoteric, decision 307) --------------------------------------------
+// A thrown item leaves you and takes the turn. If the toad is in sight it flies to it:
+// the toad wakes, the sword wounds it as a blow with it would, and the item lands where
+// the toad is. Otherwise it lands on an open square in sight two or three steps away, or
+// nearer if there is none. It lies there, drawn, until you step on it and pick it up.
+
+const looseIn = (room) => (room.loose ??= []);
+const looseAt = (room, x, y) => looseIn(room).find((it) => it.x === x && it.y === y) ?? null;
+
+function throwItem(g, i, ev) {
+  const it = g.items[i];
+  if (!it) return;
+  g.event = null;
+  g.items.splice(i, 1);
+  const room = currentRoom(g);
+  const name = TEXT.thing[it.key];
+  const { inHand, ...rest } = it;
+  const t = room.toad;
+  if (t && los(room.t, g.x, g.y, t.x, t.y)) {
+    looseIn(room).push({ ...rest, x: t.x, y: t.y });
+    const dmg = it.key === 'sword' ? swordDamage(g, it) : 0;
+    wake(g, t);
+    ev.push({ type: 'attack', by: 'player', x: t.x, y: t.y, hit: true, dmg });
+    say(g, TEXT.log.thrownHits(name, dmg), 'plain');
+    if (dmg) wound(g, room, t, dmg, ev);
+  } else {
+    const [x, y] = landing(g, room);
+    looseIn(room).push({ ...rest, x, y });
+    say(g, TEXT.log.throws(name), 'plain');
+  }
+  ev.push({ type: 'throw' });
+  endTurn(g, ev);
+}
+
+// What a sword does in a blow, held or thrown.
+function swordDamage(g, sword) {
+  let dmg = Math.max(1, Math.round(g.str * CONFIG.swordDamagePerStr));
+  if (sword.enchanted) dmg += CONFIG.enchant.swordDamage * (sword.strong ? 2 : 1);
+  return dmg;
+}
+
+// Where a thrown item lands with nothing to fly at: an open square in sight, two or three
+// steps away, else one, else your own.
+function landing(g, room) {
+  const { size, idx } = terrainGrid(room.t);
+  const vis = fov(room.t, g.x, g.y);
+  const open = (x, y) => ['floor', 'grass', 'entrance'].includes(room.t[idx(x, y)]) && vis[idx(x, y)];
+  for (const [near, far] of [[2, 3], [1, 1]]) {
+    const spots = [];
+    for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
+      const d = chebyshev(x, y, g.x, g.y);
+      if (d >= near && d <= far && open(x, y)) spots.push([x, y]);
+    }
+    if (spots.length) return pick(g.rng, spots);
+  }
+  return [g.x, g.y];
+}
+
+// Stepping onto items on the floor picks them up, as part of the step.
+function pickUp(g, room) {
+  const here = looseIn(room).filter((it) => it.x === g.x && it.y === g.y);
+  if (!here.length) return;
+  room.loose = room.loose.filter((it) => !here.includes(it));
+  for (const { x, y, ...it } of here) {
+    g.items.push({ ...it, inHand: false });
+    say(g, TEXT.log.pickUp(TEXT.thing[it.key]), 'plain');
   }
 }
 
@@ -1100,17 +1172,16 @@ function openInventory(g, ev, cursor = 0) {
   g.event.cursor = cursor;
 }
 
-// An item's page: its name, what it is (what inspecting it said), how it is, then use if it
-// has one, and back to the inventory. Opening it is inspecting it. `said`: what using it said.
-function itemPassages(it, said) {
+// An item's page (decision 306): its name and how it is (in hand, enchanted), and once
+// inspected, what it is. Its choices: inspect, equip or unequip if it can be held, throw,
+// and back to the inventory.
+function itemPassages(it, shown) {
   const state = itemState(it);
-  return [[prose(TEXT.thing[it.key])], [prose(TEXT.slot[it.key])], ...(state ? [[prose(state)]] : []), ...(said ? [[prose(said)]] : [])];
+  return [[prose(TEXT.thing[it.key])], ...(state ? [[prose(state)]] : []), ...(shown ? [[prose(TEXT.slot[it.key])]] : [])];
 }
 
 function openItem(g, i, ev) {
-  const it = g.items[i];
-  openEvent(g, { id: 'item', item: i, passages: itemPassages(it) }, ev);
-  inspected(g, it);
+  openEvent(g, { id: 'item', item: i, shown: false, passages: itemPassages(g.items[i], false) }, ev);
 }
 
 // ---- observe -------------------------------------------------------------
@@ -1131,6 +1202,8 @@ function thingAt(g, room, i, vis, shown, sensed) {
   if (!shown[i] && !room.seen[i]) return undefined;
   const toad = toadAt(room, x, y);
   if (toad && (vis[i] || sensed)) return { kind: 'toad', asleep: toad.asleep };
+  const item = looseAt(room, x, y);
+  if (item) return { kind: 'item', key: item.key };
   if (vis[i] ? corpseAt(room, x, y) : room.memCorpse[i]) return { kind: 'corpse' };
   return null;
 }
@@ -1188,6 +1261,8 @@ const hasNew = (g, list) => list.some((o) => !o.plain && !g.observed[o.id]);
 // by; unit: the kind of unit, which can blink, or null.
 function observable(g, room, i, thing) {
   if (thing?.kind === 'toad') return { key: 'toad', unit: 'toad', list: unitCycle(g, room, 'toad') };
+  // an item on the floor: its name
+  if (thing?.kind === 'item') return { key: 'item', unit: null, list: [{ id: `item.${thing.key}`, text: TEXT.thing[thing.key] }] };
   if (thing) {
     const name = thing.kind === 'player' ? 'you' : 'corpse';
     return { key: name, unit: null, list: sayings(name) };
@@ -1334,7 +1409,8 @@ function eventOptions(g) {
   if (!e.over && e.id === 'dee') return [{ label: TEXT.dee.ask, kind: 'action', run: 'ask' }];
   const list = [];
   if (e.id === 'memories') {
-    for (const id of g.memories) list.push({ label: TEXT.menu.memory, kind: 'action', run: 'readMemory', arg: id });
+    // things in a list, as items are: not marked as choices (decision 305)
+    for (const id of g.memories) list.push({ label: TEXT.menu.memory, kind: 'item', run: 'readMemory', arg: id });
   }
   if (e.id === 'abilities') {
     for (const id of abilityIds(g)) list.push({ label: abilityLabel(id), kind: 'action', run: 'ability', arg: id });
@@ -1345,7 +1421,12 @@ function eventOptions(g) {
   if (e.id === 'inventory') {
     g.items.forEach((it, i) => list.push({ label: TEXT.thing[it.key], kind: 'item', run: 'item', arg: i }));
   }
-  if (e.id === 'item' && HOLDABLE.has(g.items[e.item]?.key)) list.push({ label: TEXT.button.use, kind: 'action', run: 'use' });
+  if (e.id === 'item') {
+    const it = g.items[e.item];
+    list.push({ label: TEXT.context.inspect, kind: 'action', run: 'inspectItem' });
+    if (HOLDABLE.has(it?.key)) list.push({ label: it.inHand ? TEXT.item.unequip : TEXT.item.equip, kind: 'action', run: 'equip' });
+    list.push({ label: TEXT.item.throw, kind: 'action', run: 'throw' });
+  }
   if (!e.over && e.id === 'bust') {
     // The bust's opening: what you carry, by name.
     g.items.forEach((it, i) => list.push({ label: TEXT.thing[it.key], kind: 'item', run: 'give', arg: i }));
@@ -1400,12 +1481,24 @@ function eventChoose(g, i, ev) {
       openItem(g, o.arg, ev);
       g.event.inventory = e;
       break;
-    case 'use': {
+    case 'inspectItem': {
       const it = g.items[e.item];
-      e.passages = itemPassages(it, useItem(g, it));
+      e.shown = true;
+      e.passages = itemPassages(it, true);
       e.now = e.passages.length - 1;
+      inspected(g, it);
       break;
     }
+    case 'equip': {
+      const it = g.items[e.item];
+      useItem(g, it);
+      e.passages = itemPassages(it, e.shown);
+      e.now = e.passages.length;
+      break;
+    }
+    case 'throw':
+      throwItem(g, e.item, ev);
+      break;
     case 'readMemory':
       e.cursor = i;
       openMemory(g, o.arg, ev);

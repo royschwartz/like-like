@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { newGame, act, view } from '../src/game.js';
+import { newGame, act, view, currentRoom } from '../src/game.js';
 import { TEXT } from '../src/text.js';
 
 const start = () => newGame({ seed: 7, edition: 'esoteric' });
@@ -176,36 +176,56 @@ test('the opening comes back on a restart, and never without being asked for', (
   assert.equal(view(newGame({ seed: 7, opening: true })).event, null);
 });
 
-test('the inventory is a page: its items as links, each its own page with use and back', () => {
+test('the inventory is a page: its items listed, each its own page of choices', () => {
   const g = start();
   const turn = g.turn;
   g.items.push({ key: 'worms', inHand: false });
   assert.deepEqual(menu(g, 'inv'), [{ type: 'event', id: 'inventory' }]);
   assert.equal(view(g).inv, null, 'not in the map any more');
   assert.deepEqual(lines(g), [TEXT.button.inventory]);
-  assert.deepEqual(view(g).event.options.map((o) => o.label), [TEXT.thing.sword, TEXT.thing.worms, TEXT.menu.back]);
-  // the sword's page: its name, what it is, in hand; use and back
+  const options = () => view(g).event.options.map((o) => [o.label, o.kind]);
+  // items are things listed, not choices; back is a choice
+  assert.deepEqual(options(), [[TEXT.thing.sword, 'item'], [TEXT.thing.worms, 'item'], [TEXT.menu.back, 'back']]);
+  // the sword's page: its name and how it is; inspect, unequip (it is in hand), throw, back
   act(g, { type: 'choose', index: 0 });
   assert.equal(view(g).event.id, 'item');
-  assert.deepEqual(lines(g), [TEXT.thing.sword, TEXT.slot.sword, TEXT.menu.inHand]);
-  assert.deepEqual(view(g).event.options.map((o) => o.label), [TEXT.button.use, TEXT.menu.back]);
-  act(g, { type: 'choose', index: 0 }); // use: put away
+  assert.deepEqual(lines(g), [TEXT.thing.sword, TEXT.menu.inHand]);
+  const labels = () => view(g).event.options.map((o) => o.label);
+  assert.deepEqual(labels(), [TEXT.context.inspect, TEXT.item.unequip, TEXT.item.throw, TEXT.menu.back]);
+  assert.ok(view(g).event.options.every((o) => o.kind !== 'item'), 'all choices');
+  act(g, { type: 'choose', index: 0 }); // inspect: what it is, under it
+  assert.deepEqual(lines(g), [TEXT.thing.sword, TEXT.menu.inHand, TEXT.slot.sword]);
+  act(g, { type: 'choose', index: 1 }); // unequip
   assert.equal(g.items[0].inHand, false);
-  assert.deepEqual(lines(g), [TEXT.thing.sword, TEXT.slot.sword, TEXT.log.putAway(TEXT.thing.sword)]);
+  assert.deepEqual(lines(g), [TEXT.thing.sword, TEXT.slot.sword]);
+  assert.deepEqual(labels(), [TEXT.context.inspect, TEXT.item.equip, TEXT.item.throw, TEXT.menu.back]);
   assert.equal(view(g).log.at(-1).text, TEXT.log.putAway(TEXT.thing.sword));
-  // back to the inventory, on the sword; the worms have no use; opening them is inspecting them
+  act(g, { type: 'choose', index: 1 }); // equip
+  assert.equal(g.items[0].inHand, true);
+  // back to the inventory, on the sword; the worms cannot be held; inspecting them starts
+  // their memory on its way back, and only then
   back(g);
   assert.equal(view(g).event.id, 'inventory');
   assert.equal(view(g).event.cursor, 0);
   act(g, { type: 'choose', index: 1 });
+  assert.deepEqual(lines(g), [TEXT.thing.worms]);
+  assert.deepEqual(labels(), [TEXT.context.inspect, TEXT.item.throw, TEXT.menu.back]);
+  assert.equal(g.recall, null);
+  act(g, { type: 'choose', index: 0 });
   assert.deepEqual(lines(g), [TEXT.thing.worms, TEXT.slot.worms]);
-  assert.deepEqual(view(g).event.options.map((o) => o.label), [TEXT.menu.back]);
   assert.equal(g.inspected.worms, true);
   assert.equal(g.recall?.id, 'worms', 'their memory is on its way back');
   back(g);
   back(g);
   assert.equal(view(g).event, null);
   assert.equal(g.turn, turn, 'none of it takes a turn');
+});
+
+test('memories in their list are things, not choices', () => {
+  const g = start();
+  g.memories.push('worms');
+  menu(g, 'memories');
+  assert.deepEqual(view(g).event.options.map((o) => o.kind), ['item', 'back']);
 });
 
 test('waiting, a memory on its way back may come sooner; it comes back only once', () => {
@@ -221,4 +241,55 @@ test('waiting, a memory on its way back may come sooner; it comes back only once
     assert.equal(g.memories.filter((m) => m === 'worms').length <= 1, true);
   }
   assert.ok(sooner >= 35, `most waits bring it within 40 turns (${sooner} of 40)`);
+});
+
+// Open the item page of item i and throw it.
+function throwIt(g, i) {
+  menu(g, 'inv');
+  act(g, { type: 'choose', index: i });
+  const k = view(g).event.options.findIndex((o) => o.label === TEXT.item.throw);
+  return act(g, { type: 'choose', index: k });
+}
+
+test('a thrown item lands in sight, takes the turn, closes the pages, and is picked up by stepping on it', () => {
+  for (const seed of [7, 19, 39]) {
+    const g = newGame({ seed, edition: 'esoteric' });
+    const turn = g.turn;
+    throwIt(g, 0);
+    assert.equal(view(g).event, null);
+    assert.equal(g.turn, turn + 1);
+    assert.equal(g.items.length, 0);
+    assert.equal(view(g).log.at(-1).text, TEXT.log.throws(TEXT.thing.sword));
+    const room = currentRoom(g);
+    const [it] = room.loose;
+    assert.equal(it.key, 'sword');
+    const d = Math.max(Math.abs(it.x - g.x), Math.abs(it.y - g.y));
+    assert.ok(d >= 1 && d <= 3, `${seed}: lands near (${d})`);
+    const i = it.y * Math.sqrt(room.t.length) + it.x;
+    assert.deepEqual(view(g).cells[i].thing, { kind: 'item', key: 'sword' });
+    // walk there and it is yours again, not in hand
+    act(g, { type: 'travel', x: it.x, y: it.y });
+    for (let k = 0; k < 10 && view(g).going; k++) act(g, { type: 'continue' });
+    assert.deepEqual([g.x, g.y], [it.x, it.y]);
+    assert.equal(room.loose.length, 0);
+    assert.deepEqual(g.items, [{ key: 'sword', inHand: false }]);
+    assert.ok(view(g).log.some((l) => l.text === TEXT.log.pickUp(TEXT.thing.sword)));
+  }
+});
+
+test('thrown at the toad in sight: it wakes, the sword wounds it, and lands where it is', () => {
+  const g = start();
+  const room = currentRoom(g);
+  const { size } = { size: Math.sqrt(room.t.length) };
+  // a toad two squares away in the open
+  const open = (x, y) => ['floor', 'grass'].includes(room.t[y * size + x]);
+  let spot = null;
+  for (const [dx, dy] of [[2, 0], [-2, 0], [0, 2], [0, -2]]) if (!spot && open(g.x + dx, g.y + dy) && open(g.x + dx / 2, g.y + dy / 2)) spot = [g.x + dx, g.y + dy];
+  room.toad = { x: spot[0], y: spot[1], home: { x: spot[0], y: spot[1] }, hp: 20, asleep: true, key: false, stirred: false, lastSeen: null };
+  throwIt(g, 0);
+  const toad = room.toad;
+  assert.equal(toad.asleep, false);
+  assert.ok(toad.hp < 20, 'wounded');
+  assert.deepEqual(room.loose.map((it) => [it.key, it.x, it.y]), [['sword', spot[0], spot[1]]]);
+  assert.ok(view(g).log.some((l) => l.text.startsWith(`the ${TEXT.thing.sword} hits the toad`)));
 });
