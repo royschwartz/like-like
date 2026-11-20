@@ -21,7 +21,7 @@ const CELL_FX = ['fx-hit', 'fx-miss', 'fx-kill', 'fx-observe', 'fx-dig', 'fx-unl
 
 // withMarks: draw the marks round a held or aimed square (marks.js). The marks study
 // draws its own, so it turns these off.
-export function createRenderer(root = document, { marks: withMarks = true } = {}) {
+export function createRenderer(root = document, { marks: withMarks = true, cellPainter = paintCell } = {}) {
   const $ = (id) => root.querySelector('#' + id);
   const screen = $('screen');
   const mapWrap = $('map-wrap');
@@ -159,16 +159,27 @@ export function createRenderer(root = document, { marks: withMarks = true } = {}
   function drawMap(view) {
     const list = Array.isArray(view.cells) ? view.cells : [];
     const p = view.player || { x: -99, y: -99 };
-    const env = { look: view.look, px: p.x, py: p.y, key: view.room ? view.room.key : 0 };
+    const env = { look: view.look, px: p.x, py: p.y, key: view.room ? view.room.key : 0, cells: list, size: SIZE };
     for (let i = 0; i < SIZE * SIZE; i++) {
       const x = i % SIZE;
       const y = (i - x) / SIZE;
-      const paint = paintCell(list[i] || null, x, y, env);
+      const paint = cellPainter(list[i] || null, x, y, env);
       const last = lastPaint[i];
       const el = cells[i];
       el.classList.toggle('more', !!list[i]?.more);
-      if (last && last.ch === paint.ch && last.fg === paint.fg && last.bg === paint.bg && last.bold === paint.bold) {
-        continue;
+      if (last?.mask !== paint.mask) {
+        if (paint.mask) el.style.setProperty('--drawing', paint.mask);
+        else el.style.removeProperty('--drawing');
+        el.toggleAttribute('data-drawing', !!paint.mask);
+      }
+      if (last?.label !== paint.label) {
+        if (paint.label) {
+          el.setAttribute('role', 'img');
+          el.setAttribute('aria-label', paint.label);
+        } else {
+          el.removeAttribute('role');
+          el.removeAttribute('aria-label');
+        }
       }
       if (!last || last.ch !== paint.ch) el.textContent = paint.ch;
       if (!last || last.fg !== paint.fg) el.style.setProperty('--fg', paint.fg);
@@ -190,6 +201,7 @@ export function createRenderer(root = document, { marks: withMarks = true } = {}
     endSlide();
     const ghost = map.cloneNode(true);
     ghost.removeAttribute('id');
+    ghost.setAttribute('aria-hidden', 'true');
     ghost.className = `map ghost out-${dir}`;
     for (const c of ghost.children) {
       c.className = c.classList.contains('b') ? 'c b' : 'c';

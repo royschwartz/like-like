@@ -4,6 +4,8 @@ A small ASCII roguelike, shaped for a phone. A first, simple build: a sword, sta
 
 **Play it: [royschwartz.github.io/like-like](https://royschwartz.github.io/like-like/)**
 
+The [esoteric edition](https://royschwartz.github.io/like-like/esoteric/) plays the same dungeon with hand-drawn symbols. You are the horned eye. The toad is the hooked lowercase `t` from Crooked Hand, the edition’s typeface. [Download the font](https://royschwartz.github.io/like-like/esoteric/font/crooked-hand.ttf) or see its [source and license](esoteric/font/).
+
 ```
 you have been asked to retrieve the amulet of yendor. it is at the bottom of this dungeon, probably
 ```

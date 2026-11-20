@@ -4,11 +4,15 @@
 
 import { newGame, act, view } from './game.js';
 import { CONFIG } from './config.js';
-import { createRenderer } from './render.js';
+// A returning player's Pages cache can still contain the character-only renderer.
+import { createRenderer } from './render.js?drawings=1';
 import { bindInput } from './input.js';
 
-const LOOK_KEY = 'likelike.look';
-const OUTLINES_KEY = 'likelike.outlines';
+const esoteric = document.documentElement.dataset.edition === 'esoteric';
+const edition = esoteric ? await import('../esoteric/edition.js') : null;
+const preferenceKey = esoteric ? 'likelike.esoteric' : 'likelike';
+const LOOK_KEY = preferenceKey + '.look';
+const OUTLINES_KEY = preferenceKey + '.outlines';
 
 function readSeed() {
   const s = new URLSearchParams(location.search).get('seed');
@@ -23,7 +27,7 @@ function readLook() {
   } catch (e) {
     // storage unavailable: fall through
   }
-  return 'paper';
+  return esoteric ? 'dark' : 'paper';
 }
 
 function saveLook(look) {
@@ -49,8 +53,10 @@ function save(key, value) {
   }
 }
 
+// Measure the ink of the wait and action buttons after the edition's face has loaded.
+if (esoteric && document.fonts) await document.fonts.load('1em "Crooked Hand"').catch(() => {});
 const game = newGame({ seed: readSeed(), look: readLook(), outlines: readOutlines() });
-const renderer = createRenderer(document);
+const renderer = createRenderer(document, { cellPainter: edition?.paintEsoteric });
 renderer.draw(view(game));
 const timing = renderer.timing;
 

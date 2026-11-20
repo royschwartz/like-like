@@ -1,0 +1,64 @@
+@font-face {
+  font-family: "Crooked Hand";
+  src: url("font/crooked-hand.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
+:root {
+  --mono: "Crooked Hand", Monaco, monospace;
+  --around: #0c0c0b;
+}
+
+#screen[data-look="dark"] {
+  --chalk: #fff;
+  --shoot: #75fb4c;
+  --sulphur: #ffff54;
+  --stone: #c6c6ba;
+  --asleep: #b7cf9c;
+  --awake: #dcffb5;
+  --blood-ink: #ff7467;
+  --log-old: #99998e;
+  --quiet: #79796f;
+  --ink-sense: var(--shoot);
+  --ink-good: var(--sulphur);
+  --stairs: var(--sulphur);
+  --trail-hot: rgb(255 255 195 / 36%);
+  --trail-dim: rgb(255 255 195 / 16%);
+}
+
+#screen[data-look="paper"] {
+  --unknown: #ece7d8;
+  --chalk: #252219;
+  --shoot: #35701a;
+  --sulphur: #886000;
+  --stone: #5c5b4e;
+  --asleep: #425735;
+  --awake: #164e17;
+  --blood-ink: #a23327;
+}
+
+/* Only the ink is masked. Effects, the hit area and the trail still occupy the whole cell. */
+.map .c {
+  margin: 0;
+}
+.map .c[data-drawing]::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: currentColor;
+  -webkit-mask: var(--drawing) center / 100% 100% no-repeat;
+  mask: var(--drawing) center / 100% 100% no-repeat;
+  image-rendering: pixelated;
+}
+
+#event {
+  --ev-link: #ffff84;
+  --ev-link-quiet: #b9b79e;
+  --ev-ink: #f2f1e9;
+}
+#event[data-id="toad"] {
+  --ev-song: #b7cf9c;
+}
