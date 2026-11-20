@@ -278,8 +278,8 @@ body {
   position: absolute;
   inset: 0;
   display: grid;
-  grid-template-columns: repeat(11, 1fr);
-  grid-template-rows: repeat(11, 1fr);
+  grid-template-columns: repeat(var(--room-size, 11), 1fr);
+  grid-template-rows: repeat(var(--room-size, 11), 1fr);
   font-size: calc(var(--u) * 6.7);
   line-height: 1;
   background: var(--unknown);
@@ -588,28 +588,28 @@ body {
   pointer-events: none;
 }
 .map.out-n {
-  animation: out-n calc(var(--slide-step) * 11) steps(11, start) forwards;
+  animation: out-n calc(var(--slide-step) * var(--room-size, 11)) steps(var(--room-size, 11), start) forwards;
 }
 .map.out-e {
-  animation: out-e calc(var(--slide-step) * 11) steps(11, start) forwards;
+  animation: out-e calc(var(--slide-step) * var(--room-size, 11)) steps(var(--room-size, 11), start) forwards;
 }
 .map.out-s {
-  animation: out-s calc(var(--slide-step) * 11) steps(11, start) forwards;
+  animation: out-s calc(var(--slide-step) * var(--room-size, 11)) steps(var(--room-size, 11), start) forwards;
 }
 .map.out-w {
-  animation: out-w calc(var(--slide-step) * 11) steps(11, start) forwards;
+  animation: out-w calc(var(--slide-step) * var(--room-size, 11)) steps(var(--room-size, 11), start) forwards;
 }
 .map.in-n {
-  animation: in-n calc(var(--slide-step) * 11) steps(11, start);
+  animation: in-n calc(var(--slide-step) * var(--room-size, 11)) steps(var(--room-size, 11), start);
 }
 .map.in-e {
-  animation: in-e calc(var(--slide-step) * 11) steps(11, start);
+  animation: in-e calc(var(--slide-step) * var(--room-size, 11)) steps(var(--room-size, 11), start);
 }
 .map.in-s {
-  animation: in-s calc(var(--slide-step) * 11) steps(11, start);
+  animation: in-s calc(var(--slide-step) * var(--room-size, 11)) steps(var(--room-size, 11), start);
 }
 .map.in-w {
-  animation: in-w calc(var(--slide-step) * 11) steps(11, start);
+  animation: in-w calc(var(--slide-step) * var(--room-size, 11)) steps(var(--room-size, 11), start);
 }
 @keyframes out-n {
   to {

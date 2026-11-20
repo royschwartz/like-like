@@ -1,6 +1,6 @@
 @font-face {
   font-family: "Crooked Hand";
-  src: url("font/crooked-hand.woff2") format("woff2");
+  src: url("font/crooked-hand.woff2?v=2") format("woff2");
   font-style: normal;
   font-weight: 400;
   font-display: swap;
@@ -39,11 +39,19 @@
   --blood-ink: #a23327;
 }
 
-/* Only the ink is masked. Effects, the hit area and the trail still occupy the whole cell. */
+/* The black margin around the drawn room. */
+#screen:not([data-screen="inv"]) #map-wrap {
+  margin: calc(var(--u) * 2.5);
+}
+.map {
+  font-size: calc(var(--u) * 72 / var(--room-size, 7));
+}
 .map .c {
   margin: 0;
 }
-.map .c[data-drawing]::before {
+/* Only the ink is masked. The hit area and the trail still occupy the whole cell. */
+.map .c[data-drawing]::before,
+.map .c[data-glints]::after {
   content: "";
   position: absolute;
   inset: 0;
@@ -52,6 +60,11 @@
   -webkit-mask: var(--drawing) center / 100% 100% no-repeat;
   mask: var(--drawing) center / 100% 100% no-repeat;
   image-rendering: pixelated;
+}
+.map .c[data-glints]::after {
+  background: var(--glint-ink);
+  -webkit-mask-image: var(--glints);
+  mask-image: var(--glints);
 }
 
 #event {

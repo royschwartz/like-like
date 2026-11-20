@@ -14,7 +14,6 @@
 
 import { CONFIG } from './config.js';
 
-const S = CONFIG.roomSize;
 // a drag starts once the pointer is in another cell and this far from where it went down
 const DRAG_PX = 8;
 
@@ -24,7 +23,7 @@ const KEY_DIRS = { ArrowUp: 'n', ArrowRight: 'e', ArrowDown: 's', ArrowLeft: 'w'
 const MODIFIERS = new Set(['Shift', 'Control', 'Alt', 'Meta', 'CapsLock', 'Fn', 'AltGraph', 'OS']);
 
 // timing: { graceMs, lookMs }. The times are read when used, so a caller can change them later.
-export function bindInput(root, dispatch, timing = {}) {
+export function bindInput(root, dispatch, timing = {}, size = CONFIG.roomSize) {
   const doc = root.ownerDocument || root;
   const held = new Map(); // pointerId -> the pressed button
   // The one gesture on the map, while a pointer is down on it:
@@ -54,7 +53,7 @@ export function bindInput(root, dispatch, timing = {}) {
   function onPointerDown(e) {
     if (e.button != null && e.button !== 0) return;
     const el = e.target && e.target.closest ? e.target.closest('.btn, .link, [data-cell], [data-pick]') : null;
-    const cell = el && root.contains(el) ? cellOf(el) : null;
+    const cell = el && root.contains(el) ? cellOf(el, size) : null;
     if (cell) {
       e.preventDefault(); // no focus, no emulated mouse events, no selecting
       if (gesture) return; // one gesture at a time: another finger on the map is ignored
@@ -154,7 +153,7 @@ export function bindInput(root, dispatch, timing = {}) {
   function cellUnder(x, y) {
     const el = doc.elementFromPoint ? doc.elementFromPoint(x, y) : null;
     const c = el && el.closest ? el.closest('[data-cell]') : null;
-    return c && root.contains(c) ? cellOf(c) : null;
+    return c && root.contains(c) ? cellOf(c, size) : null;
   }
 
   // --- the buttons ---
@@ -219,12 +218,12 @@ function keyAction(key) {
 }
 
 // A map cell's place, { x, y }, or null if el is not a map cell.
-function cellOf(el) {
+function cellOf(el, size) {
   const d = el.dataset || {};
   if (d.cell == null || d.cell === '') return null;
   const i = Number(d.cell);
-  if (!Number.isInteger(i) || i < 0 || i >= S * S) return null;
-  return { x: i % S, y: Math.floor(i / S) };
+  if (!Number.isInteger(i) || i < 0 || i >= size * size) return null;
+  return { x: i % size, y: Math.floor(i / size) };
 }
 
 function sameCell(a, b) {

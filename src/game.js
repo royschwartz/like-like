@@ -2,9 +2,10 @@
 // The game object is plain data; everything random comes from game.rng.
 
 import { CONFIG } from './config.js';
+import { terrainGrid } from './grid.js';
 import { TEXT, isSlot } from './text.js';
 import { makeRng, chance, pick, deriveSeed } from './rng.js';
-import { S, DIRS, STEP, OPP, ARRIVAL, idx, walkable, makeLevel, arrivalCells } from './gen.js';
+import { DIRS, STEP, OPP, walkable, makeLevel, arrivalCells } from './gen.js';
 import { fov, frame, los } from './fov.js';
 import { NEIGHBOURS, chebyshev, cutsCorner, isStep, stepsFrom, walkDown } from './path.js';
 
@@ -12,11 +13,12 @@ const SQUARE_MENUS = ['inv', 'act', 'psy', 'sys'];
 
 // ---- a new game --------------------------------------------------------
 
-function makeState(seed, look, nextLogId, outlines = CONFIG.outlines.start) {
+function makeState(seed, look, nextLogId, outlines = CONFIG.outlines.start, edition) {
   const rng = makeRng(seed);
-  const level = makeLevel(rng, 1);
+  const level = makeLevel(rng, 1, edition);
   const g = {
     seed,
+    edition,
     look,
     outlines, // the lines round the buttons in the dark look: 0 none, up to CONFIG.outlines.levels
     rng,
@@ -62,10 +64,10 @@ function makeState(seed, look, nextLogId, outlines = CONFIG.outlines.start) {
   return g;
 }
 
-export function newGame({ seed, look, outlines } = {}) {
+export function newGame({ seed, look, outlines, edition } = {}) {
   const s = Number.isInteger(seed) ? seed : Date.now() % 2147483647;
   const lines = Number.isInteger(outlines) && outlines >= 0 && outlines <= CONFIG.outlines.levels ? outlines : undefined;
-  return makeState(s, look === 'dark' ? 'dark' : 'paper', 1, lines);
+  return makeState(s, look === 'dark' ? 'dark' : 'paper', 1, lines, edition === 'esoteric' ? edition : undefined);
 }
 
 // ---- small helpers -----------------------------------------------------
@@ -132,11 +134,12 @@ function sayDescend(g) {
 // Remember what is in sight now.
 function see(g) {
   const room = currentRoom(g);
+  const { size } = terrainGrid(room.t);
   const vis = fov(room.t, g.x, g.y);
   const shown = frame(room.t, vis);
-  for (let i = 0; i < S * S; i++) {
+  for (let i = 0; i < room.t.length; i++) {
     if (shown[i]) room.seen[i] = true;
-    if (vis[i]) room.memCorpse[i] = !!corpseAt(room, i % S, Math.floor(i / S));
+    if (vis[i]) room.memCorpse[i] = !!corpseAt(room, i % size, Math.floor(i / size));
   }
 }
 
@@ -146,6 +149,7 @@ function see(g) {
 const blockCache = new WeakMap();
 const CREATURE_BLOCKED = new Set(['wall', 'door', 'golddoor', 'opendoor', 'statue']);
 function creatureBlocked(room) {
+  const { idx } = terrainGrid(room.t);
   let b = blockCache.get(room);
   if (!b) {
     b = room.t.map((c) => CREATURE_BLOCKED.has(c));
@@ -157,7 +161,8 @@ function creatureBlocked(room) {
 
 // Could the toad stand here? (Not on you.)
 export function mayStand(g, room, x, y, self = null) {
-  if (x < 0 || y < 0 || x >= S || y >= S) return false;
+  const { size, idx } = terrainGrid(room.t);
+  if (x < 0 || y < 0 || x >= size || y >= size) return false;
   if (creatureBlocked(room)[idx(x, y)]) return false;
   if (room === currentRoom(g) && x === g.x && y === g.y) return false;
   const other = toadAt(room, x, y);
@@ -166,11 +171,12 @@ export function mayStand(g, room, x, y, self = null) {
 
 // The free cell nearest (x, y) by walking, for `self` to be put on; null if none.
 function nearestFree(g, room, x, y, self) {
+  const { size, idx } = terrainGrid(room.t);
   const dist = stepsFrom(room.t, [idx(x, y)], (i) => walkable(room.t[i]));
   let best = null;
-  for (let i = 0; i < S * S; i++) {
-    if (dist[i] < 0 || !mayStand(g, room, i % S, Math.floor(i / S), self)) continue;
-    if (!best || dist[i] < dist[idx(best[0], best[1])]) best = [i % S, Math.floor(i / S)];
+  for (let i = 0; i < room.t.length; i++) {
+    if (dist[i] < 0 || !mayStand(g, room, i % size, Math.floor(i / size), self)) continue;
+    if (!best || dist[i] < dist[idx(best[0], best[1])]) best = [i % size, Math.floor(i / size)];
   }
   return best;
 }
@@ -269,6 +275,7 @@ function toadAttacks(g, ev) {
 
 // One step along the shortest path to (tx, ty), eight ways. Returns whether it moved.
 function stepToward(g, room, toad, tx, ty) {
+  const { idx } = terrainGrid(room.t);
   const blocked = creatureBlocked(room);
   const dist = stepsFrom(room.t, [idx(tx, ty)], (i) => !blocked[i]);
   let best = null;
@@ -328,6 +335,7 @@ function move(g, dir, ev) {
 // A diagonal that cuts a corner is no step at all.
 function step(g, dx, dy, ev) {
   const room = currentRoom(g);
+  const { idx, arrivals } = terrainGrid(room.t);
   const x = g.x + dx;
   const y = g.y + dy;
   if (!isStep(room.t, g.x, g.y, x, y)) return;
@@ -346,7 +354,7 @@ function step(g, dx, dy, ev) {
     const dir = DIRS.find((d) => STEP[d][0] === dx && STEP[d][1] === dy);
     if (!dir) return;
     g.room = room.nb[dir];
-    [g.x, g.y] = ARRIVAL[OPP[dir]];
+    [g.x, g.y] = arrivals[OPP[dir]];
     ev.push({ type: 'room', dir });
     hearSounds(g);
   } else {
@@ -360,6 +368,7 @@ function step(g, dx, dy, ev) {
 // Walking into the golden door: with the key it opens (and that takes the turn);
 // without it, nothing but a line.
 function goldDoor(g, room, x, y, ev) {
+  const { idx } = terrainGrid(room.t);
   if (!hasItem(g, 'key')) {
     say(g, TEXT.log.golddoorLocked, 'plain');
     return;
@@ -394,6 +403,7 @@ function attack(g, room, toad, ev) {
 function contextId(g) {
   if (g.inv) return 'inspect';
   const room = currentRoom(g);
+  const { idx } = terrainGrid(room.t);
   if (room.t[idx(g.x, g.y)] === 'stairs') return 'stairs';
   if (corpseAt(room, g.x, g.y)) return 'corpse';
   return 'sense';
@@ -458,8 +468,13 @@ function enchant(g, i, ev) {
 }
 
 function descend(g, ev) {
+  const spoke = currentRoom(g).statue?.spoke;
   g.depth++;
-  g.level = makeLevel(g.rng, g.depth);
+  g.level = makeLevel(g.rng, g.depth, g.edition);
+  // In the esoteric edition the same bust is accessible beneath the drawing.
+  if (g.edition === 'esoteric' && g.depth === 2 && spoke) {
+    g.level.rooms[g.level.toadRoom].statue.spoke = true;
+  }
   const e = g.level.entrance;
   g.room = e.room;
   g.x = e.x;
@@ -501,19 +516,20 @@ function senseFinds(g) {
 const SENSE_STOPS = new Set(['wall', 'golddoor', 'statue']);
 function senseWave(g) {
   const room = currentRoom(g);
-  const d = new Array(S * S).fill(-1);
+  const { size, idx } = terrainGrid(room.t);
+  const d = new Array(room.t.length).fill(-1);
   const wave = [];
   const start = idx(g.x, g.y);
   d[start] = 0;
   const queue = [start];
   for (let q = 0; q < queue.length; q++) {
     const i = queue[q];
-    const x = i % S;
-    const y = (i - x) / S;
+    const x = i % size;
+    const y = (i - x) / size;
     wave.push({ x, y, d: d[i], absorb: false });
     for (const [dx, dy] of NEIGHBOURS) {
       const [nx, ny] = [x + dx, y + dy];
-      if (nx < 0 || ny < 0 || nx >= S || ny >= S) continue;
+      if (nx < 0 || ny < 0 || nx >= size || ny >= size) continue;
       const n = idx(nx, ny);
       if (d[n] >= 0 || SENSE_STOPS.has(room.t[n]) || cutsCorner(room.t, x, y, dx, dy)) continue;
       d[n] = d[i] + 1;
@@ -522,15 +538,15 @@ function senseWave(g) {
   }
   // what takes it in: a stop beside a reached cell, one step after the nearest of them
   const taken = [];
-  for (let i = 0; i < S * S; i++) {
+  for (let i = 0; i < room.t.length; i++) {
     if (d[i] >= 0 || !SENSE_STOPS.has(room.t[i])) continue;
-    const x = i % S;
-    const y = (i - x) / S;
+    const x = i % size;
+    const y = (i - x) / size;
     let near = -1;
     for (let dy = -1; dy <= 1; dy++) {
       for (let dx = -1; dx <= 1; dx++) {
         const [nx, ny] = [x + dx, y + dy];
-        if ((dx || dy) && nx >= 0 && ny >= 0 && nx < S && ny < S) {
+        if ((dx || dy) && nx >= 0 && ny >= 0 && nx < size && ny < size) {
           const k = d[idx(nx, ny)];
           if (k >= 0 && (near < 0 || k < near)) near = k;
         }
@@ -575,6 +591,7 @@ export function noticeChance(steps) {
 
 function noticeIdly(g) {
   const room = currentRoom(g);
+  const { idx } = terrainGrid(room.t);
   const vis = fov(room.t, g.x, g.y);
   for (const [kind, x, y] of unnoticed(room)) {
     if (!vis[idx(x, y)] || !hasNew(g, unitCycle(g, room, kind))) continue;
@@ -594,9 +611,10 @@ function noticeIdly(g) {
 // The last line of the toad's room is the worms.
 function sense(g, ev) {
   const room = currentRoom(g);
-  for (let i = 0; i < S * S; i++) {
+  const { size } = terrainGrid(room.t);
+  for (let i = 0; i < room.t.length; i++) {
     room.seen[i] = true;
-    room.memCorpse[i] = !!corpseAt(room, i % S, Math.floor(i / S));
+    room.memCorpse[i] = !!corpseAt(room, i % size, Math.floor(i / size));
   }
   const wave = senseWave(g);
   noticeSensed(g, wave);
@@ -665,7 +683,9 @@ function rest(g, ev) {
 
 // Digging for worms: a few turns on grass or dirt.
 function canDig(g) {
-  const c = currentRoom(g).t[idx(g.x, g.y)];
+  const { t } = currentRoom(g);
+  const { idx } = terrainGrid(t);
+  const c = t[idx(g.x, g.y)];
   return c === 'grass' || c === 'floor';
 }
 
@@ -680,7 +700,7 @@ function dig(g, ev) {
 }
 
 function restart(g, ev) {
-  const fresh = makeState(deriveSeed(g.seed), g.look, g.nextLogId, g.outlines);
+  const fresh = makeState(deriveSeed(g.seed), g.look, g.nextLogId, g.outlines, g.edition);
   for (const k of Object.keys(g)) delete g[k];
   Object.assign(g, fresh);
   ev.push({ type: 'restart' });
@@ -853,8 +873,9 @@ function use(g) {
 // What is drawn on a cell, by the same sight rules as view():
 // 'player', 'toad', 'corpse', or null; undefined for a cell never seen.
 function thingAt(g, room, i, vis, shown, sensed) {
-  const x = i % S;
-  const y = Math.floor(i / S);
+  const { size } = terrainGrid(room.t);
+  const x = i % size;
+  const y = Math.floor(i / size);
   if (x === g.x && y === g.y) return { kind: 'player' };
   if (!shown[i] && !room.seen[i]) return undefined;
   const toad = toadAt(room, x, y);
@@ -880,6 +901,7 @@ const sayings = (name) => [].concat(TEXT.observe[name]).map((text, k) => ({ id: 
 // The toad's plain line, as Brogue's: who, doing what, on what ground. Its id is by what it
 // is doing, so a toad that wakes has a new line to observe. Always "a toad" (decision 185).
 function toadLine(room, toad) {
+  const { idx } = terrainGrid(room.t);
   if (!toad.asleep) return { id: 'unit.toad.awake', text: TEXT.observe.toad, plain: true };
   const u = TEXT.unit;
   const ground = u.ground[room.t[idx(toad.x, toad.y)]];
@@ -933,6 +955,7 @@ function sight(g) {
 
 function observe(g, x, y, ev) {
   const { room, vis, shown, sensed } = sight(g);
+  const { idx } = terrainGrid(room.t);
   const i = idx(x, y);
   const thing = thingAt(g, room, i, vis, shown, sensed);
   if (thing === undefined) return;
@@ -1250,6 +1273,7 @@ const PATH_STOPS = new Set(['wall', 'statue', 'golddoor']);
 // beside it (by a legal step, for a bump).
 function plan(g, tx, ty) {
   const { room, vis, shown, sensed } = sight(g);
+  const { size, idx } = terrainGrid(room.t);
   // the room as you know it: what you have never seen is open ground
   const t = room.t.map((c, i) => (room.seen[i] || shown[i] ? c : 'floor'));
   const there = idx(tx, ty);
@@ -1266,7 +1290,7 @@ function plan(g, tx, ty) {
     goals = [];
     for (const [dx, dy] of NEIGHBOURS) {
       const [x, y] = [tx + dx, ty + dy];
-      if (x < 0 || y < 0 || x >= S || y >= S) continue;
+      if (x < 0 || y < 0 || x >= size || y >= size) continue;
       if (!pass(idx(x, y)) && !(x === g.x && y === g.y)) continue;
       if (isBump && !isStep(t, x, y, tx, ty)) continue;
       goals.push(idx(x, y));
@@ -1278,6 +1302,7 @@ function plan(g, tx, ty) {
 
 function toadInView(g) {
   const room = currentRoom(g);
+  const { idx } = terrainGrid(room.t);
   const t = room.toad;
   return !!t && fov(room.t, g.x, g.y)[idx(t.x, t.y)];
 }
@@ -1327,12 +1352,12 @@ function look(g, x, y) {
 // Can a cell be looked at or travelled to? Any cell of the room, a dark one too, but not
 // under a menu, the inventory or an event.
 function canTarget(g, a) {
-  return !g.menu && !g.inv && !g.event && inRoom(a.x) && inRoom(a.y);
+  return !g.menu && !g.inv && !g.event && inRoom(a.x, g) && inRoom(a.y, g);
 }
 
 // ---- the API -----------------------------------------------------------
 
-const inRoom = (n) => Number.isInteger(n) && n >= 0 && n < S;
+const inRoom = (n, g) => Number.isInteger(n) && n >= 0 && n < terrainGrid(currentRoom(g).t).size;
 
 export function act(g, a) {
   if (!a || typeof a !== 'object') return [];
@@ -1377,7 +1402,7 @@ export function act(g, a) {
       if (g.inv && Number.isInteger(a.index) && a.index >= 0 && a.index < g.items.length) g.inv.cursor = a.index;
       break;
     case 'observe':
-      if (g.menu || g.inv || !inRoom(a.x) || !inRoom(a.y)) return [];
+      if (g.menu || g.inv || !inRoom(a.x, g) || !inRoom(a.y, g)) return [];
       observe(g, a.x, a.y, ev);
       break;
     case 'look':
@@ -1399,7 +1424,7 @@ export function act(g, a) {
 export function view(g) {
   const { room, vis, shown, sensed } = sight(g);
   const cells = [];
-  for (let i = 0; i < S * S; i++) {
+  for (let i = 0; i < room.t.length; i++) {
     const state = shown[i] ? 'visible' : room.seen[i] ? 'remembered' : 'unknown';
     const thing = thingAt(g, room, i, vis, shown, sensed) ?? null;
     // A unit in sight that you have noticed, with something you have not observed, blinks.
@@ -1452,7 +1477,7 @@ export function view(g) {
     going: !!g.going, // a travel is under way: the screen sends continue, or stop
     look: g.look,
     outlines: g.outlines,
-    room: { id: g.room, key: room.key },
+    room: { id: g.room, key: room.key, size: terrainGrid(room.t).size },
     player: { x: g.x, y: g.y },
     cells,
     stats: {

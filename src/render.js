@@ -6,7 +6,6 @@ import { TEXT } from './text.js';
 import { CONFIG } from './config.js';
 import { createMarks } from './marks.js';
 
-const SIZE = CONFIG.roomSize;
 const LOG_KEEP = 12; // lines kept in #log-lines
 const FX_SAFETY_MS = 900; // remove an effect class even if no animationend comes
 const SCREEN_SAFETY_MS = 1300;
@@ -21,7 +20,7 @@ const CELL_FX = ['fx-hit', 'fx-miss', 'fx-kill', 'fx-observe', 'fx-dig', 'fx-unl
 
 // withMarks: draw the marks round a held or aimed square (marks.js). The marks study
 // draws its own, so it turns these off.
-export function createRenderer(root = document, { marks: withMarks = true, cellPainter = paintCell } = {}) {
+export function createRenderer(root = document, { marks: withMarks = true, cellPainter = paintCell, size = CONFIG.roomSize } = {}) {
   const $ = (id) => root.querySelector('#' + id);
   const screen = $('screen');
   const mapWrap = $('map-wrap');
@@ -41,8 +40,9 @@ export function createRenderer(root = document, { marks: withMarks = true, cellP
   const btnUse = $('btn-use');
   const optButtons = [0, 1, 2, 3].map((i) => root.querySelector(`#options [data-choose="${i}"]`));
 
-  const cells = buildMap(map);
-  const lastPaint = new Array(SIZE * SIZE).fill(null);
+  screen.style.setProperty('--room-size', size);
+  const cells = buildMap(map, size);
+  const lastPaint = new Array(size * size).fill(null);
   const stats = buildStats($('stats'));
   const logEls = new Map(); // Line.id -> { el, text, turn }
   let invKey = null; // what the inventory screen last showed
@@ -77,10 +77,10 @@ export function createRenderer(root = document, { marks: withMarks = true, cellP
     graceMs: frameMs * num('--hold-grace', 2), // held this long, the observing blink starts
     lookMs: frameMs * num('--look-on', 4), // the observing blink; held through it, you observe
     stepMs: frameMs * num('--travel-step', 1), // a fast move's step
-    slideMs: (frameMs / 2) * SIZE, // a room sliding in: --slide-step, half a frame, a tile
+    slideMs: (frameMs / 2) * size, // a room sliding in: --slide-step, half a frame, a tile
   };
   // the marks round the square under a finger (--mark-* in style.css)
-  const marks = withMarks ? createMarks(mapWrap, { size: SIZE, frameMs, num }) : null;
+  const marks = withMarks ? createMarks(mapWrap, { size, frameMs, num }) : null;
   // The blink: about every two seconds, all in step. An item in the inventory goes white for
   // a couple of frames ("blink"); a unit's icon on the map steps to white and back ("stepping").
   // Nothing blinks while a sense wave is going; when the wave ends the blinking starts
@@ -156,13 +156,17 @@ export function createRenderer(root = document, { marks: withMarks = true, cellP
 
   // --- map ---
 
+  function inRoom(x, y) {
+    return Number.isInteger(x) && Number.isInteger(y) && x >= 0 && y >= 0 && x < size && y < size;
+  }
+
   function drawMap(view) {
     const list = Array.isArray(view.cells) ? view.cells : [];
     const p = view.player || { x: -99, y: -99 };
-    const env = { look: view.look, px: p.x, py: p.y, key: view.room ? view.room.key : 0, cells: list, size: SIZE };
-    for (let i = 0; i < SIZE * SIZE; i++) {
-      const x = i % SIZE;
-      const y = (i - x) / SIZE;
+    const env = { look: view.look, px: p.x, py: p.y, key: view.room ? view.room.key : 0, cells: list, size };
+    for (let i = 0; i < size * size; i++) {
+      const x = i % size;
+      const y = (i - x) / size;
       const paint = cellPainter(list[i] || null, x, y, env);
       const last = lastPaint[i];
       const el = cells[i];
@@ -171,6 +175,15 @@ export function createRenderer(root = document, { marks: withMarks = true, cellP
         if (paint.mask) el.style.setProperty('--drawing', paint.mask);
         else el.style.removeProperty('--drawing');
         el.toggleAttribute('data-drawing', !!paint.mask);
+      }
+      if (last?.glints !== paint.glints) {
+        if (paint.glints) el.style.setProperty('--glints', paint.glints);
+        else el.style.removeProperty('--glints');
+        el.toggleAttribute('data-glints', !!paint.glints);
+      }
+      if (last?.glintInk !== paint.glintInk) {
+        if (paint.glintInk) el.style.setProperty('--glint-ink', paint.glintInk);
+        else el.style.removeProperty('--glint-ink');
       }
       if (last?.label !== paint.label) {
         if (paint.label) {
@@ -241,7 +254,7 @@ export function createRenderer(root = document, { marks: withMarks = true, cellP
     if (!e) return;
     if (e.type === 'sense') return startWave(e, view);
     if (!inRoom(e.x, e.y)) return;
-    const el = cells[e.y * SIZE + e.x];
+    const el = cells[e.y * size + e.x];
     // An observation does not blink its cell: the hold before it already did (showLook).
     if (e.type === 'attack') fx.play(el, e.hit ? 'fx-hit' : 'fx-miss', CELL_FX);
     else if (e.type === 'kill') fx.play(el, 'fx-kill', CELL_FX);
@@ -270,7 +283,7 @@ export function createRenderer(root = document, { marks: withMarks = true, cellP
     for (const c of list) {
       if (!c || !inRoom(c.x, c.y) || !(c.d >= 0)) continue;
       if (still && c.d !== 0) continue;
-      const i = c.y * SIZE + c.x;
+      const i = c.y * size + c.x;
       // a cell you have never seen is drawn as nothing, and stays that way
       const seen = view.cells && view.cells[i];
       if (!seen || seen.state === 'unknown') continue;
@@ -337,7 +350,7 @@ export function createRenderer(root = document, { marks: withMarks = true, cellP
     if (!shown || shown.event || shown.inv || shown.menu || !inRoom(x, y)) return clearAim();
     setTrail(path, shown);
     map.classList.add('trail-hot');
-    trail.aimEl = cells[y * SIZE + x];
+    trail.aimEl = cells[y * size + x];
     trail.aimEl.classList.add('aim');
     if (marks) marks.aim(x, y);
   }
@@ -359,7 +372,7 @@ export function createRenderer(root = document, { marks: withMarks = true, cellP
     clearTrail();
     for (const c of Array.isArray(path) ? path : []) {
       if (!c || !inRoom(c.x, c.y)) continue;
-      const i = c.y * SIZE + c.x;
+      const i = c.y * size + c.x;
       // dark cells too: the way goes through them as if they were open
       cells[i].classList.add('trail');
       trail.els.push(cells[i]);
@@ -380,7 +393,7 @@ export function createRenderer(root = document, { marks: withMarks = true, cellP
   function showLook(x, y) {
     dropLook();
     if (!inRoom(x, y)) return;
-    lookEl = cells[y * SIZE + x];
+    lookEl = cells[y * size + x];
     fx.play(lookEl, 'fx-observe', CELL_FX);
     // the box closing in round it, as long as the blink
     if (marks) marks.look(x, y, num('--look-on', 4));
@@ -630,11 +643,11 @@ export function createRenderer(root = document, { marks: withMarks = true, cellP
 
 // --- building, once ---
 
-function buildMap(map) {
+function buildMap(map, size) {
   const doc = map.ownerDocument;
   while (map.firstChild) map.removeChild(map.firstChild);
   const cells = [];
-  for (let i = 0; i < SIZE * SIZE; i++) {
+  for (let i = 0; i < size * size; i++) {
     const c = doc.createElement('span');
     c.className = 'c';
     c.dataset.cell = String(i);
@@ -716,10 +729,6 @@ function createFx() {
 }
 
 // --- small helpers ---
-
-function inRoom(x, y) {
-  return Number.isInteger(x) && Number.isInteger(y) && x >= 0 && y >= 0 && x < SIZE && y < SIZE;
-}
 
 function setText(el, text) {
   text = words(text);

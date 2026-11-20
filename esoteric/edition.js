@@ -1,6 +1,6 @@
 import { TEXT } from '../src/text.js';
 import { symbolMask } from './symbols.js';
-import { terrainMask } from './terrain.js';
+import { terrainMask, grassMasks } from './terrain.js';
 
 const tiles = {
   floor:     ['--chalk', TEXT.observe.dirt],
@@ -28,7 +28,12 @@ export function paintEsoteric(cell, x, y, env) {
   const label = name.replace(/[[\]]/g, '');
   if (kind === 'toad') return { ch: 't', fg, bg, label };
 
-  const terrain = kind === 'wall' || kind === 'grass' || kind === 'floor';
+  if (kind === 'grass') {
+    const { green: mask, white: glints } = grassMasks(x, y, env.cells, env.size, env.key);
+    const glintInk = cell.state === 'remembered' ? 'color-mix(in srgb, var(--chalk) 44%, var(--unknown))' : 'var(--chalk)';
+    return { ch: '', fg, bg, mask, label, glints, glintInk };
+  }
+  const terrain = kind === 'wall' || kind === 'floor';
   const mask = terrain ? terrainMask(kind, x, y, env.cells, env.size, env.key) : symbolMask(kind, x, y, env.size);
   return { ch: '', fg, bg, mask, label };
 }

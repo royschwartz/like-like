@@ -162,35 +162,76 @@ const pips = [
 .##`),
 ];
 
-// A grass mark folds over at the top and leaves a little hollow. Loose
-// groups make a patch, as in the drawing; adjoining squares stay distinct.
-const blades = [
-  `..##.
-.#..##
-##..#
-.###
-..#
-..#`,
-  `..##.
-.##.#
-##..#
-.###
-.##`,
-  `.##.
-##.##
-.#.#
-..##
-..#`,
-];
-function grass(clump) {
-  return clump.map(([x, y, blade]) => stamp(x, y, blades[blade])).join('');
+// The grass has its own 48-pixel grid. One unit is two pixels in the
+// drawing: green (#), white (+), and open space between the two tips.
+const grassSize = 48;
+const sprig = `...+++....
+...###....
+...###....
+..##..##++
++###...##+
++##....#++
+++#...##..
+.+#..##...
+.....#+...
+....##+...
+.....++...`;
+const glints = sprig.replaceAll('#', '.').replaceAll('+', '#');
+
+function sprigMasks(points) {
+  const layer = (drawing) => inkMask(grassSize,
+    points.map(([x, y]) => stamp(x, y, drawing)).join(''));
+  return { green: layer(sprig), white: layer(glints) };
 }
-const clumps = [
-  grass([[11, 4, 0], [22, 7, 1], [4, 13, 1], [14, 16, 2], [9, 23, 2]]),
-  grass([[7, 6, 1], [18, 9, 0], [11, 16, 2], [22, 21, 1]]),
-  grass([[15, 4, 2], [5, 11, 1], [14, 15, 0], [22, 13, 2], [12, 24, 1]]),
-  grass([[8, 7, 2], [20, 6, 0], [13, 13, 1], [6, 21, 1], [21, 22, 2]]),
+
+// The seven sprigs of the drawing are one arrangement across four tiles.
+// Cutting the same artwork at the tile edges keeps the seam-crossing leaves
+// whole. Positions are measured from the upper left of the four squares.
+const drawnGrass = [[43, 19], [76, 25], [27, 35], [45, 39], [60, 41], [53, 54], [30, 57]];
+const grassQuarters = [[0, 0], [48, 0], [0, 48], [48, 48]].map(([left, top]) => {
+  const points = drawnGrass.map(([x, y]) => [x - left, y - top])
+    .filter(([x, y]) => x > -10 && x < grassSize && y > -11 && y < grassSize);
+  return sprigMasks(points);
+});
+
+// Other patch shapes have room for one to three sprigs in each square.
+// The whole grouping leans toward the adjoining grass, with a different
+// arrangement as its length or direction changes.
+const looseGrass = [
+  [[9, 16], [23, 23]],
+  [[18, 18]],
+  [[10, 25], [23, 9]],
+  [[8, 16], [22, 9], [25, 28]],
 ];
+const looseMasks = new Map();
+
+export function grassMasks(x, y, cells, size, roomKey) {
+  function knownGrass(cx, cy) {
+    if (cx < 0 || cy < 0 || cx >= size || cy >= size) return false;
+    const cell = cells[cy * size + cx];
+    return cell?.t === 'grass' && cell.state !== 'unknown';
+  }
+  const west = knownGrass(x - 1, y);
+  const east = knownGrass(x + 1, y);
+  const north = knownGrass(x, y - 1);
+  const south = knownGrass(x, y + 1);
+  const dx = Number(east) - Number(west);
+  const dy = Number(south) - Number(north);
+  if (dx && dy && knownGrass(x + dx, y + dy)) {
+    const left = Math.min(x, x + dx);
+    const top = Math.min(y, y + dy);
+    const extendsAcross = [top, top + 1].some(cy => knownGrass(left - 1, cy) || knownGrass(left + 2, cy));
+    const extendsDown = [left, left + 1].some(cx => knownGrass(cx, top - 1) || knownGrass(cx, top + 2));
+    if (!extendsAcross && !extendsDown) return grassQuarters[(y - top) * 2 + x - left];
+  }
+  const variation = (Math.imul(x + 1, 3) ^ (y + 1) ^ roomKey ^ (roomKey >>> 6)) & 3;
+  const key = (dy + 1) * 12 + (dx + 1) * 4 + variation;
+  if (!looseMasks.has(key)) {
+    const points = looseGrass[variation].map(([sx, sy]) => [sx + dx * 6, sy + dy * 6]);
+    looseMasks.set(key, sprigMasks(points));
+  }
+  return looseMasks.get(key);
+}
 
 const mask = (path, transform) => inkMask(32, path, transform);
 
@@ -199,7 +240,6 @@ function rotate(degrees) {
 }
 
 const floorMasks = pips.map((path) => mask(path));
-const grassMasks = clumps.map((path) => mask(path));
 const caps = [0, 90, 180, 270].map((angle) => mask(end, rotate(angle)));
 const corners = [0, 90, 180, 270].map((angle) => mask(bend, rotate(angle)));
 const forks = [0, 90, 180, 270].map((angle) => mask(fork, rotate(angle)));
@@ -241,7 +281,6 @@ export function terrainMask(tile, x, y, cells, size, roomKey) {
   const seed = Math.imul(x + 1, 179) ^ Math.imul(y + 1, 541) ^ (roomKey | 0);
   const variation = (seed ^ (seed >>> 3) ^ (seed >>> 7)) & 3;
   if (tile === 'floor') return floorMasks[variation];
-  if (tile === 'grass') return grassMasks[variation];
   if (tile !== 'wall') return null;
   const edges = wallEdges(x, y, cells, size);
   if (edges === (E | W)) {

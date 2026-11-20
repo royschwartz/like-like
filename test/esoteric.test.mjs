@@ -1,6 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { paintEsoteric } from '../esoteric/edition.js';
+import { newGame, act, view } from '../src/game.js';
+import { levelDistances } from '../src/gen.js';
 
 const visible = (t, thing = null) => ({ t, thing, state: 'visible' });
 const env = () => ({ size: 3, key: 17, cells: Array.from({ length: 9 }, () => visible('floor')) });
@@ -31,4 +33,45 @@ test('wall joins follow only known terrain', () => {
   assert.equal(unseen.label, undefined);
   room.cells[5].state = 'remembered';
   assert.notEqual(wall(), pillar);
+});
+
+test('the opening matches the five-by-five drawing on every seed and restart', () => {
+  const signs = { player: '@', grass: '"', statue: '&', stairs: '>', floor: '.', wall: '#' };
+  const drawing = ['#######', '#""...#', '#""...#', '#....&#', '#..@..#', '#..>..#', '#######'];
+  for (const seed of [0, 7, 19]) {
+    const g = newGame({ edition: 'esoteric', seed });
+    for (let run = 0; run < 2; run++) {
+      const v = view(g);
+      assert.equal(v.room.size, 7);
+      assert.equal(v.cells.length, 49);
+      const symbols = v.cells.map(c => signs[c.thing?.kind ?? c.t]).join('');
+      assert.equal(symbols, drawing.join(''));
+      assert.equal(view(newGame({ seed })).room.size, 11);
+      if (run === 0) {
+        act(g, { type: 'move', dir: 's' });
+        act(g, { type: 'context' });
+        act(g, { type: 'menu', id: 'sys' });
+        act(g, { type: 'choose', index: 0 });
+      }
+    }
+  }
+});
+
+test('the stairs below the drawing are guarded and DEE remembers speaking upstairs', () => {
+  const g = newGame({ edition: 'esoteric', seed: 19 });
+  for (const dir of ['e', 'e', 'n']) act(g, { type: 'move', dir });
+  assert.equal(view(g).event.id, 'dee');
+  act(g, { type: 'choose', index: 0 });
+  act(g, { type: 'back' });
+  for (const dir of ['w', 'w', 's']) act(g, { type: 'move', dir });
+  act(g, { type: 'context' });
+  assert.equal(g.depth, 2);
+  assert.ok(g.level.rooms.every(room => room.t.length === 49));
+  const sentryRoom = g.level.rooms[g.level.toadRoom];
+  assert.ok(sentryRoom.toad.asleep);
+  assert.ok(sentryRoom.statue.spoke);
+  const { x, y, room } = g.level.stairs;
+  const index = y * view(g).room.size + x;
+  assert.equal(levelDistances(g.level, g.level.entrance, { locked: true })[room][index], -1);
+  assert.ok(levelDistances(g.level)[room][index] > 0);
 });

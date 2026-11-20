@@ -3,9 +3,7 @@
 // a tap goes there, a hold looks and then observes, a drag shows the way and letting go goes.
 
 import { newGame, act, view } from './game.js';
-import { CONFIG } from './config.js';
-// A returning player's Pages cache can still contain the character-only renderer.
-import { createRenderer } from './render.js?drawings=1';
+import { createRenderer } from './render.js';
 import { bindInput } from './input.js';
 
 const esoteric = document.documentElement.dataset.edition === 'esoteric';
@@ -55,9 +53,11 @@ function save(key, value) {
 
 // Measure the ink of the wait and action buttons after the edition's face has loaded.
 if (esoteric && document.fonts) await document.fonts.load('1em "Crooked Hand"').catch(() => {});
-const game = newGame({ seed: readSeed(), look: readLook(), outlines: readOutlines() });
-const renderer = createRenderer(document, { cellPainter: edition?.paintEsoteric });
-renderer.draw(view(game));
+const game = newGame({ seed: readSeed(), look: readLook(), outlines: readOutlines(), edition: document.documentElement.dataset.edition });
+const opening = view(game);
+const size = opening.room.size ?? Math.sqrt(opening.cells.length);
+const renderer = createRenderer(document, { cellPainter: edition?.paintEsoteric, size });
+renderer.draw(opening);
 const timing = renderer.timing;
 
 let stepTimer = null; // the next step of a fast move
@@ -110,7 +110,7 @@ function lookAt(x, y) {
 
 // Have you ever seen (x, y)? A dark cell can be gone to but not observed.
 const known = (x, y) => {
-  const c = view(game).cells?.[y * CONFIG.roomSize + x];
+  const c = view(game).cells?.[y * size + x];
   return !!c && c.state !== 'unknown';
 };
 
@@ -186,7 +186,7 @@ function dispatch(action) {
   run(action);
 }
 
-bindInput(document.getElementById('screen'), dispatch, { graceMs: timing.graceMs, lookMs: timing.lookMs });
+bindInput(document.getElementById('screen'), dispatch, { graceMs: timing.graceMs, lookMs: timing.lookMs }, size);
 
 // Hidden, nothing goes on by itself: no fast move. (input.js drops a gesture under way.)
 document.addEventListener('visibilitychange', () => {

@@ -4,16 +4,12 @@
 // los(a, b) is true when a straight line either way is clear, so it is
 // symmetric: if you see the toad, it sees you.
 
-import { CONFIG } from './config.js';
-
-const S = CONFIG.roomSize;
-
 const blocksSight = (c) => c === 'wall' || c === 'golddoor' || c === 'statue';
 // Drawn with the walls: shown when a walkable cell beside it is in sight.
 const solid = (c) => c === 'wall' || c === 'door' || c === 'golddoor' || c === 'statue';
 
 // Is every cell strictly between a and b free of wall? (Bresenham, a to b.)
-function clearLine(t, ax, ay, bx, by) {
+function clearLine(t, ax, ay, bx, by, size) {
   const dx = Math.abs(bx - ax);
   const dy = -Math.abs(by - ay);
   const sx = ax < bx ? 1 : -1;
@@ -33,30 +29,31 @@ function clearLine(t, ax, ay, bx, by) {
       y += sy;
     }
     if (x === bx && y === by) return true;
-    if (blocksSight(t[y * S + x])) return false;
+    if (blocksSight(t[y * size + x])) return false;
   }
 }
 
-// t: the room's 121 terrain names.
-export function los(t, ax, ay, bx, by) {
-  return clearLine(t, ax, ay, bx, by) || clearLine(t, bx, by, ax, ay);
+// t: one square room's terrain.
+export function los(t, ax, ay, bx, by, size = Math.sqrt(t.length)) {
+  return clearLine(t, ax, ay, bx, by, size) || clearLine(t, bx, by, ax, ay, size);
 }
 
 // For drawing only: sight plus every wall or door cell touching (8 ways) a
 // walkable cell in sight, so the room's frame has no gaps. Never used for
 // what blocks sight, what the toad sees, or whether it is drawn.
 export function frame(t, seen) {
+  const size = Math.sqrt(t.length);
   const out = seen.slice();
-  for (let y = 0; y < S; y++) {
-    for (let x = 0; x < S; x++) {
-      const i = y * S + x;
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const i = y * size + x;
       if (out[i] || !solid(t[i])) continue;
       for (let dy = -1; dy <= 1 && !out[i]; dy++) {
         for (let dx = -1; dx <= 1; dx++) {
           const nx = x + dx;
           const ny = y + dy;
-          if (nx < 0 || ny < 0 || nx >= S || ny >= S) continue;
-          const j = ny * S + nx;
+          if (nx < 0 || ny < 0 || nx >= size || ny >= size) continue;
+          const j = ny * size + nx;
           if (seen[j] && !solid(t[j])) {
             out[i] = true;
             break;
@@ -68,11 +65,12 @@ export function frame(t, seen) {
   return out;
 }
 
-// Every cell seen from (x, y), as an array of 121 booleans.
+// Every cell seen from (x, y), as an array of booleans.
 export function fov(t, x, y) {
-  const seen = new Array(S * S);
-  for (let cy = 0; cy < S; cy++) {
-    for (let cx = 0; cx < S; cx++) seen[cy * S + cx] = los(t, x, y, cx, cy);
+  const size = Math.sqrt(t.length);
+  const seen = new Array(t.length);
+  for (let cy = 0; cy < size; cy++) {
+    for (let cx = 0; cx < size; cx++) seen[cy * size + cx] = los(t, x, y, cx, cy, size);
   }
   return seen;
 }

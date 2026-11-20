@@ -9,9 +9,25 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <title>LIKE LIKE · esoteric</title>
 <link rel="icon" href="data:,">
-<link rel="preload" href="font/crooked-hand.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="../style.css">
-<link rel="stylesheet" href="edition.css">
+<link rel="preload" href="font/crooked-hand.woff2?v=2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="../style.css?v=2">
+<link rel="stylesheet" href="edition.css?v=2">
+<!-- Load matching room geometry, pointer input and art even with a previous edition cached. -->
+<script type="importmap">
+{
+  "imports": {
+    "../src/config.js": "../src/config.js?v=2",
+    "../src/game.js": "../src/game.js?v=2",
+    "../src/gen.js": "../src/gen.js?v=2",
+    "../src/fov.js": "../src/fov.js?v=2",
+    "../src/path.js": "../src/path.js?v=2",
+    "../src/render.js": "../src/render.js?v=2",
+    "../src/input.js": "../src/input.js?v=2",
+    "./edition.js": "./edition.js?v=2",
+    "./terrain.js": "./terrain.js?v=2"
+  }
+}
+</script>
 </head>
 <body>
 <main id="stage">
@@ -60,6 +76,6 @@
 
   </div>
 </main>
-<script type="module" src="../src/main.js?drawings=1"></script>
+<script type="module" src="../src/main.js?v=2"></script>
 </body>
 </html>
