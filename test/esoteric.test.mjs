@@ -188,7 +188,16 @@ test('the esoteric stairs are always at the edge of the map, facing out of it, a
   assert.equal(new Set(marks).size, 4, 'each side turns the treads to narrow toward its own edge');
 });
 
-test('going down, you arrive just inside stairs up where the stairs down were; up takes you back', () => {
+// The ways into a cell from the four squares beside it: those that are open ground.
+const waysIn = (t, size, x, y) =>
+  Object.values(STEPS).filter(([sx, sy]) => {
+    const [nx, ny] = [x + sx, y + sy];
+    return nx >= 0 && ny >= 0 && nx < size && ny < size && OPEN.includes(t[ny * size + nx]);
+  }).length;
+
+test('going down, you arrive just inside stairs up anywhere on the edge with one way in; up takes you back', () => {
+  let moved = 0;
+  let floors = 0;
   for (let seed = 1; seed <= 25; seed++) {
     const g = newGame({ edition: 'esoteric', seed });
     for (let floor = 1; floor <= 4; floor++) {
@@ -196,18 +205,23 @@ test('going down, you arrive just inside stairs up where the stairs down were; u
       const { room, x, y, side } = above.stairs;
       const [dx, dy] = STEPS[side];
       const [ix, iy] = [x - dx, y - dy];
+      assert.equal(waysIn(above.rooms[room].t, Math.sqrt(above.rooms[room].t.length), x, y), 1, `seed ${seed} floor ${floor}: stairs down have one way in`);
       goDown(g);
       assert.equal(g.depth, floor + 1);
       const size = Math.sqrt(g.level.rooms[g.room].t.length);
       const here = g.level.rooms[g.room].t;
-      // the same square on the screen, beside stairs up in the same place in the wall
-      if (here[y * size + x] === 'upstairs') {
-        assert.deepEqual([g.x, g.y], [ix, iy], `seed ${seed} floor ${floor}`);
-      }
       const up = here.indexOf('upstairs');
       assert.ok(up >= 0);
       const [upx, upy] = [up % size, Math.floor(up / size)];
       assert.ok(upx === 0 || upy === 0 || upx === size - 1 || upy === size - 1, 'stairs up at the edge of the map');
+      assert.ok(!(upx === 0 || upx === size - 1) || !(upy === 0 || upy === size - 1), 'never in a corner');
+      assert.equal(waysIn(here, size, upx, upy), 1, `seed ${seed} floor ${floor + 1}: stairs up have one way in`);
+      // you arrive on that one way in
+      assert.equal(Math.abs(g.x - upx) + Math.abs(g.y - upy), 1, 'you arrive just inside the stairs up');
+      assert.ok(OPEN.includes(here[g.y * size + g.x]));
+      // they need not be where the stairs down above were (decision 323)
+      floors++;
+      if (g.room !== room || upx !== x || upy !== y) moved++;
       // every open cell of the floor can be reached
       const dist = levelDistances(g.level);
       g.level.rooms.forEach((r, k) => r.t.forEach((c, i) => {
@@ -215,19 +229,17 @@ test('going down, you arrive just inside stairs up where the stairs down were; u
       }));
       // back up, to just inside the stairs down above, the floor as it was; and down again
       const below = g.level;
-      const [ux, uy] = [up % size, Math.floor(up / size)];
-      const upSide = Object.entries(STEPS).find(([, [sx, sy]]) => [g.x + sx, g.y + sy].join() === [ux, uy].join())?.[0];
-      [g.x, g.y] = g.level.entrance.room === g.room ? [g.level.entrance.x, g.level.entrance.y] : [g.x, g.y];
-      const s2 = Object.entries(STEPS).find(([, [sx, sy]]) => here[(g.y + sy) * size + g.x + sx] === 'upstairs')[0];
-      assert.ok(upSide === undefined || upSide === s2);
+      const s2 = Object.entries(STEPS).find(([, [sx, sy]]) => g.x + sx === upx && g.y + sy === upy)[0];
       assert.ok(act(g, { type: 'move', dir: s2 }).some((e) => e.type === 'ascend'));
       assert.equal(g.depth, floor);
       assert.equal(g.level, above);
       assert.deepEqual([g.room, g.x, g.y], [room, ix, iy]);
       goDown(g);
       assert.equal(g.level, below, 'the floor below is kept');
+      assert.deepEqual([g.x, g.y], [g.level.entrance.x, g.level.entrance.y], 'down again, just inside the same stairs up');
     }
   }
+  assert.ok(moved > floors / 2, `the stairs up moved on ${moved} of ${floors} floors`);
   const look = { size: 7, key: 3, cells: Array.from({ length: 49 }, () => visible('wall')) };
   const down = paintEsoteric(visible('stairs'), 3, 6, look).mask;
   const up = paintEsoteric(visible('upstairs'), 3, 6, look).mask;

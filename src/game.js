@@ -636,12 +636,11 @@ function enchant(g, i, ev) {
 function descend(g, ev) {
   const spoke = currentRoom(g).statue?.spoke;
   const esoteric = g.edition === 'esoteric';
-  // esoteric: the stairs up below are where these stairs down are (decision 253), and each
-  // floor is kept as you left it, so you can go back up and down again (decision 257)
-  const { x, y, side } = g.level.stairs;
+  // esoteric: each floor is kept as you left it, so you can go back up and down again
+  // (decision 257). The stairs up below are anywhere on its edge (decision 323).
   if (esoteric) g.floors[g.depth] = g.level;
   g.depth++;
-  g.level = (esoteric && g.floors[g.depth]) || makeLevel(g.rng, g.depth, g.edition, esoteric ? { x, y, side } : null);
+  g.level = (esoteric && g.floors[g.depth]) || makeLevel(g.rng, g.depth, g.edition);
   // In the esoteric edition the same bust is accessible beneath the drawing.
   if (esoteric && g.depth === 2 && spoke) {
     g.level.rooms[g.level.toadRoom].statue.spoke = true;
