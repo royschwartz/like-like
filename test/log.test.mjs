@@ -152,7 +152,7 @@ function statuses() {
   add(TEXT.log);
   add(TEXT.observe);
   add(TEXT.slot);
-  add(TEXT.senseToad);
+  add(TEXT.toadRoom);
   add(TEXT.toadSeen);
   add(TEXT.toad.singing);
   // a unit's plain line, on each ground that has a word, and where none has
@@ -186,17 +186,17 @@ test('logLines wraps as the page does', () => {
 // The first sense line, cinnamon, fits on one line now its brackets are gone, so this
 // test puts a two-line one of his in its place.
 const twoLineSense = (fn) => {
-  const first = TEXT.senseToad[0];
-  TEXT.senseToad[0] = TEXT.senseToad[2];
+  const first = TEXT.toadRoom[0];
+  TEXT.toadRoom[0] = TEXT.toadRoom[2];
   try {
     fn();
   } finally {
-    TEXT.senseToad[0] = first;
+    TEXT.toadRoom[0] = first;
   }
 };
 
 test('a sense interrupted by combat leaves its two-line find unread', () => twoLineSense(() => {
-  const line = TEXT.senseToad[0];
+  const line = TEXT.toadRoom[0];
   assert.equal(logLines(line), 2, 'the room line is two lines');
   const hits = CONFIG.toad.hits;
   try {
@@ -245,7 +245,7 @@ test('a due memory waits until after a two-line sense or arrival', () => twoLine
       g.recall = { id: 'worms', turn: g.turn + 1 };
       const from = g.nextLogId;
       act(g, { type: 'context' });
-      const text = action === 'sense' ? TEXT.senseToad[0] : TEXT.log.descend.grass;
+      const text = action === 'sense' ? TEXT.toadRoom[0] : TEXT.log.descend.grass;
       assert.deepEqual(saidSince(g, from), [text]);
       assert.equal(logLines(text), 2);
       assert.equal(view(g).event, null, 'the memory did not add a third line');

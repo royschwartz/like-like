@@ -347,11 +347,11 @@ test('a secret of the room can come without sensing, and sensing then tells the 
     room.t[idx(5, 5)] = 'floor';
     let from = g.nextLogId;
     act(g, { type: 'wait' });
-    assert.deepEqual(saidSince(g, from), [TEXT.senseToad[0]]);
+    assert.deepEqual(saidSince(g, from), [TEXT.toadRoom[0]]);
     assert.equal(g.log[g.log.length - 1].kind, 'sense');
     from = g.nextLogId;
     act(g, { type: 'context' });
-    assert.deepEqual(saidSince(g, from), [TEXT.senseToad[1]], 'one sensing, one line: the next');
+    assert.deepEqual(saidSince(g, from), [TEXT.toadRoom[1]], 'one sensing, one line: the next');
   });
 });
 
@@ -364,9 +364,9 @@ test('the worms never come without sensing: idle noticing stops before them', ()
     room.t[idx(5, 5)] = 'floor';
     const from = g.nextLogId;
     for (let k = 0; k < 20; k++) act(g, { type: 'wait' });
-    assert.deepEqual(saidSince(g, from), TEXT.senseToad.slice(0, -1), 'every secret but the worms, one a turn');
+    assert.deepEqual(saidSince(g, from), TEXT.toadRoom.slice(0, -1), 'every secret but the worms, one a turn');
     assert.equal(g.knowsWorms, false);
-    assert.deepEqual(sense(g), [TEXT.senseToad[TEXT.senseToad.length - 1]], 'only sensing tells it');
+    assert.deepEqual(sense(g), [TEXT.toadRoom[TEXT.toadRoom.length - 1]], 'only sensing tells it');
     assert.equal(g.knowsWorms, true);
   });
 });

@@ -24,6 +24,11 @@
   --ink-sense: var(--shoot);
   --ink-good: var(--sulphur);
   --stairs: var(--sulphur);
+  /* things of interest each have a colour (decision 300): the bust a cool blue, the toad
+     a deep olive green, the entrance's rope a worn tan. The player stays white. */
+  --bust: #6fa8ff;
+  --toad: #74892c;
+  --rope: #c99c64;
   --trail-hot: rgb(255 255 195 / 36%);
   --trail-dim: rgb(255 255 195 / 16%);
 }
@@ -37,6 +42,19 @@
   --asleep: #425735;
   --awake: #164e17;
   --blood-ink: #a23327;
+  --bust: #1f5aa8;
+  --toad: #4e5e16;
+  --rope: #7c5629;
+}
+
+/* A living thing's pose this turn (decision 299), from render.js: a nudge in the drawing's
+   pixels and a tilt. Snapped. Its own ground is left off, so a tilted square never covers
+   a neighbour's ink; the map's black is under it. */
+.map .c[data-pose] {
+  background-color: transparent;
+  translate: calc(var(--pose-x) * var(--board-side) / var(--room-size, 7) / 36)
+    calc(var(--pose-y) * var(--board-side) / var(--room-size, 7) / 36);
+  rotate: var(--pose-deg);
 }
 
 /* Seven equal tracks run to the edge. The drawn walls have their own

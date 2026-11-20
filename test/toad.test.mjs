@@ -209,19 +209,19 @@ test('observing the toad never opens its event: its plain line, that it seems st
   assert.equal(g.turn, turn + 6, 'a turn for each completed observation');
   assert.equal(view(g).event, null, 'the song is only observed: it opens nothing');
   // and sensing, beside it, finds nothing about it: only the room
-  assert.deepEqual(senseOnce(g), [TEXT.senseToad[0]]);
+  assert.deepEqual(senseOnce(g), [TEXT.toadRoom[0]]);
 });
 
 test('sensing finds one new thing a time, the room\'s, near the toad or far, and never anything about it', () => {
   const NEAR = CONFIG.observeClose;
   const { g, t } = openToadRoom(5 + NEAR + 1, 5);
   const lines = (said) => said.map((text) => [text, g.log.find((l) => l.text === text).kind]);
-  assert.deepEqual(lines(senseOnce(g)), [[TEXT.senseToad[0], 'sense']]);
+  assert.deepEqual(lines(senseOnce(g)), [[TEXT.toadRoom[0], 'sense']]);
   t.x = 5 + NEAR; // come closer (it sleeps on)
-  assert.deepEqual(senseOnce(g), [TEXT.senseToad[1]]);
-  assert.deepEqual(senseOnce(g), [TEXT.senseToad[2]]);
+  assert.deepEqual(senseOnce(g), [TEXT.toadRoom[1]]);
+  assert.deepEqual(senseOnce(g), [TEXT.toadRoom[2]]);
   assert.equal(g.knowsWorms, false);
-  assert.deepEqual(senseOnce(g), [TEXT.senseToad[3]]);
+  assert.deepEqual(senseOnce(g), [TEXT.toadRoom[3]]);
   assert.equal(g.knowsWorms, true);
   for (let k = 0; k < 3; k++) {
     assert.deepEqual(lines(senseOnce(g)), [['you sense nothing new', 'sense']], 'nothing new, in the toad room too');
@@ -235,7 +235,7 @@ test('awake, a sensing still finds the room\'s next line, after its blow', () =>
     CONFIG.toad.hits = 0; // it answers each sensing with a miss
     const { g, t } = openToadRoom(6, 5);
     t.asleep = false;
-    assert.deepEqual(senseOnce(g), [TEXT.log.toadMisses, TEXT.senseToad[0]]);
+    assert.deepEqual(senseOnce(g), [TEXT.log.toadMisses, TEXT.toadRoom[0]]);
   } finally {
     CONFIG.toad.hits = hits;
   }
@@ -244,7 +244,7 @@ test('awake, a sensing still finds the room\'s next line, after its blow', () =>
 test('sensing a toad it cannot reach finds nothing about it', () => {
   const { g, room } = openToadRoom(7, 1);
   for (let x = 1; x < S - 1; x++) room.t[idx(x, 3)] = 'wall';
-  assert.deepEqual(senseOnce(g), [TEXT.senseToad[0]]);
+  assert.deepEqual(senseOnce(g), [TEXT.toadRoom[0]]);
 });
 
 test('observing the golden door, and the awake toad', () => {

@@ -30,7 +30,6 @@ export function createRenderer(root = document, { marks: withMarks = true, cellP
   const invEl = $('inv');
   const invTitle = $('inv-title');
   const invRows = $('inv-rows');
-  const invLinks = $('inv-links'); // esoteric: the inventory's own choices, under the list
   const eventEl = $('event');
   const eventLines = $('event-lines');
   const eventLinks = $('event-links');
@@ -171,7 +170,7 @@ export function createRenderer(root = document, { marks: withMarks = true, cellP
   function drawMap(view) {
     const list = Array.isArray(view.cells) ? view.cells : [];
     const p = view.player || { x: -99, y: -99 };
-    const env = { look: view.look, px: p.x, py: p.y, key: view.room ? view.room.key : 0, cells: list, size };
+    const env = { look: view.look, px: p.x, py: p.y, key: view.room ? view.room.key : 0, cells: list, size, turn: view.turn ?? 0 };
     for (let i = 0; i < size * size; i++) {
       const x = i % size;
       const y = (i - x) / size;
@@ -210,6 +209,19 @@ export function createRenderer(root = document, { marks: withMarks = true, cellP
       if (!last || last.fg !== paint.fg) el.style.setProperty('--fg', paint.fg);
       if (!last || last.bg !== paint.bg) el.style.setProperty('--bg', paint.bg);
       if (!last || last.bold !== paint.bold) el.classList.toggle('b', !!paint.bold);
+      // A living thing's pose this turn (esoteric): nudged and tilted, a little.
+      const pose = paint.pose ? `${paint.pose.x} ${paint.pose.y} ${paint.pose.deg}` : '';
+      if ((last?.poseKey ?? '') !== pose) {
+        el.toggleAttribute('data-pose', !!paint.pose);
+        if (paint.pose) {
+          el.style.setProperty('--pose-x', paint.pose.x);
+          el.style.setProperty('--pose-y', paint.pose.y);
+          el.style.setProperty('--pose-deg', paint.pose.deg + 'deg');
+        } else {
+          for (const k of ['--pose-x', '--pose-y', '--pose-deg']) el.style.removeProperty(k);
+        }
+      }
+      paint.poseKey = pose;
       lastPaint[i] = paint;
     }
   }
@@ -512,30 +524,6 @@ export function createRenderer(root = document, { marks: withMarks = true, cellP
       row.appendChild(state);
       invRows.appendChild(row);
     });
-    drawInvLinks(open);
-  }
-
-  // The esoteric inventory's choices are links under the list, as an event's are, not the
-  // buttons at the bottom: inspect, use and back, which do what those buttons do.
-  function drawInvLinks(open) {
-    if (!invLinks) return;
-    if (!open) return invLinks.replaceChildren();
-    if (invLinks.childElementCount) return;
-    const doc = invLinks.ownerDocument;
-    const choices = [
-      [TEXT.context.inspect, 'action', { action: 'context' }],
-      [TEXT.button.use, 'action', { action: 'use' }],
-      [TEXT.menu.back, 'back', { menu: 'inv' }],
-    ];
-    for (const [label, kind, data] of choices) {
-      const link = doc.createElement('button');
-      link.type = 'button';
-      link.className = 'link';
-      link.dataset.kind = kind;
-      Object.assign(link.dataset, data);
-      link.textContent = words(label);
-      invLinks.appendChild(link);
-    }
   }
 
   // --- an event: its own scrollable text and links, with the system menu below ---

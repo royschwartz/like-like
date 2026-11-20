@@ -193,7 +193,19 @@ function dispatch(action) {
     case 'interrupt':
       return;
   }
+  if (action.type === 'wait') return waited(action);
   run(action);
+}
+
+// A wait, which a held wait button repeats (input.js) for as long as this answers true:
+// until something is said, an event opens, or you die or change floors. Then the finger
+// has to be lifted and put back down to wait on.
+function waited(action) {
+  const before = view(game).fresh;
+  const events = run(action);
+  const v = view(game);
+  const over = events.some((e) => e && ['death', 'restart', 'descend', 'ascend', 'event'].includes(e.type));
+  return !over && !v.event && !v.menu && !v.inv && v.fresh === before;
 }
 
 bindInput(document.getElementById('screen'), dispatch, { graceMs: timing.graceMs, lookMs: timing.lookMs }, size);

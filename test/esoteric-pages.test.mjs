@@ -34,8 +34,9 @@ test('the esoteric psyche page shows the same masked or perceived stats as the p
   }
 });
 
-test('psyche preserves an inventory selection or menu cursor through its own system menu', () => {
-  for (const id of ['inv', 'sys']) {
+test('psyche preserves a menu cursor through its own system menu', () => {
+  // (The inventory is a page of its own now, with no stat row to open the psyche from.)
+  for (const id of ['sys']) {
     const g = start();
     g.items.push({ key: 'key', inHand: false });
     menu(g, id);
@@ -173,4 +174,51 @@ test('the opening comes back on a restart, and never without being asked for', (
   assert.equal(view(plain).event, null);
   // the original edition never has it
   assert.equal(view(newGame({ seed: 7, opening: true })).event, null);
+});
+
+test('the inventory is a page: its items as links, each its own page with use and back', () => {
+  const g = start();
+  const turn = g.turn;
+  g.items.push({ key: 'worms', inHand: false });
+  assert.deepEqual(menu(g, 'inv'), [{ type: 'event', id: 'inventory' }]);
+  assert.equal(view(g).inv, null, 'not in the map any more');
+  assert.deepEqual(lines(g), [TEXT.button.inventory]);
+  assert.deepEqual(view(g).event.options.map((o) => o.label), [TEXT.thing.sword, TEXT.thing.worms, TEXT.menu.back]);
+  // the sword's page: its name, what it is, in hand; use and back
+  act(g, { type: 'choose', index: 0 });
+  assert.equal(view(g).event.id, 'item');
+  assert.deepEqual(lines(g), [TEXT.thing.sword, TEXT.slot.sword, TEXT.menu.inHand]);
+  assert.deepEqual(view(g).event.options.map((o) => o.label), [TEXT.button.use, TEXT.menu.back]);
+  act(g, { type: 'choose', index: 0 }); // use: put away
+  assert.equal(g.items[0].inHand, false);
+  assert.deepEqual(lines(g), [TEXT.thing.sword, TEXT.slot.sword, TEXT.log.putAway(TEXT.thing.sword)]);
+  assert.equal(view(g).log.at(-1).text, TEXT.log.putAway(TEXT.thing.sword));
+  // back to the inventory, on the sword; the worms have no use; opening them is inspecting them
+  back(g);
+  assert.equal(view(g).event.id, 'inventory');
+  assert.equal(view(g).event.cursor, 0);
+  act(g, { type: 'choose', index: 1 });
+  assert.deepEqual(lines(g), [TEXT.thing.worms, TEXT.slot.worms]);
+  assert.deepEqual(view(g).event.options.map((o) => o.label), [TEXT.menu.back]);
+  assert.equal(g.inspected.worms, true);
+  assert.equal(g.recall?.id, 'worms', 'their memory is on its way back');
+  back(g);
+  back(g);
+  assert.equal(view(g).event, null);
+  assert.equal(g.turn, turn, 'none of it takes a turn');
+});
+
+test('waiting, a memory on its way back may come sooner; it comes back only once', () => {
+  let sooner = 0;
+  for (let seed = 1; seed <= 40; seed++) {
+    const g = newGame({ seed, edition: 'esoteric' });
+    g.recall = { id: 'worms', turn: g.turn + 1000 };
+    for (let k = 0; k < 40 && !g.memories.includes('worms'); k++) {
+      act(g, { type: 'wait' });
+      if (view(g).event) back(g);
+    }
+    if (g.memories.includes('worms')) sooner++;
+    assert.equal(g.memories.filter((m) => m === 'worms').length <= 1, true);
+  }
+  assert.ok(sooner >= 35, `most waits bring it within 40 turns (${sooner} of 40)`);
 });

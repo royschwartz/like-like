@@ -137,10 +137,10 @@ test('an awake toad blocks quiet actions and shortcuts cannot act through anothe
   for (const id of ['dig', 'rest', 'stairs', 'corpse', 'sense']) assert.deepEqual(act(g, { type: 'ability', id }), []);
   assert.deepEqual(openList(g), [TEXT.context.inspect, TEXT.button.waitName, TEXT.menu.back]);
   act(g, { type: 'back' });
+  // the inventory is a page of its own: nothing on the map can be done while it is up
   act(g, { type: 'menu', id: 'inv' });
-  assert.deepEqual(shortcuts(g), []);
+  assert.equal(view(g).event.id, 'inventory');
   assert.deepEqual(act(g, { type: 'ability', id: 'inspect' }), []);
-  assert.equal(view(g).context.id, 'inspect');
   assert.equal(g.turn, turn);
 });
 
@@ -154,7 +154,7 @@ test('inspecting the grass of the toad\'s room tells of the worms, once; then of
     found = true;
     [g.x, g.y] = spot;
     assert.deepEqual(shortcuts(g), ['inspect']);
-    const worms = TEXT.senseToad[TEXT.senseToad.length - 1];
+    const worms = TEXT.toadRoom[TEXT.toadRoom.length - 1];
     act(g, { type: 'ability', id: 'inspect' });
     assert.equal(texts(g).at(-1), worms);
     assert.equal(g.knowsWorms, true);
@@ -168,10 +168,10 @@ test('inspecting the grass of the toad\'s room tells of the worms, once; then of
 test('going about the toad\'s room, its air and ground come by themselves, but never the worms', () => {
   const g = newGame({ seed: 3, edition: 'esoteric' });
   toadRoom(g);
-  const ambient = TEXT.senseToad.slice(0, -1);
+  const ambient = TEXT.toadRoom.slice(0, -1);
   for (let k = 0; k < 400; k++) act(g, { type: 'wait' });
   for (const line of ambient) assert.ok(texts(g).includes(line), line);
-  assert.ok(!texts(g).includes(TEXT.senseToad.at(-1)));
+  assert.ok(!texts(g).includes(TEXT.toadRoom.at(-1)));
   assert.equal(g.knowsWorms, false);
   // one at a time
   const at = (t) => g.log.find((l) => l.text === t).id;
@@ -198,7 +198,7 @@ test('beside a sleeping toad you notice its details, never its plain line, and n
   assert.ok(!g.observed['unit.toad.asleep']);
   g.items.push({ key: 'key', inHand: false });
   act(g, { type: 'menu', id: 'inv' });
-  assert.ok(view(g).inv.items.every((it) => !it.more));
+  assert.deepEqual(view(g).event.options.map((o) => o.label), [TEXT.thing.sword, TEXT.thing.key, TEXT.menu.back]);
 });
 
 test('observing yourself shows your numbers for a while', () => {
@@ -206,7 +206,7 @@ test('observing yourself shows your numbers for a while', () => {
   assert.equal(view(g).stats.str, null);
   act(g, { type: 'observe', x: g.x, y: g.y });
   assert.equal(view(g).stats.str, g.str);
-  for (let k = 0; k < CONFIG.senseSelfTurns; k++) act(g, { type: 'wait' });
+  for (let k = 0; k < CONFIG.selfTurns; k++) act(g, { type: 'wait' });
   assert.equal(view(g).stats.str, null);
 });
 

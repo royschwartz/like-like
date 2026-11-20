@@ -11,9 +11,9 @@ export const TEXT = {
   opening: ['you have been asked to retrieve the amulet of yendor. it is at the bottom of this dungeon, probably'],
   // HIS. The esoteric edition begins on a black screen of its own ("let's start from the
   // beginning / it's just a black screen that says", November 20): two paragraphs and one
-  // choice, which drops you into the first room. Kept as he wrote them, "tunder" included.
+  // choice, which drops you into the first room. "yendor is good", in place of his "tunder".
   openingEsoteric: {
-    lines: ['you have been asked to retrieve the amulet of tunder', 'it’s at the bottom of this dungeon probably'],
+    lines: ['you have been asked to retrieve the amulet of yendor', 'it’s at the bottom of this dungeon probably'],
     jump: 'jump into the hole',
   },
   repeated: (text, count) => `${text} ×${count}`,
@@ -154,10 +154,11 @@ export const TEXT = {
     nothingMore: '[nothing more happens]',
   },
 
-  // HIS. What sense says in the toad's room: one line each time you sense, in this order,
-  // after what it finds about the toad. The last is what tells you about the worms, and only
-  // sensing tells it ("no worms are down there only happen when you sense").
-  senseToad: [
+  // HIS. The toad's room's own lines, in this order: its air and its ground. The last tells
+  // you about the worms. In the esoteric edition there is no sense ("there is no more sense
+  // in the game"): the first three come to you as you go about or wait, as observations, and
+  // the worms only from inspecting the grass. The archived original still senses them.
+  toadRoom: [
     'there is the smell of cinnamon in the air',
     'you have a feeling you have been here before',
     'the ground struggles gently beneath your feet',

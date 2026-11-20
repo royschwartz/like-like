@@ -26,6 +26,7 @@ const MODIFIERS = new Set(['Shift', 'Control', 'Alt', 'Meta', 'CapsLock', 'Fn', 
 export function bindInput(root, dispatch, timing = {}, size = CONFIG.roomSize) {
   const doc = root.ownerDocument || root;
   const held = new Map(); // pointerId -> the pressed button
+  const repeats = new Map(); // pointerId -> the timer of a held button that repeats (wait)
   // The one gesture on the map, while a pointer is down on it:
   // { id, from, x0, y0, timer, held, drag, over, el }. from and over are cells, { x, y };
   // over is the cell last aimed at in a drag (null off the map). held: the hold completed
@@ -89,7 +90,16 @@ export function bindInput(root, dispatch, timing = {}, size = CONFIG.roomSize) {
     release(e.pointerId);
     el.classList.add('down');
     held.set(e.pointerId, el);
-    dispatch(action);
+    // A button marked data-repeat (wait) goes on while it is held: once now, again after
+    // firstMs, then every everyMs, until it is let go or main.js answers false (something
+    // happened).
+    if (dispatch(action) === false || !el.hasAttribute('data-repeat')) return;
+    const again = (ms) => repeats.set(e.pointerId, setTimeout(() => {
+      if (held.get(e.pointerId) !== el) return;
+      if (dispatch(action) === false) return release(e.pointerId);
+      again(CONFIG.holdWait.everyMs);
+    }, ms));
+    again(CONFIG.holdWait.firstMs);
   }
 
   // --- the map gesture ---
@@ -178,6 +188,8 @@ export function bindInput(root, dispatch, timing = {}, size = CONFIG.roomSize) {
   }
 
   function release(id) {
+    clearTimeout(repeats.get(id));
+    repeats.delete(id);
     const el = held.get(id);
     if (!el) return;
     el.classList.remove('down');

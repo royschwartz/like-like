@@ -1,4 +1,5 @@
 import { TEXT } from '../src/text.js';
+import { CONFIG } from '../src/config.js';
 import { symbolMask, stairsDownMask, stairsUpMask } from './symbols.js';
 import { terrainMask, grassMasks } from './terrain.js';
 
@@ -6,17 +7,41 @@ const tiles = {
   floor:     ['--chalk', TEXT.observe.dirt],
   grass:     ['--shoot', TEXT.observe.grass],
   wall:      ['--chalk', TEXT.observe.wall],
-  player:    ['--chalk', TEXT.observe.you],
-  statue:    ['--chalk', TEXT.observe.statue],
+  player:    ['--chalk', TEXT.observe.you], // "player icon is black and white though"
+  statue:    ['--bust', TEXT.observe.statue], // "a cool blue color" (decision 300)
   door:      ['--chalk', TEXT.observe.door],
-  entrance:  ['--stone', TEXT.observe.entrance],
+  entrance:  ['--rope', TEXT.observe.entrance],
   stairs:    ['--sulphur', TEXT.observe.stairs],
   upstairs:  ['--sulphur', TEXT.observe.upstairs],
   golddoor:  ['--sulphur', TEXT.observe.golddoor],
   opendoor:  ['--stone', TEXT.observe.door],
   corpse:    ['--blood-ink', TEXT.observe.corpse],
-  toad:      ['--awake', TEXT.unit.who.toad],
+  toad:      ['--toad', TEXT.unit.who.toad], // "a deep olive green", asleep or awake
 };
+
+// Living things take a new pose every turn, moving or waiting ("make all living entities
+// shift!", decision 299): nudged up to CONFIG.shift.px of the drawing's 36 pixels each way
+// and tilted up to CONFIG.shift.deg, snapped, not smooth. Even turns take a pose from one
+// half of the list and odd turns from the other, so it is never the same two turns running.
+const LIVING = new Set(['player', 'toad']);
+const POSES = (() => {
+  const { px, deg } = CONFIG.shift;
+  const out = [];
+  for (const x of [-px, 0, px]) for (const y of [-px, 0, px]) for (const d of [-deg, 0, deg]) {
+    if (x || y || d) out.push({ x, y, deg: d });
+  }
+  return out; // 26: every pose but the still one
+})();
+function mix(n) {
+  n = Math.imul(n ^ (n >>> 16), 0x45d9f3b);
+  n = Math.imul(n ^ (n >>> 16), 0x45d9f3b);
+  return (n ^ (n >>> 16)) >>> 0;
+}
+export function poseAt(turn, salt) {
+  const half = POSES.length / 2;
+  return POSES[2 * (mix(turn * 977 + salt) % half) + (turn & 1)];
+}
+const SALT = { player: 17, toad: 4099 };
 
 export function paintEsoteric(cell, x, y, env) {
   const bg = 'var(--unknown)';
@@ -25,10 +50,11 @@ export function paintEsoteric(cell, x, y, env) {
   if (cell.t === 'void') return { ch: '', bg, fg: bg };
   const kind = cell.thing?.kind ?? cell.t;
   const [ink, name] = tiles[kind];
-  const color = `var(${kind === 'toad' && cell.thing.asleep ? '--asleep' : ink})`;
+  const color = `var(${ink})`;
   const fg = cell.state === 'remembered' ? `color-mix(in srgb, ${color} 44%, ${bg})` : color;
   const label = name.replace(/[[\]]/g, '');
-  if (kind === 'toad') return { ch: 't', fg, bg, label };
+  const pose = LIVING.has(kind) ? poseAt(env.turn ?? 0, SALT[kind]) : null;
+  if (kind === 'toad') return { ch: 't', fg, bg, label, pose };
   const edge = env.size - 1;
   if (kind === 'door') {
     // An ordinary room exit lies on an edge. An unlocked gold gate is inside.
@@ -53,7 +79,7 @@ export function paintEsoteric(cell, x, y, env) {
   }
   const terrain = kind === 'wall' || kind === 'floor';
   const mask = terrain ? terrainMask(kind, x, y, env.cells, env.size, env.key) : symbolMask(kind);
-  return { ch: '', fg, bg, mask, label };
+  return { ch: '', fg, bg, mask, label, ...(pose ? { pose } : {}) };
 }
 
 // Which way stairs in the wall at (x, y) face: from the open ground beside them toward

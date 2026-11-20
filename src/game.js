@@ -48,7 +48,7 @@ function makeState(seed, look, nextLogId, outlines = CONFIG.outlines.start, edit
     inspected: {}, // the items you have inspected, by key: until then one blinks in the inventory
     // noticing without trying has its own chance, so it changes nothing else's luck
     noticeRng: makeRng((seed ^ 0x6e07ce) >>> 0),
-    knowsWorms: false, // the last thing sensed in the toad's room tells you; then * offers digging
+    knowsWorms: false, // the toad's room's last line tells you (inspecting its grass); then digging
     memories: [], //   the memories you have, by id, in the order they came back
     recall: null, //   a memory on its way back: { id, turn }, or null
     heardSounds: false, // the bust's sounds were heard on this approach to it
@@ -234,13 +234,14 @@ export function playerDamage(g) {
 // After your action the toad acts, the turn goes up and sight is updated. A
 // discovery gets reported if you survived, before idle notices and memories.
 // `idle`: you may notice things without trying this turn (not while sensing, which is
-// the strong search, and not while resting or digging).
-function endTurn(g, ev, report, idle = true) {
+// the strong search in the archived original, and not while resting or digging).
+// `waiting`: the turn was a wait, in which the esoteric edition notices more.
+function endTurn(g, ev, report, idle = true, waiting = false) {
   const r = toadActs(g, ev);
   g.turn++;
   see(g);
   if (!r.died) report?.();
-  if (idle && !r.died && !g.busy) noticeIdly(g);
+  if (idle && !r.died && !g.busy) noticeIdly(g, waiting);
   recallDue(g, ev);
   return r;
 }
@@ -502,7 +503,7 @@ function runAbility(g, id, ev) {
     case 'stairs': return descend(g, ev);
     case 'corpse': return openMenu(g, 'corpse');
     case 'sense': return sense(g, ev);
-    case 'wait': return endTurn(g, ev);
+    case 'wait': return wait(g, ev);
     case 'rest': return rest(g, ev);
     case 'dig': return dig(g, ev);
     case 'inspect': return inspectGround(g, ev);
@@ -531,7 +532,7 @@ function hearSounds(g) {
   }
   if (g.heardSounds || !besideStatue(g) || !g.items.some((it) => holdsMemory(g, it))) return;
   g.heardSounds = true;
-  say(g, TEXT.log.sounds, 'sense');
+  say(g, TEXT.log.sounds, g.edition === 'esoteric' ? 'observe' : 'sense');
 }
 
 // Noise: a sleeping animal in the room may wake. Anything noisy calls this.
@@ -613,8 +614,8 @@ function ascend(g, ev) {
 // its last tells of the worms.
 function roomLines(g) {
   if (g.room !== g.level.toadRoom) return [];
-  const last = TEXT.senseToad.length - 1;
-  return TEXT.senseToad.map((text, k) => ({ id: `toad.${k}`, text, worms: k === last }));
+  const last = TEXT.toadRoom.length - 1;
+  return TEXT.toadRoom.map((text, k) => ({ id: `toad.${k}`, text, worms: k === last }));
 }
 
 // Within CONFIG.observeClose steps of you (eight ways).
@@ -709,8 +710,8 @@ export function noticeChance(steps) {
   return near * Math.max(0, 1 - (steps - 1) / reach);
 }
 
-function noticeIdly(g) {
-  if (g.edition === 'esoteric') return noticeEsoteric(g);
+function noticeIdly(g, waiting) {
+  if (g.edition === 'esoteric') return noticeEsoteric(g, waiting);
   const room = currentRoom(g);
   const { idx } = terrainGrid(room.t);
   const vis = fov(room.t, g.x, g.y);
@@ -727,26 +728,37 @@ function noticeIdly(g) {
   }
 }
 
-// The esoteric edition, without sense (decision 244): as you go about, now and then the
-// air or the ground comes to you, a line of the room's own, never the worms, which only
-// inspecting the grass tells; or you notice a detail of something in sight, as if you had
-// observed it: the nearer, the likelier. One at a time, and never over something else said.
-function noticeEsoteric(g) {
+// The esoteric edition has no sense ("there is no more sense in the game", decisions 244,
+// 297). As you go about, or wait, now and then the air or the ground comes to you as an
+// observation, a line of the room's own, never the worms, which only inspecting the grass
+// tells; or you notice a detail of something in sight, as if you had observed it: the
+// nearer, the likelier. Waiting, both are likelier. One at a time, never over anything said.
+function noticeEsoteric(g, waiting = false) {
   if (g.said > 0) return;
   const room = currentRoom(g);
-  const { detail, reach, ambient } = CONFIG.notice.esoteric;
+  const { detail, reach, ambient, waiting: more } = CONFIG.notice.esoteric;
+  const k = waiting ? more : 1;
   const t = room.toad;
   if (t && los(room.t, g.x, g.y, t.x, t.y)) {
     const steps = chebyshev(t.x, t.y, g.x, g.y);
-    const o = unitCycle(g, room, 'toad').find((it, k) => k > 0 && !g.observed[it.id]);
-    const p = detail * Math.max(0, 1 - (steps - 1) / reach);
+    const o = unitCycle(g, room, 'toad').find((it, n) => n > 0 && !g.observed[it.id]);
+    const p = Math.min(1, k * detail * Math.max(0, 1 - (steps - 1) / reach));
     if (o && chance(g.noticeRng, p) && sayObserved(g, 'toad', o)) return;
   }
-  const line = roomLines(g).find((l) => !g.sensed[l.id] && !l.worms);
-  if (line && chance(g.noticeRng, ambient) && canSay(g, line.text)) {
-    say(g, line.text, 'sense');
-    g.sensed[line.id] = true;
+  const line = roomLines(g).find((l) => !g.observed[l.id] && !l.worms);
+  if (line && chance(g.noticeRng, Math.min(1, k * ambient)) && canSay(g, line.text)) {
+    say(g, line.text, 'observe');
+    g.observed[line.id] = true;
   }
+}
+
+// Waiting a turn. In the esoteric edition you notice more (noticeEsoteric), and a memory on
+// its way back may come now instead of later ("if you wait you may also make more
+// observations or gain new memories", decision 297).
+function wait(g, ev) {
+  if (g.edition !== 'esoteric') return endTurn(g, ev);
+  if (g.recall && g.recall.turn > g.turn + 1 && chance(g.noticeRng, CONFIG.memoryWait)) g.recall.turn = g.turn + 1;
+  return endTurn(g, ev, undefined, true, true);
 }
 
 // Inspecting the grass you stand in: in the toad's room, what is under it (the worms,
@@ -754,11 +766,11 @@ function noticeEsoteric(g) {
 function inspectGround(g, ev) {
   ev.push({ type: 'inspect', x: g.x, y: g.y });
   endTurn(g, ev, () => {
-    const find = roomLines(g).find((l) => l.worms && !g.sensed[l.id]);
+    const find = roomLines(g).find((l) => l.worms && !g.observed[l.id]);
     if (find) {
       if (!canSay(g, find.text)) return;
-      say(g, find.text, 'sense');
-      g.sensed[find.id] = true;
+      say(g, find.text, 'observe');
+      g.observed[find.id] = true;
       g.knowsWorms = true;
       return;
     }
@@ -794,7 +806,7 @@ function sense(g, ev) {
         if (find.worms) g.knowsWorms = true;
       }
     }
-    g.selfUntil = g.turn + CONFIG.senseSelfTurns;
+    g.selfUntil = g.turn + CONFIG.selfTurns;
     g.sensedTurn = g.turn;
     g.sensedRoom = here;
   }, false);
@@ -1048,6 +1060,11 @@ const MEMORY_OF = { worms: 'worms' };
 function inspect(g) {
   const it = g.items[g.inv.cursor];
   say(g, TEXT.slot[it.key], 'observe');
+  inspected(g, it);
+}
+
+// Inspecting an item: it has been, and an item holding a memory starts it on its way back.
+function inspected(g, it) {
   g.inspected[it.key] = true;
   const m = MEMORY_OF[it.key];
   if (m && !g.memories.includes(m) && !g.recall) g.recall = { id: m, turn: g.turn + CONFIG.memoryDelay };
@@ -1058,11 +1075,42 @@ const HOLDABLE = new Set(['sword']);
 
 // Use the selected item. The sword: in hand, or put away. Nothing else has a use yet.
 function use(g) {
-  const it = g.items[g.inv.cursor];
-  if (!HOLDABLE.has(it.key)) return;
+  useItem(g, g.items[g.inv.cursor]);
+}
+
+// What using it said, or null if it has no use.
+function useItem(g, it) {
+  if (!it || !HOLDABLE.has(it.key)) return null;
   it.inHand = !it.inHand;
   const name = TEXT.thing[it.key];
-  say(g, it.inHand ? TEXT.log.inHand(name) : TEXT.log.putAway(name), 'plain');
+  const line = it.inHand ? TEXT.log.inHand(name) : TEXT.log.putAway(name);
+  say(g, line, 'plain');
+  return line;
+}
+
+// How an item is, beside it: in hand, enchanted, or nothing.
+const itemState = (it) => [it.inHand ? TEXT.menu.inHand : '', it.enchanted ? TEXT.menu.enchanted : ''].filter(Boolean).join(' ');
+
+// The esoteric inventory is a page of its own, as the psyche, the abilities and take items
+// are (decision 297): what you carry as links, and back. Each item opens its own page.
+function openInventory(g, ev, cursor = 0) {
+  const passages = [[prose(TEXT.button.inventory)]];
+  if (g.items.length === 0) passages.push([prose(TEXT.menu.nothing)]);
+  openEvent(g, { id: 'inventory', passages }, ev);
+  g.event.cursor = cursor;
+}
+
+// An item's page: its name, what it is (what inspecting it said), how it is, then use if it
+// has one, and back to the inventory. Opening it is inspecting it. `said`: what using it said.
+function itemPassages(it, said) {
+  const state = itemState(it);
+  return [[prose(TEXT.thing[it.key])], [prose(TEXT.slot[it.key])], ...(state ? [[prose(state)]] : []), ...(said ? [[prose(said)]] : [])];
+}
+
+function openItem(g, i, ev) {
+  const it = g.items[i];
+  openEvent(g, { id: 'item', item: i, passages: itemPassages(it) }, ev);
+  inspected(g, it);
 }
 
 // ---- observe -------------------------------------------------------------
@@ -1171,7 +1219,7 @@ function observe(g, x, y, ev) {
   endTurn(g, ev, () => {
     if (!sayObserved(g, key, o)) return;
     // In the esoteric edition, with no sense, looking at yourself lets you see your numbers.
-    if (key === 'you' && g.edition === 'esoteric') g.selfUntil = g.turn + CONFIG.senseSelfTurns;
+    if (key === 'you' && g.edition === 'esoteric') g.selfUntil = g.turn + CONFIG.selfTurns;
   });
 }
 
@@ -1294,6 +1342,10 @@ function eventOptions(g) {
   if (e.id === 'loot') {
     (corpseHere(g)?.items ?? []).forEach((it, i) => list.push({ label: TEXT.thing[it.key], kind: 'item', run: 'take', arg: i }));
   }
+  if (e.id === 'inventory') {
+    g.items.forEach((it, i) => list.push({ label: TEXT.thing[it.key], kind: 'item', run: 'item', arg: i }));
+  }
+  if (e.id === 'item' && HOLDABLE.has(g.items[e.item]?.key)) list.push({ label: TEXT.button.use, kind: 'action', run: 'use' });
   if (!e.over && e.id === 'bust') {
     // The bust's opening: what you carry, by name.
     g.items.forEach((it, i) => list.push({ label: TEXT.thing[it.key], kind: 'item', run: 'give', arg: i }));
@@ -1329,7 +1381,8 @@ function eventChoose(g, i, ev) {
       runAbility(g, o.arg, ev);
       break;
     case 'back':
-      g.event = e.memoryList ?? null;
+      // a memory read from the list goes back to the list; an item, to the inventory
+      g.event = e.memoryList ?? e.inventory ?? null;
       if (g.event) ev.push({ type: 'event', id: g.event.id });
       if (e.returnScreen) {
         g.inv = e.returnScreen.inv;
@@ -1340,6 +1393,17 @@ function eventChoose(g, i, ev) {
       takeFromCorpse(g, o.arg);
       lootPassages(g, e);
       e.cursor = Math.min(e.cursor, eventOptions(g).length - 1);
+      break;
+    }
+    case 'item':
+      e.cursor = i;
+      openItem(g, o.arg, ev);
+      g.event.inventory = e;
+      break;
+    case 'use': {
+      const it = g.items[e.item];
+      e.passages = itemPassages(it, useItem(g, it));
+      e.now = e.passages.length - 1;
       break;
     }
     case 'readMemory':
@@ -1678,6 +1742,10 @@ export function act(g, a) {
         openMemories(g, ev);
         break;
       }
+      if (g.edition === 'esoteric' && a.id === 'inv') {
+        openInventory(g, ev);
+        break;
+      }
       if (!SQUARE_MENUS.includes(a.id)) return [];
       if (g.edition === 'esoteric' && a.id === 'act') {
         if (!g.inv && !g.menu) openEvent(g, { id: 'abilities', passages: [[prose(TEXT.button.abilities)]] }, ev);
@@ -1694,7 +1762,7 @@ export function act(g, a) {
       else if (g.menu) back(g);
       break;
     case 'wait':
-      if (!g.menu && !g.inv) endTurn(g, ev);
+      if (!g.menu && !g.inv) wait(g, ev);
       break;
     case 'use':
       if (g.inv) use(g);

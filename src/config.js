@@ -72,8 +72,9 @@ export const CONFIG = {
   // 0 is none, then `levels` steps of grey up to white. A new game starts at `start`.
   outlines: { levels: 8, start: 0 },
 
-  // After SENSE, your own numbers stay readable for this many turns.
-  senseSelfTurns: 30,
+  // After observing yourself (or, in the archived original, sensing), your own numbers stay
+  // readable for this many turns.
+  selfTurns: 30,
 
   // Noticing without trying, each turn, as Brogue searches without being asked.
   // near: the chance of noticing a unit in sight beside you; it falls away to nothing
@@ -81,5 +82,14 @@ export const CONFIG = {
   // esoteric (decision 246): a detail of something in sight, at most `detail` a turn beside it,
   // none `reach` steps on; a line of the room's air or ground, `ambient` a turn. Provisional.
   eatHeals: 1, // esoteric: eating a corpse, once, gives back this much hp (provisional)
-  notice: { near: 0.5, reach: 8, secret: 0.04, esoteric: { detail: 0.3, reach: 5, ambient: 0.2 } },
+  // esoteric.waiting: how much likelier noticing is on a turn you wait (decision 297).
+  notice: { near: 0.5, reach: 8, secret: 0.04, esoteric: { detail: 0.3, reach: 5, ambient: 0.2, waiting: 1.5 } },
+  // Esoteric: the chance, each turn you wait, that a memory on its way back comes now.
+  memoryWait: 0.25,
+  // Esoteric: holding wait waits once, then again after firstMs, then every everyMs, until
+  // you let go or something happens.
+  holdWait: { firstMs: 400, everyMs: 220 },
+  // Esoteric: living things take a new pose each turn, nudged up to this many of the
+  // drawing's 36 pixels each way and tilted up to this many degrees (decision 299).
+  shift: { px: 1, deg: 5 },
 };

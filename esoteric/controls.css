@@ -258,40 +258,6 @@
 }
 #event:has(#btn-event-sys.open) #event-links { margin-top: 0; }
 
-/* The inventory is the same: its rows from the top, one to a map row, and inspect, use
-   and back as links in the middle of the space under the last of them. The buttons that
-   did those at the bottom are gone while it is up; the menu's dots stay. */
-#inv {
-  --ev-side: calc(var(--u) * 5);
-  --ev-size: var(--text-size);
-  --ev-link: var(--inv-ink);
-  --ev-link-quiet: var(--inv-ink);
-  --ev-bg: var(--inv-bg);
-  display: flex;
-  flex-direction: column;
-}
-#inv-title {
-  flex: none;
-  height: calc(var(--board-side) / 11);
-}
-#inv-rows {
-  flex: 0 1 auto;
-  min-height: 0;
-  overflow-y: auto;
-  grid-template-rows: none;
-  grid-auto-rows: calc(var(--board-side) / 11);
-}
-#inv-links {
-  flex: none;
-  display: flex;
-  flex-direction: column;
-  margin-block: auto;
-  padding-block: calc(var(--u) * 5);
-}
-#screen[data-screen="inv"] #btn-context,
-#screen[data-screen="inv"] #btn-use,
-#screen[data-screen="inv"] #btn-inv { display: none; }
-
 /* A menu's options are marked too. The menu's ring round the keys' option shows only
    while the keys are in use. */
 #controls[data-menu] #options .opt:not(.empty)::before {

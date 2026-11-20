@@ -169,8 +169,8 @@ test('sense: your numbers for a while, the whole room, and one line each time', 
   assert.deepEqual([v.stats.str, v.stats.love, v.stats.will], [CONFIG.player.str, CONFIG.player.love, CONFIG.player.will]);
   assert.deepEqual(v.log.filter((l) => l.id >= from).map((l) => l.text), [TEXT.log.senseNothing]);
   assert.ok(v.cells.every((c) => c.state !== 'unknown'), 'whole room seen');
-  // Numbers last CONFIG.senseSelfTurns turns from the sense.
-  for (let k = 0; k < CONFIG.senseSelfTurns; k++) {
+  // Numbers last CONFIG.selfTurns turns from the sense.
+  for (let k = 0; k < CONFIG.selfTurns; k++) {
     assert.equal(view(g).stats.str, CONFIG.player.str, `turn ${k}`);
     act(g, { type: 'wait' });
   }
@@ -182,7 +182,7 @@ test('sense: your numbers for a while, the whole room, and one line each time', 
   g.room = g.level.toadRoom;
   currentRoom(g).toad = null;
   [g.x, g.y] = findSpot(g, (x, y, r) => plainFloor(r, x, y));
-  const lines = TEXT.senseToad;
+  const lines = TEXT.toadRoom;
   for (let k = 0; k < lines.length; k++) {
     assert.equal(view(g).context.more, false, `the wide button never blinks (press ${k + 1})`);
     assert.equal(g.knowsWorms, false);
