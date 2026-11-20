@@ -444,9 +444,15 @@ export function makeLevel(rng, depth, edition, up = null) {
   if (drawn) {
     // The esoteric stairs are always in the wall (decision 251).
     const from = rooms.length === 1 ? [ex, ey] : arrivalCells(room)[0];
-    let spots = edgeStairSpots(room, from);
-    if (rooms.length === 1) spots = spots.filter((s) => s.steps >= CONFIG.stairsAway);
-    if (spots.length === 0) return makeLevel(rng, depth, edition, up); // very unlikely; try again
+    const find = () => edgeStairSpots(room, from).filter((s) => rooms.length > 1 || s.steps >= CONFIG.stairsAway);
+    let spots = find();
+    // a room whose shape doesn't reach the edge of the map is shaped again (never the first,
+    // which has the stairs up), and at last made whole
+    for (let tries = 0; spots.length === 0 && room.id !== 0 && tries < 40; tries++) {
+      room.t = makeRoom(rng, room.nb, grid, tries < 30);
+      spots = find();
+    }
+    if (spots.length === 0) return makeLevel(rng, depth, edition, up); // try again
     const { x: sx, y: sy, side } = pick(rng, spots);
     room.t[idx(sx, sy)] = 'stairs';
     level.stairs = { room: room.id, x: sx, y: sy, side };
@@ -571,8 +577,8 @@ function placeUpstairs(rng, room, grid, up) {
   return [ix, iy, room.t[idx(ix, iy)] === 'grass' ? 'grass' : 'dirt'];
 }
 
-// Where stairs may go in a room's wall: [{ x, y, side, steps }]. A wall cell with open
-// ground on one side (`side` is the way from there into the stairs) and nothing beyond it,
+// Where stairs may go in a room's wall: [{ x, y, side, steps }]. A wall cell at the edge of
+// the map with open ground inside it (`side` is the way from there into the stairs),
 // walls either side of it, not where a gap to the next room is or could be, nor beside one,
 // and not beside where you come in. `steps`: from `from` to them.
 function edgeStairSpots(room, from) {
@@ -588,7 +594,9 @@ function edgeStairSpots(room, from) {
   for (let y = 0; y < size; y++) {
     for (let x = 0; x < size; x++) {
       if (t[idx(x, y)] !== 'wall' || gapSpots.some((g) => same(g, [x, y]))) continue;
-      for (const side of DIRS) {
+      // only at the edge of the map, facing out of it, so you know which way they go
+      // (decision 260)
+      for (const side of DIRS.filter((d) => d === ringSide(x, y, size))) {
         const [dx, dy] = STEP[side];
         const [ix, iy] = [x - dx, y - dy];
         const [bx, by] = [x + dx, y + dy];

@@ -125,7 +125,7 @@ function goDown(g) {
   return act(g, { type: 'move', dir: side });
 }
 
-test('the esoteric stairs are always in a wall, facing out from open ground, and walked into', () => {
+test('the esoteric stairs are always at the edge of the map, facing out of it, and walked into', () => {
   for (let seed = 1; seed <= 25; seed++) {
     const g = newGame({ edition: 'esoteric', seed });
     for (let floor = 1; floor <= 4; floor++) {
@@ -136,7 +136,7 @@ test('the esoteric stairs are always in a wall, facing out from open ground, and
       const [dx, dy] = STEPS[side];
       assert.equal(at(x, y), 'stairs');
       assert.ok(OPEN.includes(at(x - dx, y - dy)), `seed ${seed} floor ${floor}: open ground inside`);
-      assert.ok([null, 'void', 'wall'].includes(at(x + dx, y + dy)), 'nothing open beyond');
+      assert.equal(at(x + dx, y + dy), null, 'at the edge of the map, facing out of it');
       for (const [px, py] of dx ? [[0, 1], [0, -1]] : [[1, 0], [-1, 0]]) assert.equal(at(x + px, y + py), 'wall', 'walls either side');
       if (floor === 2) assert.equal(levelDistances(g.level, g.level.entrance, { locked: true })[room][y * size + x], -1);
       assert.ok(levelDistances(g.level)[room][y * size + x] > 0);
@@ -168,6 +168,8 @@ test('going down, you arrive just inside stairs up where the stairs down were; u
       }
       const up = here.indexOf('upstairs');
       assert.ok(up >= 0);
+      const [upx, upy] = [up % size, Math.floor(up / size)];
+      assert.ok(upx === 0 || upy === 0 || upx === size - 1 || upy === size - 1, 'stairs up at the edge of the map');
       // every open cell of the floor can be reached
       const dist = levelDistances(g.level);
       g.level.rooms.forEach((r, k) => r.t.forEach((c, i) => {
