@@ -1,7 +1,6 @@
 import { TEXT } from '../src/text.js';
 import { symbolMask, stairsDownMask, stairsUpMask, itemMask } from './symbols.js';
 import { terrainMask, grassMasks } from './terrain.js';
-import { livingMask } from './living.js';
 
 const tiles = {
   floor:     ['--chalk', TEXT.observe.dirt],
@@ -19,9 +18,6 @@ const tiles = {
   toad:      ['--toad', TEXT.unit.who.toad], // "a deep olive green", asleep or awake
 };
 
-// Living things move in parts, each turn, and stay square in their cells (decisions 301,
-// 309): living.js draws them.
-const LIVING = new Set(['player', 'toad']);
 // Items on the floor: the sword steel, the golden key gold, the worms pink.
 const ITEM_INK = { sword: '--steel', key: '--sulphur', worms: '--worm' };
 
@@ -42,8 +38,8 @@ export function paintEsoteric(cell, x, y, env) {
   const color = `var(${ink})`;
   const fg = cell.state === 'remembered' ? `color-mix(in srgb, ${color} 44%, ${bg})` : color;
   const label = name.replace(/[[\]]/g, '');
-  // The toad is his lowercase t, drawn in its pixels so its parts can move (309).
-  if (LIVING.has(kind)) return { ch: '', fg, bg, label, mask: livingMask(kind, env.turn ?? 0) };
+  // The toad is the font's lowercase t. Living things hold still (decision 312).
+  if (kind === 'toad') return { ch: 't', fg, bg, label };
   const edge = env.size - 1;
   if (kind === 'door') {
     // An ordinary room exit lies on an edge. An unlocked gold gate is inside.

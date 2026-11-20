@@ -1,9 +1,38 @@
 import { stamp, inkMask } from './ink.js';
 
 // Object stamps on a 36-pixel square. Dots leave the ground showing through.
-// The portrait and the cut stair treads follow marks in his room drawing. The living (his
-// spiral, the toad) are drawn in living.js.
+// The player is his spiral; the portrait and the cut stair treads follow marks in his room drawing.
 const stamps = {
+  // His spiral, drawn by hand (decision 301), traced as it is on the grid, wobbles and
+  // the small marks inside it kept. White on the dark, his black on white inverted.
+  player: `
+..........##..............
+........#########.........
+......#############.......
+.....################.#...
+....#####.......######....
+...####...........#####...
+..####..............###...
+..###....#######.....###..
+.###.....##########..###..
+.###....##......####..##..
+###....##........###..###.
+###...###........###..###.
+###...###..#.....###..####
+###...###..#.##..###..####
+###...###..#.#...###..####
+.##....###.......##...###.
+.###....##......###...###.
+..##.....##########...###.
+..###.....######.##.####..
+..####...........######...
+...####........#######....
+....####...........##.....
+.....####.................
+......###########.........
+.........########.........
+...........#####..........`,
+
   statue: `
 ....###########......
 .####.........##..#..
@@ -148,15 +177,22 @@ const items = {
 #....###....##.`,
 };
 
-function stampUrl(rows) {
+// The spiral is drawn at two thirds of the size it was traced at (decision 310): about 17
+// of the square's 36 pixels across instead of 26, every pixel of the tracing kept, each
+// two thirds as large.
+const SCALES = { player: 2 / 3 };
+
+// A stamp centred in the square, its pixels `k` of the square's each.
+function stampUrl(rows, k = 1) {
   const lines = rows.trim().split('\n');
-  const left = Math.floor((36 - Math.max(...lines.map((line) => line.length))) / 2);
-  const top = Math.floor((36 - lines.length) / 2);
-  const path = stamp(left, top, rows.trim());
+  const width = Math.max(...lines.map((line) => line.length));
+  const left = k === 1 ? Math.floor((36 - width) / 2) : 18 - width * k / 2;
+  const top = k === 1 ? Math.floor((36 - lines.length) / 2) : 18 - lines.length * k / 2;
+  const path = stamp(left, top, rows.trim(), k);
   return inkMask(36, path);
 }
 
-const masks = Object.fromEntries(Object.entries(stamps).map(([kind, rows]) => [kind, stampUrl(rows)]));
+const masks = Object.fromEntries(Object.entries(stamps).map(([kind, rows]) => [kind, stampUrl(rows, SCALES[kind])]));
 const itemMasks = Object.fromEntries(Object.entries(items).map(([key, rows]) => [key, stampUrl(rows)]));
 
 // An item on the floor, by its key.

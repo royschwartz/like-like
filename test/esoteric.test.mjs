@@ -1,56 +1,35 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { paintEsoteric } from '../esoteric/edition.js';
-import { poseAt, drawingOf } from '../esoteric/living.js';
-import { CONFIG } from '../src/config.js';
 import { newGame, act, view } from '../src/game.js';
 import { levelDistances } from '../src/gen.js';
 
 const visible = (t, thing = null) => ({ t, thing, state: 'visible' });
 const env = () => ({ size: 3, key: 17, cells: Array.from({ length: 9 }, () => visible('floor')) });
 
-test('each drawn object has its own mark, the toad and the player included', () => {
+test('each drawn object has its own mark and the living toad is the font letter', () => {
   const room = env();
   const tiles = ['stairs', 'entrance', 'statue', 'golddoor'].map(t => visible(t));
-  tiles.push(visible('floor', { kind: 'player' }), visible('grass', { kind: 'corpse' }), visible('grass', { kind: 'toad' }));
+  tiles.push(visible('floor', { kind: 'player' }), visible('grass', { kind: 'corpse' }));
   const masks = tiles.map(cell => paintEsoteric(cell, 1, 1, room).mask);
   assert.ok(masks.every(mask => mask.startsWith('url(')));
   assert.equal(new Set(masks).size, masks.length);
   for (const asleep of [false, true]) {
     const toad = paintEsoteric(visible('grass', { kind: 'toad', asleep }), 1, 1, room);
-    assert.equal(toad.ch, '');
-    assert.equal(toad.pose, undefined, 'never nudged or tilted as a whole');
+    assert.equal(toad.ch, 't');
+    assert.equal(toad.mask, undefined);
   }
 });
 
-test('living things move in parts and stay square in their cells', () => {
-  const ink = (rows) => rows.split('\n').flatMap((row, y) => [...row].map((c, x) => (c === '#' ? `${x},${y}` : null))).filter(Boolean);
-  for (const kind of ['toad', 'player']) {
-    const masks = [];
-    for (let turn = 0; turn < 60; turn++) {
-      const room = { ...env(), turn };
-      masks.push(paintEsoteric(visible('floor', { kind }), 1, 1, room).mask);
-      const pose = poseAt(kind, turn);
-      if (turn) assert.notEqual(masks[turn], masks[turn - 1], `${kind} moves every turn`);
-      assert.notDeepEqual(pose, poseAt(kind, turn + 1));
+test('living things hold still from turn to turn', () => {
+  for (const kind of ['player', 'toad']) {
+    const drawn = new Set();
+    for (let turn = 0; turn < 20; turn++) {
+      const paint = paintEsoteric(visible('floor', { kind }), 1, 1, { ...env(), turn });
+      assert.equal(paint.pose, undefined);
+      drawn.add(`${paint.ch} ${paint.mask}`);
     }
-    assert.ok(new Set(masks).size > 10, `${kind} has many poses`);
-  }
-  // The toad at rest is the font's t, pixel for pixel; whatever its pose, its stem stays put.
-  const t = ['...##..', '..###..', '...##.#', '#######', '.#.##..', '...#...', '..##...', '..##...', '..##.#.', '...###.'];
-  const pad = '.'.repeat(CONFIG.shift.reach);
-  assert.equal(drawingOf('toad', { lean: 0, left: 0, right: 0, tail: 0 }), t.map(row => pad + row + pad).join('\n'));
-  const stem = ['3,3', '4,3', '5,4', '4,6', '5,6', '4,7', '5,7', '4,8', '5,8', '5,9'].map(p => p.replace(/^\d+/, x => +x + CONFIG.shift.reach - 2));
-  for (let turn = 0; turn < 60; turn++) {
-    const drawn = new Set(ink(drawingOf('toad', poseAt('toad', turn))));
-    for (const p of stem) assert.ok(drawn.has(p), `the stem at ${p} on turn ${turn}`);
-  }
-  // The spiral keeps its body: only its tail, its middle marks and its top flick move.
-  const rest = ink(drawingOf('player', { lean: 0, middle: 0, tail: 0 }));
-  for (let turn = 0; turn < 60; turn++) {
-    const drawn = new Set(ink(drawingOf('player', poseAt('player', turn))));
-    const body = rest.filter(p => { const [x, y] = p.split(',').map(Number); return y > 0 && y < 21 && !(x >= 10 && x <= 15 && y >= 11 && y <= 15); });
-    for (const p of body) assert.ok(drawn.has(p), `the spiral's body at ${p} on turn ${turn}`);
+    assert.equal(drawn.size, 1, `${kind} is drawn the same every turn`);
   }
 });
 
