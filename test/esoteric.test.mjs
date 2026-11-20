@@ -38,7 +38,7 @@ test('open doors are bare gaps and the locked gate keeps its gold mark', () => {
   assert.equal(player.mask, paintEsoteric(visible('floor', { kind: 'player' }), 1, 1, room).mask);
 });
 
-test('only known room exits extend their touch target through the frame', () => {
+test('only known room exits have a compass direction', () => {
   const room = env();
   for (const [x, y, side] of [[1, 0, 'north'], [2, 1, 'east'], [1, 2, 'south'], [0, 1, 'west']]) {
     for (const state of ['visible', 'remembered']) {

@@ -1,12 +1,20 @@
 #screen {
-  --text-units: 5.4;
+  --text-units: 4.9;
   --text-size: calc(var(--u) * var(--text-units));
   --reading-ink: color-mix(in srgb, white var(--text-brightness, 100%), black);
   --reading-paper-ink: color-mix(in srgb, #17150f var(--text-brightness, 100%), #878477);
 }
 
 .line {
-  line-height: 1.25;
+  line-height: 1.12;
+  padding-top: .72em;
+}
+/* Newer entries sit below their predecessors. The gap belongs above them. */
+.line.same-action {
+  padding-top: .24em;
+}
+.line:last-child {
+  padding-top: 0;
 }
 /* The log puts the newest entry first, even when one turn reports two things. */
 #log-lines > .line:first-child {
@@ -18,11 +26,12 @@
 }
 
 #inv-title,
-.row .state {
-  font-size: calc(var(--u) * 4.85);
+.row .state,
+.brightness {
+  font-size: calc(var(--text-size) * .9);
 }
 .row {
-  font-size: calc(var(--u) * 5.7);
+  font-size: calc(var(--text-size) * 1.05);
 }
 .row.cursor .state {
   color: inherit;
@@ -36,10 +45,10 @@
   left: calc(var(--u) * 1.7);
 }
 
-/* The toad is the only letter drawn on the map. Its ink stands about
-   four fifths of an em high, leaving space around it within its square. */
+/* The toad's lowercase t follows the smaller of the room and the type slab.
+   Widening a short phone's room still leaves space around the letter. */
 .map {
-  font-size: calc(var(--u) * 94 / var(--room-size, 9));
+  font-size: calc(min(var(--board-side), var(--w)) * .78 / var(--room-size, 9));
 }
 
 /* The slab and event screens are dark in both looks. Inverse selections use
@@ -87,7 +96,6 @@
   align-items: center;
   gap: calc(var(--u) * 2.5);
   color: var(--reading-ink);
-  font-size: calc(var(--u) * 4.8);
   white-space: nowrap;
 }
 #controls[data-menu="sys"] .brightness {

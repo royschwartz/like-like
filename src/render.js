@@ -441,7 +441,8 @@ export function createRenderer(root = document, { marks: withMarks = true, cellP
       }
       if (!rec) {
         const el = logLines.ownerDocument.createElement('div');
-        el.textContent = words(line.text);
+        const message = words(line.text);
+        el.textContent = line.count > 1 ? TEXT.repeated(message, line.count) : message;
         if (mapField && line.id >= freshFrom) {
           // Two messages share the action's two lines. A lone message can
           // wrap at the word break nearest its middle. Most fit at full width.
@@ -460,6 +461,7 @@ export function createRenderer(root = document, { marks: withMarks = true, cellP
         rec.kind = line.kind;
       }
       const now = line.id >= freshFrom;
+      if (mapField) rec.el.classList.toggle('same-action', line.actionId != null && line.actionId === lines[i + 1]?.actionId);
       rec.el.classList.toggle('now', now);
       rec.el.classList.toggle('old', !now);
       if (logLines.children[i] !== rec.el) logLines.insertBefore(rec.el, logLines.children[i] || null);

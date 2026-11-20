@@ -715,17 +715,18 @@ body {
 
 /* you are struck: bigger, a frame longer, and the hp number flashes red with it */
 #screen.fx-hurt > * {
+  --hurt-x: calc(var(--u) * 2);
   animation: fx-hurt calc(var(--f) * 4) steps(1, end);
 }
 @keyframes fx-hurt {
   0% {
-    transform: translate(calc(var(--u) * 2), calc(var(--u) * 1));
+    transform: translate(var(--hurt-x), calc(var(--u) * 1));
   }
   25% {
-    transform: translate(calc(var(--u) * -2), calc(var(--u) * -1));
+    transform: translate(calc(-1 * var(--hurt-x)), calc(var(--u) * -1));
   }
   50% {
-    transform: translate(calc(var(--u) * 2), 0);
+    transform: translate(var(--hurt-x), 0);
   }
   75%,
   100% {

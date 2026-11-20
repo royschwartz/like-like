@@ -39,12 +39,16 @@
   --blood-ink: #a23327;
 }
 
-/* Every wall and playable square uses one grid track. The inset keeps the
-   entire perimeter visible even on the strongest hit jolt. */
+/* Nine equal tracks run to the edge. The drawn walls have their own
+   clearance inside the outer tiles. */
 #map-field {
-  --frame-inset: calc(2 * var(--u));
   position: absolute;
-  inset: var(--frame-inset);
+  inset: 0;
+}
+/* The outermost wall ink has five brush pixels of clearance. Keep the
+   larger incoming hit inside four of those pixels, even after rounding. */
+#screen.fx-hurt > #map-wrap {
+  --hurt-x: min(calc(2 * var(--u)), calc(var(--board-side) / 72));
 }
 
 .map {
@@ -53,18 +57,6 @@
 .map .c {
   margin: 0;
 }
-/* The gap reads as open all the way to the edge of the board. Its clear hit
-   area follows it through the margin, within the same row or column. */
-#map .c[data-passage] { overflow: visible; }
-#map .c[data-passage]::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-}
-#map .c[data-passage="north"]::after { top: calc(-1 * var(--frame-inset)); }
-#map .c[data-passage="south"]::after { bottom: calc(-1 * var(--frame-inset)); }
-#map .c[data-passage="west"]::after { left: calc(-1 * var(--frame-inset)); }
-#map .c[data-passage="east"]::after { right: calc(-1 * var(--frame-inset)); }
 /* Only the ink is masked. The hit area and the trail still occupy the whole cell. */
 .map .c[data-drawing]::before,
 .map .c[data-glints]::after {

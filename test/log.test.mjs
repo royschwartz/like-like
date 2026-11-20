@@ -9,6 +9,37 @@ function tough(g) {
   g.hp = g.maxHp = 100000;
 }
 
+test('consecutive matching esoteric arrivals share a row and keep both floor transitions', () => {
+  const g = newGame({ edition: 'esoteric', seed: 7 });
+  const start = view(g).log;
+  assert.notEqual(start[0].actionId, start[1].actionId);
+  act(g, { type: 'move', dir: 's' });
+  const events = act(g, { type: 'ability', id: 'stairs' });
+  assert.equal(events.filter((e) => e.type === 'descend').length, 1);
+  assert.equal(g.depth, 2);
+  const v = view(g);
+  assert.equal(v.log.length, 2);
+  const arrival = v.log[1];
+  assert.equal(arrival.text, TEXT.log.descend.dirt);
+  assert.equal(arrival.count, 2);
+  assert.equal(arrival.id, v.fresh);
+  assert.equal(arrival.actionId, arrival.id);
+  assert.deepEqual(g.log.filter((l) => l.arrival).map((l) => l.text), Array(2).fill(arrival.text));
+  assert.deepEqual(view(g).log, v.log);
+});
+
+test('different arrivals and arrivals separated by another message keep their own rows', () => {
+  for (const [seed, sense, ground] of [[1, false, 'grass'], [7, true, 'dirt']]) {
+    const g = newGame({ edition: 'esoteric', seed });
+    if (sense) act(g, { type: 'context' });
+    act(g, { type: 'move', dir: 's' });
+    act(g, { type: 'context' });
+    const rows = view(g).log.filter((l) => l.arrival);
+    assert.deepEqual(rows.map((l) => l.text), [TEXT.log.descend.dirt, TEXT.log.descend[ground]]);
+    assert.ok(rows.every((l) => l.count === undefined));
+  }
+});
+
 test('a new game: the opening, then the descend line, which is the status; one line on each descend', () => {
   const seen = new Set();
   for (let seed = 1; seed <= 30; seed++) {
@@ -63,6 +94,7 @@ test('a fight: your strike, then the toad answer, in order, with damage numbers'
   attack();
   const texts = saidSince(g, from);
   assert.equal(texts.length, 2);
+  assert.deepEqual(view(g).log.slice(-2).map((l) => l.actionId), [from, from]);
   assert.equal(texts[0], `you strike the toad for ${1000 - toad.hp} damage`);
   assert.ok([`the toad strikes you for ${CONFIG.toad.damage} damage`, TEXT.log.toadMisses].includes(texts[1]), texts[1]);
   assert.equal(view(g).fresh, from);

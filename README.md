@@ -10,7 +10,7 @@ The [esoteric edition](https://royschwartz.github.io/like-like/esoteric/) has ni
 you have been asked to retrieve the amulet of yendor. it is at the bottom of this dungeon, probably
 ```
 
-In the esoteric edition, open the square menu to set text brightness from 40% to 100%. The browser remembers your setting. The newest log message uses the brightest ink and older messages dim. The room sits lower on the screen to leave space for log history. The complete walls fit inside the map even during a hit. A gap leads to the next room. You can tap the gap all the way out to the edge of the board. A gold diamond marks a locked golden door and disappears when the key opens it.
+In the esoteric edition, open the square menu to set text brightness from 40% to 100%. The browser remembers your setting. The newest log message uses the brightest ink and older messages dim. Messages from one action sit close together, with extra space before the next action. Consecutive identical floor arrivals share one row with a count. The square room sits halfway down the screen. Its nine columns fill the game width, with the log above and controls below. The complete walls fit inside the map even during a hit. A gap leads to the next room. You can tap the gap all the way out to the edge of the board. A gold diamond marks a locked golden door and disappears when the key opens it.
 
 Tap the esoteric stat row to see strength, will, love and HP. The next row shows up to two abilities. On stairs you can descend or sense. `*` opens the full list of abilities you can use there, including wait. Below that, the open book lets you reread recovered memories and the satchel opens your inventory. Browsing these pages takes no turn.
 

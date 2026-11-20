@@ -28,7 +28,7 @@ export function paintEsoteric(cell, x, y, env) {
   const label = name.replace(/[[\]]/g, '');
   if (kind === 'toad') return { ch: 't', fg, bg, label };
   if (kind === 'door') {
-    // Only room exits reach through the frame. An unlocked gold gate is inside the room.
+    // An ordinary room exit lies on an edge. An unlocked gold gate is inside.
     const edge = env.size - 1;
     let passage;
     if (x === 0) passage = 'west';

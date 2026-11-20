@@ -121,14 +121,31 @@ function say(g, text, kind) {
   const id = g.nextLogId++;
   if (g.said === 0) g.fresh = id;
   g.said += statusLines(text);
-  g.log.push({ id, turn: g.turn, text, kind: isSlot(text) ? 'slot' : kind });
+  const line = { id, actionId: g.fresh, turn: g.turn, text, kind: isSlot(text) ? 'slot' : kind };
+  g.log.push(line);
+  return line;
 }
 
 // Has the action under way room for another line? For lines that can wait or go unsaid.
 const canSay = (g, text) => g.said + statusLines(text) <= CONFIG.saysAtMost;
 
 function sayDescend(g) {
-  say(g, TEXT.log.descend[g.level.entrance.ground], 'story');
+  const line = say(g, TEXT.log.descend[g.level.entrance.ground], 'story');
+  line.arrival = true;
+}
+
+function logView(g) {
+  const rows = [];
+  for (const line of g.log) {
+    const previous = rows[rows.length - 1];
+    if (g.edition === 'esoteric' && line.arrival && previous?.arrival && line.text === previous.text) {
+      // Both descents happened. Keep their history and show one row with the latest id.
+      rows[rows.length - 1] = { ...line, count: (previous.count ?? 1) + 1 };
+    } else {
+      rows.push({ ...line });
+    }
+  }
+  return rows;
 }
 
 // Remember what is in sight now.
@@ -1580,7 +1597,7 @@ export function view(g) {
     menu,
     inv,
     event,
-    log: g.log.map((l) => ({ ...l })),
+    log: logView(g),
     fresh: g.fresh,
   };
 }

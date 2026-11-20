@@ -9,6 +9,7 @@
 export const TEXT = {
   // HIS. The first line in the log. He asked for the two lines joined with a period.
   opening: ['you have been asked to retrieve the amulet of yendor. it is at the bottom of this dungeon, probably'],
+  repeated: (text, count) => `${text} ×${count}`,
 
   // HIS, from his drawing of the screen.
   stat: { str: 'str', love: 'love', hp: 'hp', will: 'will', unknown: '??' },
