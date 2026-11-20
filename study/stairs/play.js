@@ -211,7 +211,7 @@ function drop() {
 
 function dispatch(action) {
   // study: nothing is pressed while stairs are animating
-  if (fx.playing()) return false;
+  if (fx.playing() || renderer.busy()) return false;
   switch (action.type) {
     case 'aim':
       return aimAt(action.at);

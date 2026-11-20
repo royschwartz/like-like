@@ -263,6 +263,8 @@
    the end of its text, and of any list of things under it, and the bottom of the screen.
    The pages have no menu dots (decision 304). Text too long for the screen scrolls above
    them, as before. */
+#event { --story-beat: 6; } /* frames between paragraphs, then one beat before choices */
+#event[data-streaming] :is(#event-links, #event-items) { visibility: hidden; }
 #event-lines { flex: 0 1 auto; }
 #btn-event-sys { display: none; }
 /* Things listed under the text (items, memories) are not choices: no arrow, at the text's
@@ -347,11 +349,14 @@
    psyche, the abilities, the memories, an item's page, and the corpse's take items, whose
    "corpse" is in the corpse's red. Events are not submenus and have none. */
 #event:is([data-id="inventory"], [data-id="psyche"], [data-id="abilities"], [data-id="memories"],
-  [data-id="item"], [data-id="loot"]) .passage:first-child {
-  text-decoration: underline;
-  text-decoration-thickness: .09em;
-  text-underline-offset: .22em;
-  text-decoration-skip-ink: none;
+  [data-id="item"], [data-id="loot"]) {
+  --story-beat: 0;
+  & .passage:first-child {
+    text-decoration: underline;
+    text-decoration-thickness: .09em;
+    text-underline-offset: .22em;
+    text-decoration-skip-ink: none;
+  }
 }
 #event[data-id="loot"] .passage:first-child {
   color: color-mix(in srgb, #ff7467 var(--text-brightness, 100%), black);

@@ -58,6 +58,7 @@ export function createRenderer(root = document, { marks: withMarks = true, cellP
   let invKey = null; // what the inventory screen last showed
   let eventKey = null; // what the event panel last showed
   let eventDrawn = { sig: null, texts: [] }; // the open event, and the text of each passage drawn
+  let passageTimer = null;
   let linksKey = null;
   let roomKey = null;
   let canBlink = false;
@@ -531,9 +532,31 @@ export function createRenderer(root = document, { marks: withMarks = true, cellP
 
   // --- an event: its own scrollable text and links, with the system menu below ---
 
+  function stopPassages() {
+    clearTimeout(passageTimer);
+    passageTimer = null;
+    eventEl?.removeAttribute('data-streaming');
+  }
+
+  // The first new paragraph is already visible. Reveal the rest, then the choices,
+  // on the same clock. Hidden paragraphs and links reserve their space on the page.
+  function streamPassages(first, beatMs) {
+    eventEl.setAttribute('data-streaming', '');
+    let next = first.nextElementSibling;
+    for (let p = next; p; p = p.nextElementSibling) p.style.visibility = 'hidden';
+    function advance() {
+      if (!next) return stopPassages();
+      next.style.visibility = '';
+      next = next.nextElementSibling;
+      passageTimer = setTimeout(advance, beatMs);
+    }
+    passageTimer = setTimeout(advance, beatMs);
+  }
+
   function drawEvent(event) {
     if (!eventEl) return;
     if (!event) {
+      if (passageTimer !== null) stopPassages();
       eventEl.hidden = true;
       eventKey = null;
       eventDrawn = { sig: null, texts: [] };
@@ -542,8 +565,10 @@ export function createRenderer(root = document, { marks: withMarks = true, cellP
     const lines = Array.isArray(event.lines) ? event.lines.filter(Boolean) : [];
     const key = JSON.stringify([event.id, event.now, lines]);
     if (key === eventKey) return;
+    stopPassages();
     eventKey = key;
     setAttr(eventEl, 'data-id', event.id);
+    const beatMs = frameMs * Number(win.getComputedStyle(eventEl).getPropertyValue('--story-beat'));
     const groups = [];
     for (const l of lines) {
       const n = Number.isInteger(l.passage) && l.passage >= 0 ? l.passage : 0;
@@ -564,7 +589,7 @@ export function createRenderer(root = document, { marks: withMarks = true, cellP
     while (eventLines.firstChild) eventLines.removeChild(eventLines.firstChild);
     groups.forEach((group, n) => {
       const box = doc.createElement('div');
-      box.className = 'passage ' + (n >= event.now ? 'now' : 'old') + (n >= from ? ' enter' : '');
+      box.className = 'passage ' + (n >= event.now ? 'now' : 'old') + (!beatMs && n >= from ? ' enter' : '');
       box.style.setProperty('--k', Math.max(0, n - from));
       let verse = null;
       for (const l of group || []) {
@@ -585,6 +610,7 @@ export function createRenderer(root = document, { marks: withMarks = true, cellP
       }
       eventLines.appendChild(box);
     });
+    if (beatMs > 0 && from < groups.length) streamPassages(eventLines.children[from], beatMs);
     eventDrawn = { sig, texts };
     eventLines.scrollTop = from > 0 ? eventLines.scrollHeight : 0;
   }
@@ -712,8 +738,9 @@ export function createRenderer(root = document, { marks: withMarks = true, cellP
     });
   }
 
-  // busy: the stairs are animating, and presses wait. stairs: for checking it by hand.
-  return { draw, timing, showAim, clearAim, flashAim, showLook, dropLook, busy: () => !!stairs && stairs.playing(), stairs, destroy() {
+  // Ignore presses until the stairs finish or the event choices appear.
+  return { draw, timing, showAim, clearAim, flashAim, showLook, dropLook, busy: () => passageTimer !== null || !!stairs?.playing(), stairs, destroy() {
+    stopPassages();
     if (stairs) stairs.stop();
     clearTimeout(blinkNext);
     if (marks) marks.destroy();
