@@ -5,7 +5,7 @@ import { CONFIG } from './config.js';
 import { terrainGrid } from './grid.js';
 import { TEXT, isSlot } from './text.js';
 import { makeRng, chance, pick, deriveSeed } from './rng.js';
-import { DIRS, STEP, OPP, walkable, makeLevel, arrivalCells, onRing } from './gen.js';
+import { DIRS, STEP, OPP, walkable, makeLevel, arrivalCells } from './gen.js';
 import { fov, frame, los } from './fov.js';
 import { NEIGHBOURS, chebyshev, cutsCorner, isStep, stepsFrom, walkDown } from './path.js';
 
@@ -43,6 +43,7 @@ function makeState(seed, look, nextLogId, outlines = CONFIG.outlines.start, edit
     observed: {}, // the observations you have had, by id (see "observe" below)
     lastObserved: {}, // the id of the last one said, by what was observed: they go round
     sensed: {}, //   the things you have sensed, by id
+    floors: {}, //   esoteric: each floor as you left it, by depth, to go back up and down
     inspected: {}, // the items you have inspected, by key: until then one blinks in the inventory
     // noticing without trying has its own chance, so it changes nothing else's luck
     noticeRng: makeRng((seed ^ 0x6e07ce) >>> 0),
@@ -168,14 +169,14 @@ function see(g) {
 // the bust, arrival cells. The only terrain that changes after a level is made is the
 // golden door opening, and both are blocked, so this is worked out once per room.
 const blockCache = new WeakMap();
-const CREATURE_BLOCKED = new Set(['wall', 'door', 'golddoor', 'opendoor', 'statue', 'upstairs']);
+const CREATURE_BLOCKED = new Set(['wall', 'door', 'golddoor', 'opendoor', 'statue', 'upstairs', 'void']);
 function creatureBlocked(room) {
   const { idx } = terrainGrid(room.t);
   let b = blockCache.get(room);
   if (!b) {
-    const { size } = terrainGrid(room.t);
-    // stairs in the wall (esoteric) are the way down, never somewhere to stand
-    b = room.t.map((c, i) => CREATURE_BLOCKED.has(c) || (c === 'stairs' && onRing(i % size, Math.floor(i / size), size)));
+    // stairs in the wall (esoteric rooms) are the way down, never somewhere to stand
+    const walled = terrainGrid(room.t).size === CONFIG.esotericInteriorSize + 2;
+    b = room.t.map((c) => CREATURE_BLOCKED.has(c) || (walled && c === 'stairs'));
     for (const [x, y] of arrivalCells(room)) b[idx(x, y)] = true;
     blockCache.set(room, b);
   }
@@ -364,14 +365,14 @@ function step(g, dx, dy, ev) {
   const y = g.y + dy;
   if (!isStep(room.t, g.x, g.y, x, y)) return;
   const c = room.t[idx(x, y)];
-  if (c === 'wall' || c === 'upstairs') return; // no turn, nothing (nothing goes up yet)
+  if (c === 'wall' || c === 'void') return; // no turn, nothing
   if (c === 'statue') return openBust(g, ev); // into the bust, never onto it: its event, no turn
   if (c === 'golddoor') return goldDoor(g, room, x, y, ev);
-  if (c === 'stairs' && onRing(x, y, terrainGrid(room.t).size)) {
-    // Stairs in the wall (esoteric, decision 251) are walked into, as a gap is, and you go
-    // down. Only a straight step reaches them, and nothing can be in the way.
+  if ((c === 'stairs' && g.edition === 'esoteric') || c === 'upstairs') {
+    // Stairs in the wall (esoteric, decisions 251, 257) are walked into, as a gap is, and
+    // you go down or back up. Only a straight step reaches them.
     if (dx && dy) return;
-    return descend(g, ev);
+    return c === 'stairs' ? descend(g, ev) : ascend(g, ev);
   }
   const toad = toadAt(room, x, y);
   if (toad) {
@@ -550,12 +551,15 @@ function enchant(g, i, ev) {
 
 function descend(g, ev) {
   const spoke = currentRoom(g).statue?.spoke;
-  // esoteric: the stairs up below are where these stairs down are (decision 253)
-  const up = g.edition === 'esoteric' ? { x: g.level.stairs.x, y: g.level.stairs.y } : null;
+  const esoteric = g.edition === 'esoteric';
+  // esoteric: the stairs up below are where these stairs down are (decision 253), and each
+  // floor is kept as you left it, so you can go back up and down again (decision 257)
+  const { x, y, side } = g.level.stairs;
+  if (esoteric) g.floors[g.depth] = g.level;
   g.depth++;
-  g.level = makeLevel(g.rng, g.depth, g.edition, up);
+  g.level = (esoteric && g.floors[g.depth]) || makeLevel(g.rng, g.depth, g.edition, esoteric ? { x, y, side } : null);
   // In the esoteric edition the same bust is accessible beneath the drawing.
-  if (g.edition === 'esoteric' && g.depth === 2 && spoke) {
+  if (esoteric && g.depth === 2 && spoke) {
     g.level.rooms[g.level.toadRoom].statue.spoke = true;
   }
   const e = g.level.entrance;
@@ -567,6 +571,28 @@ function descend(g, ev) {
   g.going = null;
   sayDescend(g);
   ev.push({ type: 'descend' });
+  g.turn++; // nothing acts this turn
+  see(g);
+  recallDue(g, ev);
+}
+
+// Up the stairs you came down (esoteric): back to the floor above as you left it, just
+// inside its stairs down (decision 257).
+function ascend(g, ev) {
+  const above = g.floors[g.depth - 1];
+  if (!above) return;
+  g.floors[g.depth] = g.level;
+  g.depth--;
+  g.level = above;
+  const s = above.stairs;
+  g.room = s.room;
+  g.x = s.x - STEP[s.side][0];
+  g.y = s.y - STEP[s.side][1];
+  g.menu = null;
+  g.inv = null;
+  g.going = null;
+  say(g, TEXT.log.ascend, 'story');
+  ev.push({ type: 'ascend' });
   g.turn++; // nothing acts this turn
   see(g);
   recallDue(g, ev);
@@ -1082,7 +1108,7 @@ function observe(g, x, y, ev) {
   const { idx } = terrainGrid(room.t);
   const i = idx(x, y);
   const thing = thingAt(g, room, i, vis, shown, sensed);
-  if (thing === undefined) return;
+  if (thing === undefined || (!thing && room.t[i] === 'void')) return;
   const { key, list } = observable(g, room, i, thing);
   const last = list.findIndex((it) => it.id === g.lastObserved[key]);
   const o = list.find((it) => !g.observed[it.id]) ?? list[(last + 1) % list.length];
@@ -1443,7 +1469,7 @@ function chooseSlot(g, i, ev) {
 // you bump rather than step on (the bust, the locked golden door, a toad you can see)
 // it never steps: it stops beside it, and from there a travel to it is the bump.
 
-const PATH_STOPS = new Set(['wall', 'statue', 'golddoor', 'upstairs']);
+const PATH_STOPS = new Set(['wall', 'statue', 'golddoor', 'void']);
 
 // The way to (tx, ty): { bump, path }. bump: (tx, ty) is a bump one legal step away.
 // path: [{ x, y }] from the first step to where it stops; [] if there is no way, or you
@@ -1453,15 +1479,17 @@ function plan(g, tx, ty) {
   const { room, vis, shown, sensed } = sight(g);
   const { size, idx } = terrainGrid(room.t);
   // the room as you know it: what you have never seen is open ground
-  const t = room.t.map((c, i) => (room.seen[i] || shown[i] ? c : 'floor'));
+  // (void, outside an esoteric room's shape, is never seen or drawn, but never walked on)
+  const t = room.t.map((c, i) => (room.seen[i] || shown[i] || c === 'void' ? c : 'floor'));
   const there = idx(tx, ty);
   if (tx === g.x && ty === g.y) return { bump: false, path: [] };
   const drawnToad = (i) => thingAt(g, room, i, vis, shown, sensed)?.kind === 'toad';
-  const pass = (i) => !PATH_STOPS.has(t[i]) && t[i] !== 'door' && !drawnToad(i);
+  // gaps and stairs up are gone to, never through
+  const pass = (i) => !PATH_STOPS.has(t[i]) && t[i] !== 'door' && t[i] !== 'upstairs' && !drawnToad(i);
   const isBump = t[there] === 'statue' || t[there] === 'golddoor' || drawnToad(there);
   if (isBump && isStep(t, g.x, g.y, tx, ty)) return { bump: true, path: [] };
   let goals;
-  if (pass(there) || t[there] === 'door') {
+  if (pass(there) || t[there] === 'door' || t[there] === 'upstairs') {
     goals = [there];
   } else {
     // beside it: one legal step from it for a bump, any of the eight round a wall
@@ -1619,7 +1647,7 @@ export function view(g) {
   const { room, vis, shown, sensed } = sight(g);
   const cells = [];
   for (let i = 0; i < room.t.length; i++) {
-    const state = shown[i] ? 'visible' : room.seen[i] ? 'remembered' : 'unknown';
+    const state = room.t[i] === 'void' ? 'unknown' : shown[i] ? 'visible' : room.seen[i] ? 'remembered' : 'unknown';
     const thing = thingAt(g, room, i, vis, shown, sensed) ?? null;
     // A unit in sight that you have noticed, with something you have not observed, blinks.
     let more = false;

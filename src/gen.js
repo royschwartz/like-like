@@ -15,7 +15,7 @@ export const STEP = { n: [0, -1], e: [1, 0], s: [0, 1], w: [-1, 0] };
 export const OPP = { n: 's', e: 'w', s: 'n', w: 'e' };
 // Nothing walks onto a wall or the bust.
 // Stairs up in the wall (esoteric) are drawn with it, and nothing goes up them yet.
-export const walkable = (t) => t !== 'wall' && t !== 'statue' && t !== 'upstairs';
+export const walkable = (t) => t !== 'wall' && t !== 'statue' && t !== 'upstairs' && t !== 'void';
 
 const isArrivalSpot = (x, y, grid) => DIRS.some((d) => grid.arrivals[d][0] === x && grid.arrivals[d][1] === y);
 
@@ -153,13 +153,98 @@ export function roomConnected(t) {
   return cells.every((i) => dist[i] >= 0);
 }
 
-function makeRoom(rng, nb, grid) {
-  for (;;) {
+// shaped: an esoteric room, cut to a shape of its own (decision 256). keep: stairs up to
+// put in it, { x, y, side }: the cell inside them is kept open and they stay wall.
+function makeRoom(rng, nb, grid, shaped = false, keep = null) {
+  for (let tries = 0; ; tries++) {
     const t = emptyRoom(nb, grid);
-    addObstacles(rng, t);
+    const whole = !shaped || carveShape(rng, t, nb, grid, keep, tries > 40);
+    if (whole) addObstacles(rng, t);
     addGrass(rng, t);
-    if (roomConnected(t)) return t;
+    if (roomConnected(t) && keepsStairs(t, keep, grid)) return t;
   }
+}
+
+// ---- esoteric room shapes (decision 256) -----------------------------------
+// The open ground of a room is a rectangle of its five by five, from the whole of it down
+// to a single row or column, sometimes with corners cut away, and a straight way from each
+// gap to the middle. What isn't open is void, and walls grow round what is open: every
+// cell beside open ground, the eight ways, that isn't a gap.
+
+const SPAN_WEIGHTS = [[5, 5], [4, 2], [3, 2], [2, 1], [1, 1]];
+const CUT_CHANCE = 0.3;
+
+const perpendicular = (side) => (side === 'n' || side === 's' ? [[1, 0], [-1, 0]] : [[0, 1], [0, -1]]);
+
+// The cells the stairs up at keep must keep clear: the stairs and the walls either side.
+function keptClosed(keep) {
+  if (!keep) return [];
+  return [[keep.x, keep.y], ...perpendicular(keep.side).map(([dx, dy]) => [keep.x + dx, keep.y + dy])];
+}
+const keptOpen = (keep) => [keep.x - STEP[keep.side][0], keep.y - STEP[keep.side][1]];
+
+// Cut t to a shape. whole: the full five by five. Returns true if nothing was cut away.
+function carveShape(rng, t, nb, grid, keep, whole) {
+  const { size, mid, idx, arrivals } = grid;
+  const lo = 1;
+  const hi = size - 2;
+  const n = hi - lo + 1;
+  const open = new Set();
+  const add = (x, y) => x >= lo && y >= lo && x <= hi && y <= hi && open.add(idx(x, y));
+  const w = whole ? n : weighted(rng, SPAN_WEIGHTS);
+  const h = whole ? n : weighted(rng, SPAN_WEIGHTS);
+  const x0 = int(rng, Math.max(lo, mid - w + 1), Math.min(mid, hi - w + 1));
+  const y0 = int(rng, Math.max(lo, mid - h + 1), Math.min(mid, hi - h + 1));
+  for (let y = y0; y < y0 + h; y++) for (let x = x0; x < x0 + w; x++) add(x, y);
+  let cut = false;
+  if (!whole && w >= 3 && h >= 3) {
+    for (const [cx, sx] of [[x0, 1], [x0 + w - 1, -1]]) {
+      for (const [cy, sy] of [[y0, 1], [y0 + h - 1, -1]]) {
+        if (!chance(rng, CUT_CHANCE)) continue;
+        const k = w >= 4 && h >= 4 && chance(rng, 0.5) ? 2 : 1;
+        for (let a = 0; a < k; a++) for (let b = 0; b < k; b++) open.delete(idx(cx + sx * a, cy + sy * b));
+        cut = true;
+      }
+    }
+  }
+  // a straight way from each gap to the middle
+  const toMiddle = (x, y) => {
+    for (; x !== mid; x += Math.sign(mid - x)) add(x, y);
+    for (; y !== mid; y += Math.sign(mid - y)) add(x, y);
+    add(x, y);
+  };
+  for (const d of DIRS) if (nb[d] !== null) toMiddle(...arrivals[d]);
+  if (keep) {
+    // a way from the cell inside the stairs to the middle; the stairs and either side stay wall
+    toMiddle(...keptOpen(keep));
+    for (const [cx, cy] of keptClosed(keep)) open.delete(idx(cx, cy));
+  }
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const i = idx(x, y);
+      if (open.has(i)) {
+        t[i] = 'floor';
+        continue;
+      }
+      if (t[i] === 'door') continue;
+      let beside = false;
+      for (const [ex, ey] of NEIGHBOURS8) if (open.has(idx(x + ex, y + ey)) && x + ex >= 0 && y + ey >= 0 && x + ex < size && y + ey < size) beside = true;
+      t[i] = beside ? 'wall' : 'void';
+    }
+  }
+  return w === n && h === n && !cut;
+}
+
+const NEIGHBOURS8 = [[0, -1], [1, 0], [0, 1], [-1, 0], [1, -1], [1, 1], [-1, 1], [-1, -1]];
+
+// Does t leave room for the stairs up at keep: open ground inside, and wall at them and
+// either side of them?
+function keepsStairs(t, keep, grid) {
+  if (!keep) return true;
+  const { idx } = grid;
+  const [ix, iy] = keptOpen(keep);
+  if (!['floor', 'grass'].includes(t[idx(ix, iy)])) return false;
+  return keptClosed(keep).every(([x, y]) => t[idx(x, y)] === 'wall');
 }
 
 // ---- the level as a whole ----------------------------------------------
@@ -256,7 +341,7 @@ function drawnLevel(grid) {
   const room = roomState(0, 0, 0, 0, nb, t);
   const entrance = { room: 0, x: mid, y: farEdge - 1, ground: 'dirt' };
   // The stairs are in the wall below where the drawing had them (decision 251).
-  const stairs = { room: 0, x: mid, y: size - 1 };
+  const stairs = { room: 0, x: mid, y: size - 1, side: 's' };
   for (const y of [1, 2]) for (const x of [1, 2]) t[idx(x, y)] = 'grass';
   t[idx(entrance.x, entrance.y)] = 'entrance';
   t[idx(stairs.x, stairs.y)] = 'stairs';
@@ -274,13 +359,19 @@ export function makeLevel(rng, depth, edition, up = null) {
   const { idx } = grid;
   if (drawn && depth === 1) return drawnLevel(grid);
   const toadLevel = depth === CONFIG.toadLevel + (drawn ? 1 : 0);
-  const upSide = drawn && up ? ringSide(up.x, up.y, grid.size) : null;
-  // Stairs up in the middle of a side need that side of the first room to be wall, not a gap.
-  const gapAt = upSide && (upSide === 'n' || upSide === 's' ? up.x : up.y) === grid.mid ? STEP[upSide] : null;
+  // The stairs up must not stand on the way from a gap of the first room to its middle,
+  // so the first room has no neighbour on such a side. If no layout will do, they go elsewhere.
+  if (up && !up.side) up = null;
+  const blocks = up ? DIRS.filter((d) => crossesWay(d, keptClosed(up), grid)) : [];
   let spots;
   for (let tries = 0; ; tries++) {
     spots = placeRooms(rng, toadLevel ? CONFIG.toadExtraRoom : 0);
-    if (!gapAt || tries > 60 || !spots.some(([gx, gy]) => gx === gapAt[0] && gy === gapAt[1])) break;
+    const clash = blocks.some((d) => spots.some(([gx, gy]) => gx === STEP[d][0] && gy === STEP[d][1]));
+    if (!clash) break;
+    if (tries > 60) {
+      up = null;
+      break;
+    }
   }
   const salt = int(rng, 1, 1 << 20);
   const at = new Map(spots.map(([gx, gy], i) => [`${gx},${gy}`, i]));
@@ -290,7 +381,7 @@ export function makeLevel(rng, depth, edition, up = null) {
       const n = at.get(`${gx + STEP[d][0]},${gy + STEP[d][1]}`);
       nb[d] = n === undefined ? null : n;
     }
-    return roomState(i, gx, gy, salt * 8 + i, nb, makeRoom(rng, nb, grid));
+    return roomState(i, gx, gy, salt * 8 + i, nb, makeRoom(rng, nb, grid, drawn, i === 0 ? up : null));
   });
 
   // The entrance, in the first room, in grass or on dirt. In the esoteric edition, the
@@ -305,6 +396,8 @@ export function makeLevel(rng, depth, edition, up = null) {
   const far = Math.max(...hops);
   const room = pick(rng, rooms.filter((r) => hops[r.id] === far));
   if (toadLevel && room.id !== 0) {
+    // the toad's room keeps the whole five by five, for its small room in the corner
+    if (drawn) room.t = makeRoom(rng, room.nb, grid);
     makeToadRoom(rng, room, level, drawn);
     return level;
   }
@@ -314,9 +407,9 @@ export function makeLevel(rng, depth, edition, up = null) {
     let spots = edgeStairSpots(room, from);
     if (rooms.length === 1) spots = spots.filter((s) => s.steps >= CONFIG.stairsAway);
     if (spots.length === 0) return makeLevel(rng, depth, edition, up); // very unlikely; try again
-    const { x: sx, y: sy } = pick(rng, spots);
+    const { x: sx, y: sy, side } = pick(rng, spots);
     room.t[idx(sx, sy)] = 'stairs';
-    level.stairs = { room: room.id, x: sx, y: sy };
+    level.stairs = { room: room.id, x: sx, y: sy, side };
     return level;
   }
   let stairSpots = interiorCells(room.t, openSpot);
@@ -406,68 +499,68 @@ export function ringSide(x, y, size) {
   return null;
 }
 
-// The open cell just inside ring cell (x, y).
-const inward = (x, y, size) => {
-  const side = ringSide(x, y, size);
-  return [x - STEP[side][0], y - STEP[side][1]];
-};
-
-// The stairs up in the first room's wall, at `up` if given, else anywhere stairs may go.
-// The cell inside them is made open ground if it isn't, as long as the room stays whole.
-// Returns where you arrive: [x, y, 'grass' | 'dirt'].
-function placeUpstairs(rng, room, grid, up) {
-  const { idx, size, mid } = grid;
-  const fits = (x, y) => {
-    const side = ringSide(x, y, size);
-    if (!side || room.t[idx(x, y)] !== 'wall') return false;
-    const k = side === 'n' || side === 's' ? x : y;
-    return !(k === mid && room.nb[side] !== null);
-  };
+// Does the way from the gap on side d to the middle pass any of these cells?
+function crossesWay(d, cells, grid) {
+  const { mid, arrivals, doors } = grid;
+  const way = [doors[d]];
+  let [x, y] = arrivals[d];
   for (;;) {
-    let spot = up && fits(up.x, up.y) ? [up.x, up.y] : null;
-    if (!spot) {
-      const open = interiorCells(room.t, openSpot);
-      const from = arrivalCells(room)[0] ?? open[0];
-      const spots = edgeStairSpots(room, from);
-      if (spots.length) {
-        const s = pick(rng, spots);
-        spot = [s.x, s.y];
-      }
-      if (spot && !fits(...spot)) spot = null;
-    }
-    if (spot) {
-      const [ix, iy] = inward(spot[0], spot[1], size);
-      const t = room.t.slice();
-      if (!['floor', 'grass'].includes(t[idx(ix, iy)])) t[idx(ix, iy)] = 'floor';
-      t[idx(...spot)] = 'upstairs';
-      if (roomConnected(t)) {
-        room.t = t;
-        return [ix, iy, t[idx(ix, iy)] === 'grass' ? 'grass' : 'dirt'];
-      }
-    }
-    room.t = makeRoom(rng, room.nb, grid); // this room will not do: make it again
+    way.push([x, y]);
+    if (x === mid && y === mid) break;
+    x += Math.sign(mid - x);
+    y += Math.sign(mid - y);
   }
+  return cells.some(([cx, cy]) => way.some(([wx, wy]) => wx === cx && wy === cy));
 }
 
-// Where stairs may go in a room's wall: [{ x, y, steps }]. Not a corner, not where a gap
-// to the next room is or could be, nor beside one, and with open ground inside it that can
-// be reached from `from`, `steps` away (straight steps).
+// The stairs up in the first room's wall: at `up` (where the stairs down above were, with
+// the side they face) if the room was made for them, else wherever stairs may go.
+// Returns where you arrive, just inside them: [x, y, 'grass' | 'dirt'].
+function placeUpstairs(rng, room, grid, up) {
+  const { idx } = grid;
+  let at = up && keepsStairs(room.t, up, grid) ? up : null;
+  while (!at) {
+    const open = interiorCells(room.t, (c) => c === 'floor' || c === 'grass');
+    const from = arrivalCells(room)[0] ?? open[0];
+    const spots = from ? edgeStairSpots(room, from) : [];
+    if (spots.length) at = pick(rng, spots);
+    else room.t = makeRoom(rng, room.nb, grid, true); // this room will not do: make it again
+  }
+  room.t[idx(at.x, at.y)] = 'upstairs';
+  const [ix, iy] = keptOpen(at);
+  return [ix, iy, room.t[idx(ix, iy)] === 'grass' ? 'grass' : 'dirt'];
+}
+
+// Where stairs may go in a room's wall: [{ x, y, side, steps }]. A wall cell with open
+// ground on one side (`side` is the way from there into the stairs) and nothing beyond it,
+// walls either side of it, not where a gap to the next room is or could be, nor beside one,
+// and not beside where you come in. `steps`: from `from` to them.
 function edgeStairSpots(room, from) {
   const { t, nb } = room;
-  const { size, idx, mid } = terrainGrid(t);
+  const grid = terrainGrid(t);
+  const { size, idx, mid, arrivals } = grid;
   const dist = roomDistances(t, from[0], from[1]);
+  const inGrid = (x, y) => x >= 0 && y >= 0 && x < size && y < size;
+  const gapSpots = DIRS.map((d) => grid.doors[d]);
+  const comeIn = arrivalCells(room);
+  const same = (a, b) => a[0] === b[0] && a[1] === b[1];
   const out = [];
-  const sides = {
-    n: (k) => [k, 0, k, 1], s: (k) => [k, size - 1, k, size - 2],
-    w: (k) => [0, k, 1, k], e: (k) => [size - 1, k, size - 2, k],
-  };
-  for (const d of DIRS) {
-    for (let k = 1; k < size - 1; k++) {
-      if (k === mid || (nb[d] !== null && Math.abs(k - mid) === 1)) continue;
-      const [x, y, ix, iy] = sides[d](k);
-      if (t[idx(x, y)] !== 'wall' || !['floor', 'grass'].includes(t[idx(ix, iy)])) continue;
-      const steps = dist[idx(ix, iy)];
-      if (steps >= 0) out.push({ x, y, steps: steps + 1 });
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      if (t[idx(x, y)] !== 'wall' || gapSpots.some((g) => same(g, [x, y]))) continue;
+      for (const side of DIRS) {
+        const [dx, dy] = STEP[side];
+        const [ix, iy] = [x - dx, y - dy];
+        const [bx, by] = [x + dx, y + dy];
+        if (!inGrid(ix, iy) || !['floor', 'grass'].includes(t[idx(ix, iy)])) continue;
+        if (inGrid(bx, by) && t[idx(bx, by)] !== 'void') continue;
+        const flanks = perpendicular(side).map(([px, py]) => [x + px, y + py]);
+        if (!flanks.every(([fx, fy]) => inGrid(fx, fy) && t[idx(fx, fy)] === 'wall')) continue;
+        if (flanks.some((f) => DIRS.some((d) => nb[d] !== null && same(f, grid.doors[d])))) continue;
+        if (comeIn.some((c) => same(c, [ix, iy]))) continue;
+        const steps = dist[idx(ix, iy)];
+        if (steps >= 0) out.push({ x, y, side, steps: steps + 1 });
+      }
     }
   }
   return out;
@@ -525,7 +618,7 @@ function makeToadRoom(rng, room, level, drawn = false) {
           const sy = cy === 1 ? 0 : size - 1;
           t[idx(cx, cy)] = 'floor';
           t[idx(cx, sy)] = 'stairs';
-          level.stairs = { room: room.id, x: cx, y: sy };
+          level.stairs = { room: room.id, x: cx, y: sy, side: sy === 0 ? 'n' : 's' };
         }
         level.golddoor = { room: room.id, x: door.at[0], y: door.at[1] };
         return;

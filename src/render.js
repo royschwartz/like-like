@@ -421,7 +421,7 @@ export function createRenderer(root = document, { marks: withMarks = true, cellP
     if (!e) return;
     if (e.type === 'attack' && e.hit) fx.play(screen, e.by === 'player' ? 'fx-jolt' : 'fx-hurt', JOLT_FX);
     else if (e.type === 'death') fx.play(screen, 'fx-death', COVER_FX);
-    else if (e.type === 'descend' || e.type === 'restart') fx.play(screen, 'fx-descend', COVER_FX);
+    else if (e.type === 'descend' || e.type === 'ascend' || e.type === 'restart') fx.play(screen, 'fx-descend', COVER_FX);
   }
 
   // --- log: one list. The lines the latest action said are bright; older ones dim. ---

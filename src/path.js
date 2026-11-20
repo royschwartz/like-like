@@ -11,7 +11,7 @@ export const NEIGHBOURS = [
   [1, -1], [1, 1], [-1, 1], [-1, -1],
 ];
 
-const CORNERS = new Set(['wall', 'statue', 'golddoor', 'upstairs']);
+const CORNERS = new Set(['wall', 'statue', 'golddoor', 'upstairs', 'void']);
 export const blocksCorner = (c) => CORNERS.has(c);
 
 export const chebyshev = (ax, ay, bx, by) => Math.max(Math.abs(ax - bx), Math.abs(ay - by));

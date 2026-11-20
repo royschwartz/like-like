@@ -83,7 +83,7 @@ function nextStep(v, events) {
   clearTimeout(stepTimer);
   stepTimer = null;
   if (!v.going) return;
-  const over = events.some((e) => e && ['death', 'restart', 'descend', 'event'].includes(e.type));
+  const over = events.some((e) => e && ['death', 'restart', 'descend', 'ascend', 'event'].includes(e.type));
   if (over || v.event || v.inv || v.menu || document.hidden) return stop();
   // a room sliding in is waited out
   const wait = events.some((e) => e && e.type === 'room') ? timing.slideMs : timing.stepMs;

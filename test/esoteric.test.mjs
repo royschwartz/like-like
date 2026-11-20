@@ -112,28 +112,36 @@ test('the stairs below the drawing are guarded and DEE remembers speaking upstai
   assert.ok(levelDistances(g.level)[room][index] > 0);
 });
 
-test('the esoteric stairs are always in the wall, narrowing toward it, and walked into', () => {
+const STEPS = { n: [0, -1], e: [1, 0], s: [0, 1], w: [-1, 0] };
+const OPEN = ['floor', 'grass', 'entrance'];
+
+// Walk into the floor's stairs down from just inside them.
+function goDown(g) {
+  const { room, x, y, side } = g.level.stairs;
+  const [dx, dy] = STEPS[side];
+  g.room = room;
+  g.level.rooms[room].toad = null;
+  [g.x, g.y] = [x - dx, y - dy];
+  return act(g, { type: 'move', dir: side });
+}
+
+test('the esoteric stairs are always in a wall, facing out from open ground, and walked into', () => {
   for (let seed = 1; seed <= 25; seed++) {
     const g = newGame({ edition: 'esoteric', seed });
     for (let floor = 1; floor <= 4; floor++) {
-      const { room, x, y } = g.level.stairs;
+      const { room, x, y, side } = g.level.stairs;
       const t = g.level.rooms[room].t;
       const size = Math.sqrt(t.length);
-      const edge = size - 1;
-      assert.ok(x === 0 || y === 0 || x === edge || y === edge, `seed ${seed} floor ${floor}: in the wall`);
-      assert.ok(!((x === 0 || x === edge) && (y === 0 || y === edge)), 'never a corner');
-      assert.equal(t[y * size + x], 'stairs');
-      // the cell inside it is open ground, and a straight step from it goes down
-      const [ix, iy] = y === 0 ? [x, 1] : y === edge ? [x, edge - 1] : x === 0 ? [1, y] : [edge - 1, y];
-      assert.ok(['floor', 'grass'].includes(t[iy * size + ix]));
+      const at = (cx, cy) => (cx < 0 || cy < 0 || cx >= size || cy >= size ? null : t[cy * size + cx]);
+      const [dx, dy] = STEPS[side];
+      assert.equal(at(x, y), 'stairs');
+      assert.ok(OPEN.includes(at(x - dx, y - dy)), `seed ${seed} floor ${floor}: open ground inside`);
+      assert.ok([null, 'void', 'wall'].includes(at(x + dx, y + dy)), 'nothing open beyond');
+      for (const [px, py] of dx ? [[0, 1], [0, -1]] : [[1, 0], [-1, 0]]) assert.equal(at(x + px, y + py), 'wall', 'walls either side');
       if (floor === 2) assert.equal(levelDistances(g.level, g.level.entrance, { locked: true })[room][y * size + x], -1);
       assert.ok(levelDistances(g.level)[room][y * size + x] > 0);
-      g.room = room;
-      g.level.rooms[room].toad = null;
-      [g.x, g.y] = [ix, iy];
       const depth = g.depth;
-      const events = act(g, { type: 'move', dir: y === 0 ? 'n' : y === edge ? 's' : x === 0 ? 'w' : 'e' });
-      assert.ok(events.some((e) => e.type === 'descend'));
+      assert.ok(goDown(g).some((e) => e.type === 'descend'));
       assert.equal(g.depth, depth + 1);
     }
   }
@@ -142,36 +150,42 @@ test('the esoteric stairs are always in the wall, narrowing toward it, and walke
   assert.equal(new Set(marks).size, 4, 'each side turns the treads to narrow toward its own edge');
 });
 
-test('going down, you arrive just inside stairs up where the stairs down were, without moving', () => {
+test('going down, you arrive just inside stairs up where the stairs down were; up takes you back', () => {
   for (let seed = 1; seed <= 25; seed++) {
     const g = newGame({ edition: 'esoteric', seed });
     for (let floor = 1; floor <= 4; floor++) {
-      const { room, x, y } = g.level.stairs;
-      const t = g.level.rooms[room].t;
-      const size = Math.sqrt(t.length);
-      const edge = size - 1;
-      const dir = y === 0 ? 'n' : y === edge ? 's' : x === 0 ? 'w' : 'e';
-      const [ix, iy] = dir === 'n' ? [x, 1] : dir === 's' ? [x, edge - 1] : dir === 'w' ? [1, y] : [edge - 1, y];
-      g.room = room;
-      g.level.rooms[room].toad = null;
-      [g.x, g.y] = [ix, iy];
-      act(g, { type: 'move', dir });
+      const above = g.level;
+      const { room, x, y, side } = above.stairs;
+      const [dx, dy] = STEPS[side];
+      const [ix, iy] = [x - dx, y - dy];
+      goDown(g);
       assert.equal(g.depth, floor + 1);
-      // the same square on the screen, beside stairs up in the same place in the wall
-      assert.deepEqual([g.x, g.y], [ix, iy], `seed ${seed} floor ${floor}`);
+      const size = Math.sqrt(g.level.rooms[g.room].t.length);
       const here = g.level.rooms[g.room].t;
-      assert.equal(here[y * size + x], 'upstairs');
-      assert.deepEqual(g.level.entrance, { room: g.room, x: ix, y: iy, ground: here[iy * size + ix] === 'grass' ? 'grass' : 'dirt' });
-      // nothing goes up yet: walking into them does nothing and takes no turn
-      const turn = g.turn;
-      assert.deepEqual(act(g, { type: 'move', dir }), []);
-      assert.equal(g.turn, turn);
-      assert.equal(g.depth, floor + 1);
-      // every open cell of the floor can still be reached
+      // the same square on the screen, beside stairs up in the same place in the wall
+      if (here[y * size + x] === 'upstairs') {
+        assert.deepEqual([g.x, g.y], [ix, iy], `seed ${seed} floor ${floor}`);
+      }
+      const up = here.indexOf('upstairs');
+      assert.ok(up >= 0);
+      // every open cell of the floor can be reached
       const dist = levelDistances(g.level);
       g.level.rooms.forEach((r, k) => r.t.forEach((c, i) => {
-        if (!['wall', 'statue', 'upstairs', 'golddoor', 'door'].includes(c)) assert.ok(dist[k][i] >= 0, `seed ${seed} floor ${floor + 1} room ${k} cell ${i}`);
+        if (OPEN.includes(c)) assert.ok(dist[k][i] >= 0, `seed ${seed} floor ${floor + 1} room ${k} cell ${i}`);
       }));
+      // back up, to just inside the stairs down above, the floor as it was; and down again
+      const below = g.level;
+      const [ux, uy] = [up % size, Math.floor(up / size)];
+      const upSide = Object.entries(STEPS).find(([, [sx, sy]]) => [g.x + sx, g.y + sy].join() === [ux, uy].join())?.[0];
+      [g.x, g.y] = g.level.entrance.room === g.room ? [g.level.entrance.x, g.level.entrance.y] : [g.x, g.y];
+      const s2 = Object.entries(STEPS).find(([, [sx, sy]]) => here[(g.y + sy) * size + g.x + sx] === 'upstairs')[0];
+      assert.ok(upSide === undefined || upSide === s2);
+      assert.ok(act(g, { type: 'move', dir: s2 }).some((e) => e.type === 'ascend'));
+      assert.equal(g.depth, floor);
+      assert.equal(g.level, above);
+      assert.deepEqual([g.room, g.x, g.y], [room, ix, iy]);
+      goDown(g);
+      assert.equal(g.level, below, 'the floor below is kept');
     }
   }
   const look = { size: 7, key: 3, cells: Array.from({ length: 49 }, () => visible('wall')) };
@@ -179,4 +193,32 @@ test('going down, you arrive just inside stairs up where the stairs down were, w
   const up = paintEsoteric(visible('upstairs'), 3, 6, look).mask;
   assert.notEqual(up, down);
   assert.equal(up, paintEsoteric(visible('stairs'), 3, 0, look).mask, 'up widens toward its edge');
+});
+
+test('esoteric rooms come in many shapes, all whole, with walls round what is open', () => {
+  const sizes = new Set();
+  for (let seed = 1; seed <= 40; seed++) {
+    const g = newGame({ edition: 'esoteric', seed });
+    for (let floor = 1; floor <= 3; floor++) {
+      goDown(g);
+      for (const r of g.level.rooms) {
+        const t = r.t;
+        const size = Math.sqrt(t.length);
+        const open = t.filter((c) => OPEN.includes(c)).length;
+        sizes.add(open);
+        t.forEach((c, i) => {
+          const x = i % size;
+          const y = Math.floor(i / size);
+          // nothing open touches the void, and every void cell is away from open ground
+          if (c !== 'void') return;
+          for (const [dx, dy] of [[0, 1], [1, 0], [0, -1], [-1, 0], [1, 1], [1, -1], [-1, 1], [-1, -1]]) {
+            const n = t[(y + dy) * size + x + dx];
+            if (x + dx >= 0 && y + dy >= 0 && x + dx < size && y + dy < size) assert.ok(!OPEN.includes(n) && n !== 'door');
+          }
+        });
+      }
+    }
+  }
+  assert.ok([...sizes].some((n) => n <= 7), 'narrow rooms');
+  assert.ok([...sizes].some((n) => n >= 20), 'wide rooms');
 });

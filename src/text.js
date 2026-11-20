@@ -191,6 +191,8 @@ export const TEXT = {
   log: {
     // What you arrive in, by what the entrance stands in. HIS: grass, and dirt (November 20).
     descend: { grass: 'you descend and find yourself in low, soft grass', dirt: 'you descend, dirt' },
+    // [...]: going back up the stairs (esoteric), his to write.
+    ascend: '[you go back up]',
     // said in place of the blow that kills you
     youDie: 'you die',
     youRest: 'you rest',

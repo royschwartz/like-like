@@ -4,7 +4,7 @@
 // los(a, b) is true when a straight line either way is clear, so it is
 // symmetric: if you see the toad, it sees you.
 
-const blocksSight = (c) => c === 'wall' || c === 'golddoor' || c === 'statue';
+const blocksSight = (c) => c === 'wall' || c === 'golddoor' || c === 'statue' || c === 'void';
 // Drawn with the walls: shown when a walkable cell beside it is in sight.
 const solid = (c) => c === 'wall' || c === 'door' || c === 'golddoor' || c === 'statue' || c === 'upstairs';
 
