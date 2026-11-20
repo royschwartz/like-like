@@ -81,8 +81,9 @@
   flex-direction: column;
   gap: 5px;
 }
-.st-top {
-  justify-content: flex-end;
+/* sat just above the map; on a short screen it scrolls rather than losing its top rows */
+.st-top > :first-child {
+  margin-top: auto;
 }
 #study.closed .st-panel {
   display: none;

@@ -12,7 +12,7 @@ const BLACK = { min: 0, max: 8, step: 1 };
 function defaults() {
   const opts = {};
   for (const a of ANIMS) opts[a.key] = { black: a.black ?? 0, n: a.n ? a.n.value : 0 };
-  return { frame: 70, down: 'behind', up: 'behind', target: 'both', focus: 'behind', opts };
+  return { frame: 70, down: 'fold', up: 'fold', target: 'both', focus: 'fold', opts };
 }
 
 const clamp = (v, { min, max, step }) => Math.round(Math.min(max, Math.max(min, Number(v))) / step) * step;

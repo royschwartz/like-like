@@ -28,7 +28,7 @@ export const ANIMS = [
   {
     key: 'fold', name: 'folding stairs', black: 1,
     n: { name: 'frames a tread', min: 1, max: 6, value: 2 },
-    source: 'The Tower of Druaga (1985): the door turns into a stair tile and Gil walks onto it. Here the treads fold into the wall one at a time from your side, and unfold from the edge on the other floor',
+    source: 'The Tower of Druaga (1985): the door turns into a stair tile and Gil walks onto it. Here you vanish, the treads go one at a time from your side to the edge, and on the other floor they come back from the edge before you appear',
   },
   {
     key: 'closeup', name: 'close-up', black: 0,
@@ -165,14 +165,17 @@ function framesFor(key, ctx, o) {
     }
 
     case 'fold': {
+      // You vanish first; then the treads go one at a time, in the order you would walk
+      // them, from your side to the edge. On the other floor they come back one at a time
+      // from the edge, and then you appear.
       if (!os || !ns) return black();
       const out = [];
       const hold = (f) => { for (let h = 0; h < n; h++) out.push(f); };
       const leaving = ctx.old.roomFirst;
-      for (let j = 1; j <= 3; j++) hold({ cells: showAll('o'), fold: { on: 'o', keep: leaving.slice(j) } });
+      for (let j = 0; j <= 3; j++) hold({ cells: showAll('o'), patch: 'o', fold: { on: 'o', keep: leaving.slice(j) } });
       out.push(...black());
       const coming = [...ctx.neu.roomFirst].reverse();
-      for (let j = 0; j < 3; j++) hold({ cells: showAll('n'), fold: { on: 'n', keep: coming.slice(0, j) } });
+      for (let j = 0; j <= 3; j++) hold({ cells: showAll('n'), patch: 'n', fold: { on: 'n', keep: coming.slice(0, j) } });
       return out;
     }
 
