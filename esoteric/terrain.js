@@ -284,6 +284,11 @@ export function terrainMask(tile, x, y, cells, size, roomKey) {
   if (tile !== 'wall') return null;
   const edges = wallEdges(x, y, cells, size);
   if (edges === (E | W)) {
+    // Match the height of one crest beside the central passage on each rim.
+    // The rest of the wall keeps its irregular rhythm.
+    if (x === Math.floor(size / 2) - 1 && (y === 0 || y === size - 1)) {
+      return waves[y === 0 ? 0 : 1][1];
+    }
     const beat = rhythm[(x + 3 * y + (roomKey >>> 2)) & 15];
     return waves[beat][variation];
   }
