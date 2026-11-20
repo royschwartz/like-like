@@ -152,69 +152,54 @@ const STAIR_TURNS = {
   e: 'rotate(90 18 18)',
   w: 'rotate(-90 18 18)',
 };
-const OPPOSITE = { n: 's', s: 'n', e: 'w', w: 'e' };
 // Each of the three treads, from the top of the drawing, is drawn smaller than the
 // drawing has it, across and down: gently (decision 281), the bottom one as much as the
 // middle one (285), and shorter as well as narrower (288). Across, a tread is squeezed
-// about the stair's middle. Down, the treads are packed toward the map's edge (288),
-// starting EDGE pixels in from it, with the room's side taking up what's left over.
+// about the stair's middle; the gaps between treads shrink with them; and the whole stair
+// is centred in its square (290).
 const TREAD_SCALES = [0.8, 0.9, 0.9];
-const EDGE = 1;
-const treads = (() => {
+const stairsPath = (() => {
   const lines = stamps.stairs.trim().split('\n');
   const width = Math.max(...lines.map((line) => line.length));
-  const left = Math.floor((36 - width) / 2);
-  const middle = left + width / 2;
-  const list = [];
+  const middle = 18;
+  const treads = [];
   let gap = 0;
   lines.forEach((row) => {
     if (!row.includes('#')) { gap++; return; }
-    if (!list.length || gap) list.push({ gapBefore: gap, rows: [] });
+    if (!treads.length || gap) treads.push({ gapBefore: gap, rows: [] });
     gap = 0;
-    list.at(-1).rows.push([...row.matchAll(/#+/g)].map((run) => [left + run.index - middle, run[0].length]));
+    treads.at(-1).rows.push([...row.matchAll(/#+/g)].map((run) => [run.index - width / 2, run[0].length]));
   });
-  return list.map((tread, i) => ({ ...tread, k: TREAD_SCALES[Math.min(i, TREAD_SCALES.length - 1)], middle }));
-})();
-
-// The treads laid out on the drawing's upright square, packed against its top edge
-// (atTop) or its bottom edge. A gap between two treads shrinks as much as the two do.
-function stairsPath(atTop) {
-  const order = atTop ? treads : [...treads].reverse();
-  let y = atTop ? EDGE : 36 - EDGE;
+  treads.forEach((tread, i) => { tread.k = TREAD_SCALES[Math.min(i, TREAD_SCALES.length - 1)]; });
+  const gapAbove = (tread, i) => (i ? tread.gapBefore * (tread.k + treads[i - 1].k) / 2 : 0);
+  const height = treads.reduce((sum, tread, i) => sum + gapAbove(tread, i) + tread.rows.length * tread.k, 0);
+  let y = (36 - height) / 2;
   let path = '';
-  order.forEach((tread, n) => {
-    if (n) {
-      const gap = (atTop ? tread.gapBefore : order[n - 1].gapBefore) * (tread.k + order[n - 1].k) / 2;
-      y += atTop ? gap : -gap;
-    }
-    const h = tread.k;
-    const rows = atTop ? tread.rows : [...tread.rows].reverse();
-    for (const runs of rows) {
-      const top = atTop ? y : y - h;
+  treads.forEach((tread, i) => {
+    y += gapAbove(tread, i);
+    const h = tread.k.toFixed(3);
+    for (const runs of tread.rows) {
       for (const [x, length] of runs) {
         const w = (length * tread.k).toFixed(3);
-        path += `M${(tread.middle + x * tread.k).toFixed(3)} ${top.toFixed(3)}h${w}v${h.toFixed(3)}h-${w}z`;
+        path += `M${(middle + x * tread.k).toFixed(3)} ${y.toFixed(3)}h${w}v${h}h-${w}z`;
       }
-      y += atTop ? h : -h;
+      y += tread.k;
     }
   });
   return path;
-}
-// Down: the narrow top tread at the edge. Up: the wide bottom tread at the edge, so the
-// treads are packed against the bottom and the square is turned as for the opposite side.
-const downPath = stairsPath(true);
-const upPath = stairsPath(false);
-const downMasks = Object.fromEntries(Object.entries(STAIR_TURNS).map(([side, turn]) => [side, inkMask(36, downPath, turn)]));
-const upMasks = Object.fromEntries(Object.keys(STAIR_TURNS).map((side) => [side, inkMask(36, upPath, STAIR_TURNS[OPPOSITE[side]])]));
+})();
+const downMasks = Object.fromEntries(Object.entries(STAIR_TURNS).map(([side, turn]) => [side, inkMask(36, stairsPath, turn)]));
 
 // The stairs down in the wall on side 'n', 'e', 's' or 'w'.
 export function stairsDownMask(side) {
   return downMasks[side];
 }
 
-// The stairs up: the same treads widening toward the edge.
+// The stairs up: the same treads widening toward the edge, as the stairs down on the
+// opposite side are drawn.
+const OPPOSITE = { n: 's', s: 'n', e: 'w', w: 'e' };
 export function stairsUpMask(side) {
-  return upMasks[side];
+  return downMasks[OPPOSITE[side]];
 }
 
 // Open doors have no ink. An actor or corpse on the same cell supplies its own stamp.

@@ -209,6 +209,7 @@ test('going down, you arrive just inside stairs up where the stairs down were; u
   const down = paintEsoteric(visible('stairs'), 3, 6, look).mask;
   const up = paintEsoteric(visible('upstairs'), 3, 6, look).mask;
   assert.notEqual(up, down);
+  assert.equal(up, paintEsoteric(visible('stairs'), 3, 0, look).mask, 'up widens toward its edge');
 });
 
 // The ink of a stair mark, in the square as drawn on the screen: each rectangle as its
@@ -229,7 +230,7 @@ function stairInk(mask, side) {
   });
 }
 
-test('stairs shrink across and down, packed against the map edge: narrower there going down, wider going up', () => {
+test('stairs shrink across and down, centred in the square: narrower at the edge going down, wider going up', () => {
   const look = { size: 7, key: 3, cells: Array.from({ length: 49 }, () => visible('wall')) };
   const span = (ink) => Math.max(...ink.map((r) => r.to)) - Math.min(...ink.map((r) => r.from));
   for (const [x, y, side] of [[3, 6, 's'], [3, 0, 'n'], [0, 3, 'w'], [6, 3, 'e']]) {
@@ -237,8 +238,10 @@ test('stairs shrink across and down, packed against the map edge: narrower there
       const ink = stairInk(paintEsoteric(visible(kind), x, y, look).mask, side);
       const nearest = Math.min(...ink.map((r) => r.near));
       const farthest = Math.max(...ink.map((r) => r.far));
-      assert.ok(Math.abs(nearest - 1) < 0.01, `${kind} on ${side}: one pixel in from the edge`);
-      assert.ok(farthest < 23, `${kind} on ${side}: shorter than the 25 rows drawn, the room side left clear`);
+      assert.ok(Math.abs(nearest - (36 - farthest)) < 0.01, `${kind} on ${side}: centred, as far from the edge as from the room`);
+      assert.ok(farthest - nearest < 23, `${kind} on ${side}: shorter than the 25 rows drawn`);
+      const from = Math.min(...ink.map((r) => r.from)), to = Math.max(...ink.map((r) => r.to));
+      assert.ok(Math.abs(from - (36 - to)) < 0.01, `${kind} on ${side}: centred across`);
       const edgeTread = span(ink.filter((r) => r.far < nearest + 6));
       const roomTread = span(ink.filter((r) => r.near > farthest - 6));
       if (kind === 'stairs') assert.ok(edgeTread < roomTread, `stairs down on ${side} narrow toward the edge`);
