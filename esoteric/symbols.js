@@ -143,7 +143,7 @@ function stampUrl(rows) {
 
 const masks = Object.fromEntries(Object.entries(stamps).map(([kind, rows]) => [kind, stampUrl(rows)]));
 
-// Stairs in the wall (decision 246): treads that get smaller toward the edge go down;
+// Stairs in the wall (decision 251): treads that get smaller toward the edge go down;
 // bigger toward the edge would go up. The drawn stair narrows toward its top, so it is
 // turned to narrow toward the side of the room it is in.
 const STAIR_TURNS = {

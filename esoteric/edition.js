@@ -38,7 +38,7 @@ export function paintEsoteric(cell, x, y, env) {
     return { ch: '', fg, bg, label, passage };
   }
   if (kind === 'stairs') {
-    // In the wall, the treads narrow toward the edge: the way down (decision 246).
+    // In the wall, the treads narrow toward the edge: the way down (decision 251).
     const side = y === 0 ? 'n' : y === edge ? 's' : x === 0 ? 'w' : x === edge ? 'e' : null;
     if (side) return { ch: '', fg, bg, label, mask: stairsDownMask(side) };
   }

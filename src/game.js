@@ -368,7 +368,7 @@ function step(g, dx, dy, ev) {
   if (c === 'statue') return openBust(g, ev); // into the bust, never onto it: its event, no turn
   if (c === 'golddoor') return goldDoor(g, room, x, y, ev);
   if (c === 'stairs' && onRing(x, y, terrainGrid(room.t).size)) {
-    // Stairs in the wall (esoteric, decision 246) are walked into, as a gap is, and you go
+    // Stairs in the wall (esoteric, decision 251) are walked into, as a gap is, and you go
     // down. Only a straight step reaches them, and nothing can be in the way.
     if (dx && dy) return;
     return descend(g, ev);
@@ -688,7 +688,7 @@ function noticeIdly(g) {
   }
 }
 
-// The esoteric edition, without sense (decision 239): as you go about, now and then the
+// The esoteric edition, without sense (decision 244): as you go about, now and then the
 // air or the ground comes to you, a line of the room's own, never the worms, which only
 // inspecting the grass tells; or you notice a detail of something in sight, as if you had
 // observed it: the nearer, the likelier. One at a time, and never over something else said.
@@ -1622,7 +1622,7 @@ export function view(g) {
     let more = false;
     if (state === 'visible') {
       const o = observable(g, room, i, thing);
-      // Nothing blinks in the esoteric edition (decision 240).
+      // Nothing blinks in the esoteric edition (decision 245).
       more = g.edition !== 'esoteric' && !!o.unit && !!noticedIn(room)[o.unit] && hasNew(g, o.list);
     }
     cells.push({ t: room.t[i], state, thing, more });

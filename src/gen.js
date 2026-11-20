@@ -254,7 +254,7 @@ function drawnLevel(grid) {
   const t = emptyRoom(nb, grid);
   const room = roomState(0, 0, 0, 0, nb, t);
   const entrance = { room: 0, x: mid, y: farEdge - 1, ground: 'dirt' };
-  // The stairs are in the wall below where the drawing had them (decision 246).
+  // The stairs are in the wall below where the drawing had them (decision 251).
   const stairs = { room: 0, x: mid, y: size - 1 };
   for (const y of [1, 2]) for (const x of [1, 2]) t[idx(x, y)] = 'grass';
   t[idx(entrance.x, entrance.y)] = 'entrance';
@@ -297,7 +297,7 @@ export function makeLevel(rng, depth, edition) {
     return level;
   }
   if (drawn) {
-    // The esoteric stairs are always in the wall (decision 246).
+    // The esoteric stairs are always in the wall (decision 251).
     const from = rooms.length === 1 ? [ex, ey] : arrivalCells(room)[0];
     let spots = edgeStairSpots(room, from);
     if (rooms.length === 1) spots = spots.filter((s) => s.steps >= CONFIG.stairsAway);
@@ -454,7 +454,7 @@ function makeToadRoom(rng, room, level, drawn = false) {
         level.stairs = { room: room.id, x: shape.corner[0], y: shape.corner[1] };
         if (drawn) {
           // In the esoteric edition the stairs are in the wall beside the small room
-          // (decision 246): its corner is open ground, and the way down is just beyond it.
+          // (decision 251): its corner is open ground, and the way down is just beyond it.
           const [cx, cy] = shape.corner;
           const sy = cy === 1 ? 0 : size - 1;
           t[idx(cx, cy)] = 'floor';
