@@ -279,9 +279,11 @@
 }
 #event:has(#btn-event-sys.open) #event-links { margin-top: 0; }
 
-/* A menu's options are marked too. The menu's ring round the keys' option shows only
-   while the keys are in use. */
-#controls[data-menu] #options .opt:not(.empty)::before {
+/* On the main screen only the settings menu's options are marked ("> should not be used at
+   all for choices in the main game screen except in the settings menu", decision 320): the
+   corpse's eat, take items and back are not. The menu's ring round the keys' option shows
+   only while the keys are in use. */
+#controls[data-menu="sys"] #options .opt:not(.empty)::before {
   content: "> " / "";
   white-space: pre;
 }
