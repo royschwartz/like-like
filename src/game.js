@@ -156,6 +156,15 @@ function say(g, text, kind) {
 // Has the action under way room for another line? For lines that can wait or go unsaid.
 const canSay = (g, text) => g.said + statusLines(text) <= CONFIG.saysAtMost;
 
+// A line that comes by itself, unasked (entering a room, say), is said once a game and
+// never again: "as a principle you shouldn't get messages like this repeatedly"
+// (decision 375). What you ask for, by holding on something, can still be said again.
+function sayUnbidden(g, id, text) {
+  if (g.observed[id]) return;
+  g.observed[id] = true;
+  say(g, text, 'observe');
+}
+
 function sayDescend(g) {
   const line = say(g, TEXT.log.descend[g.level.entrance.ground], 'story');
   line.arrival = true;
@@ -414,7 +423,7 @@ function step(g, dx, dy, ev) {
     g.room = room.nb[dir];
     [g.x, g.y] = arrivals[OPP[dir]];
     ev.push({ type: 'room', dir });
-    if (currentRoom(g).mother) say(g, TEXT.mother.room, 'observe');
+    if (currentRoom(g).mother) sayUnbidden(g, 'mother.room', TEXT.mother.room);
     hearSounds(g);
   } else {
     g.x = x;
@@ -835,7 +844,7 @@ function noticeIdly(g, waiting) {
 // The esoteric edition has no sense ("there is no more sense in the game", decisions 244,
 // 297). As you go about, or wait, now and then you notice a detail of something in sight,
 // as if you had observed it: the nearer, the likelier, and likelier still waiting. One at a
-// time, never over anything said. The mother's room has its own observation on entry.
+// time, never over anything said. The mother's room has its own observation, on first entry.
 function noticeEsoteric(g, waiting = false) {
   if (g.said > 0) return;
   const room = currentRoom(g);

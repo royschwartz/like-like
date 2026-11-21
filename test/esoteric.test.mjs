@@ -205,18 +205,20 @@ function chooseLabel(g, label) {
   return act(g, { type: 'choose', index });
 }
 
-test('entering the mother’s room brings its cold, and observing her reveals a cloaked woman', () => {
+test('entering the mother’s room brings its cold the first time only, and observing her reveals a cloaked woman', () => {
   const g = enterMotherRoom();
   const cold = 'the room is cold and you are suddenly afraid';
   assert.equal(view(g).log.at(-1).text, cold);
   act(g, { type: 'wait' });
-  act(g, { type: 'move', dir: 'e' }); // leave by the gap behind you
+  // "as a principle you shouldn't get messages like this repeatedly" (decision 375):
+  // leave by the gap behind you and come back, twice, with something said in between
+  for (let i = 0; i < 2; i++) {
+    act(g, { type: 'move', dir: 'e' });
+    act(g, { type: 'observe', x: g.x, y: g.y });
+    act(g, { type: 'move', dir: 'w' });
+  }
   assert.equal(g.log.filter((l) => l.text === cold).length, 1);
-  act(g, { type: 'move', dir: 'w' });
-  assert.equal(g.log.filter((l) => l.text === cold).length, 2);
-  const roomMessages = view(g).log.filter((l) => l.text === cold);
-  assert.equal(roomMessages.length, 1);
-  assert.equal(roomMessages[0].count, 2);
+  assert.notEqual(view(g).log.at(-1).text, cold);
   for (let i = 0; i < 4; i++) act(g, { type: 'move', dir: 'w' });
   const v = view(g);
   assert.deepEqual(v.cells[3 * 7].thing, { kind: 'mother' });
@@ -286,6 +288,7 @@ test('taking the cloak or attacking leads to her accusation and only die restart
     assert.ok(chooseLabel(g, 'die').some((e) => e.type === 'restart'));
     assert.deepEqual(eventLabels(g), [TEXT.openingEsoteric.jump]);
     assert.deepEqual([g.room, g.turn, g.hp], [0, 0, g.maxHp]);
+    assert.equal(g.observed['mother.room'], undefined, 'a new game: her room’s cold comes once more');
   }
 });
 
