@@ -1,9 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { paintEsoteric } from '../esoteric/edition.js';
-import { newGame, act, view } from '../src/game.js';
+import { newGame, act, view, playerDamage } from '../src/game.js';
 import { levelDistances } from '../src/gen.js';
 import { TEXT } from '../src/text.js';
+import { CONFIG } from '../src/config.js';
+import { putToad } from './helpers.mjs';
 
 const visible = (t, thing = null) => ({ t, thing, state: 'visible' });
 const env = () => ({ size: 3, key: 17, cells: Array.from({ length: 9 }, () => visible('floor')) });
@@ -168,6 +170,7 @@ test('the first floor: the mother\'s room one way, the toad\'s room with the bus
     assert.equal(g.level.toadRoom, 2);
     assert.deepEqual(toadRoom.nb, { n: null, e: null, s: null, w: 0 });
     assert.ok(toadRoom.toad.asleep && toadRoom.toad.key);
+    assert.equal(toadRoom.t[toadRoom.toad.y * 7 + toadRoom.toad.x], 'floor', 'the toad sleeps in the dirt');
     assert.ok(toadRoom.statue && !toadRoom.statue.spoke);
     assert.equal(toadRoom.grass, 'purple');
     assert.ok(toadRoom.t.includes('grass'));
@@ -282,6 +285,181 @@ test('taking the cloak or attacking leads to her accusation and only die restart
 
 const STEPS = { n: [0, -1], e: [1, 0], s: [0, 1], w: [-1, 0] };
 const OPEN = ['floor', 'grass', 'entrance'];
+
+// Start one ordinary move from the encounter in the generated room.
+function besideEncounter(kind) {
+  const g = newGame({ edition: 'esoteric', seed: 7 });
+  g.room = g.level.toadRoom;
+  const room = g.level.rooms[g.room];
+  const target = room[kind];
+  for (const [dir, [dx, dy]] of Object.entries(STEPS)) {
+    const x = target.x - dx;
+    const y = target.y - dy;
+    if (!OPEN.includes(room.t[y * 7 + x]) || (x === room.toad.x && y === room.toad.y)) continue;
+    [g.x, g.y] = [x, y];
+    return { g, bump: () => act(g, { type: 'move', dir }), target };
+  }
+  assert.fail(`no clear step into ${kind}`);
+}
+
+test('holding on the toad or the statue observes it; one tap from across the room walks into its event', () => {
+  for (const [kind, seed, firstLine] of [
+    ['toad', 3, 'the toad is covered in boils'],
+    ['statue', 12, 'you pause next to the statue'],
+  ]) {
+    const g = newGame({ edition: 'esoteric', seed });
+    for (const dir of ['n', 'e', 'e', 'e']) act(g, { type: 'move', dir });
+    const { x, y } = g.level.rooms[g.room][kind];
+    const { player, turn } = view(g);
+    assert.ok(Math.max(Math.abs(x - player.x), Math.abs(y - player.y)) > 2);
+    act(g, { type: 'observe', x, y });
+    assert.equal(view(g).event, null);
+    assert.deepEqual(view(g).player, player);
+    assert.equal(g.turn, turn + 1);
+
+    act(g, { type: 'travel', x, y });
+    for (let i = 0; i < 7 && view(g).going; i++) act(g, { type: 'continue' });
+    assert.equal(eventLines(g)[0], firstLine);
+    assert.equal(Math.max(Math.abs(x - g.x), Math.abs(y - g.y)), 1);
+    assert.equal(view(g).going, false);
+  }
+});
+
+test('the toad has one distant observation and reveals its necklace up close while it holds the key', () => {
+  const g = newGame({ edition: 'esoteric', seed: 7 });
+  [g.x, g.y] = [1, 3];
+  const toad = putToad(g, 5, 3, true);
+  const observe = () => {
+    act(g, { type: 'observe', x: toad.x, y: toad.y });
+    return view(g).log.at(-1).text;
+  };
+  const plain = 'a toad sleeping in the dirt';
+  assert.equal(observe(), plain);
+  assert.equal(observe(), plain);
+  g.x = 3;
+  assert.equal(observe(), 'around the toad’s neck is necklace holding a golden key');
+  toad.key = false;
+  assert.equal(observe(), plain);
+  assert.equal(observe(), plain);
+});
+
+test('walking into the sleeping toad opens its encounter and grabbing the key can succeed or wake it', () => {
+  const chance = CONFIG.keyChance.calm;
+  try {
+    for (const succeeds of [true, false]) {
+      CONFIG.keyChance.calm = succeeds ? 1 : 0;
+      const { g, target: toad, bump } = besideEncounter('toad');
+      const turn = g.turn;
+      bump();
+      assert.deepEqual(eventLines(g), ['the toad is covered in boils', 'its muscles seem to bulge out of its body']);
+      assert.deepEqual(eventLabels(g), ['talkt to the toad', 'try to grab the key', 'back']);
+      const beforeTalk = view(g);
+      chooseLabel(g, 'talkt to the toad');
+      assert.deepEqual(view(g), beforeTalk, 'talking leaves the sleeping toad and its choices as they were');
+      chooseLabel(g, 'back');
+      assert.equal(view(g).event, null);
+      bump();
+      chooseLabel(g, 'try to grab the key');
+      assert.equal(toad.asleep, succeeds);
+      assert.equal(toad.key, !succeeds);
+      assert.equal(g.items.filter((item) => item.key === 'key').length, Number(succeeds));
+      assert.equal(g.turn, turn);
+      if (succeeds) {
+        chooseLabel(g, 'back');
+        bump();
+        assert.deepEqual(eventLabels(g), ['talkt to the toad', 'back']);
+        chooseLabel(g, 'back');
+        // Leave the stolen key on the floor, then kill the toad with the sword.
+        toad.hp = playerDamage(g);
+        for (const item of [TEXT.thing.key, TEXT.thing.sword]) {
+          act(g, { type: 'menu', id: 'inv' });
+          chooseLabel(g, item);
+          chooseLabel(g, TEXT.item.throw);
+        }
+        const room = g.level.rooms[g.room];
+        assert.equal(room.toad, null);
+        assert.deepEqual(room.corpses.at(-1).items, []);
+        assert.equal(room.loose.filter((it) => it.key === 'key').length, 1);
+      }
+    }
+  } finally {
+    CONFIG.keyChance.calm = chance;
+  }
+});
+
+test('an offering wakes DEE, who answers exactly one question before teaching imbue', () => {
+  const questions = [
+    ['where am I?', ["THE WORLD WAS DESTROYED, THAT'S TRUE"]],
+    ['who are you?', ['I AM DEE, YOUR OLD FRIEND', 'REMEMBER? I SHOWED YOU THE HOLE']],
+  ];
+  for (const [question, answer] of questions) {
+    const { g, target, bump } = besideEncounter('statue');
+    act(g, { type: 'observe', x: target.x, y: target.y });
+    assert.equal(view(g).log.at(-1).text, 'the lifeless bust of DEE');
+    act(g, { type: 'menu', id: 'act' });
+    assert.ok(!eventLabels(g).includes('imbue'));
+    chooseLabel(g, 'back');
+
+    const damage = playerDamage(g);
+    const turn = g.turn;
+    for (const choice of ['touch the statue', 'talk to it']) {
+      bump();
+      assert.deepEqual(eventLines(g), ['you pause next to the statue', 'a wild man with outstretched arms']);
+      assert.deepEqual(eventLabels(g), ['touch the statue', 'talk to it', 'place an item in its arms']);
+      chooseLabel(g, choice);
+      assert.equal(view(g).event, null);
+      assert.equal(g.turn, turn);
+    }
+    bump();
+    chooseLabel(g, 'place an item in its arms');
+    assert.deepEqual(eventLabels(g), ['sword', 'back']);
+    chooseLabel(g, 'back');
+    chooseLabel(g, 'place an item in its arms');
+    chooseLabel(g, 'sword');
+    assert.deepEqual(eventLines(g), [
+      'the sword glows and the statue emits a low hum',
+      'I LIVE. THANK YOU',
+      'I AM DEE. WE USED TO KNOW EACH OTHER',
+      'I’VE BEEN ON YOUR SIDE SINCE DAY ONE',
+    ]);
+    assert.deepEqual(eventLabels(g), questions.map(([label]) => label));
+    chooseLabel(g, question);
+    assert.deepEqual(eventLines(g), answer);
+    assert.deepEqual(eventLabels(g), ['continue']);
+    act(g, { type: 'back' });
+    assert.deepEqual(eventLabels(g), ['continue']);
+    chooseLabel(g, 'continue');
+    assert.deepEqual(eventLines(g), ['DEE shudders', 'I AM GETTING SLEEPY. BRING ME SOMETHING ELSE', 'AND PUT SOME LOVE INTO IT']);
+    assert.deepEqual(eventLabels(g), ['end']);
+    chooseLabel(g, 'end');
+    assert.equal(view(g).event, null);
+    const reward = 'gained new abiliity: imbue';
+    assert.equal(view(g).log.at(-1).text, reward);
+
+    // A later offering can glow, but does not replay either question or grant the ability twice.
+    const worms = Array.from({ length: 30 }, (_, i) => ({ key: 'worms', enchanted: i === 0 }));
+    g.items.push({ key: 'key' }, ...worms);
+    bump();
+    chooseLabel(g, 'place an item in its arms');
+    assert.deepEqual(eventLabels(g), [TEXT.thing.sword, TEXT.thing.key, TEXT.thing.worms, 'back']);
+    chooseLabel(g, TEXT.thing.key);
+    assert.deepEqual(eventLabels(g), ['end']);
+    assert.deepEqual(eventLines(g), [`the ${TEXT.thing.key} glows and the statue emits a low hum`]);
+    chooseLabel(g, 'end');
+    assert.equal(g.log.filter((line) => line.text === reward).length, 1);
+
+    act(g, { type: 'menu', id: 'act' });
+    chooseLabel(g, 'imbue');
+    chooseLabel(g, 'sword');
+    assert.equal(playerDamage(g), damage + CONFIG.enchant.swordDamage);
+    chooseLabel(g, 'back');
+    act(g, { type: 'menu', id: 'act' });
+    chooseLabel(g, 'imbue');
+    assert.deepEqual(eventLabels(g), [TEXT.thing.key, TEXT.thing.worms, 'back'], 'one row per eligible item kind');
+    chooseLabel(g, TEXT.thing.worms);
+    assert.equal(worms.filter((it) => it.enchanted).length, 2, 'imbue selects one of the untreated worms');
+  }
+});
 
 // Walk into the floor's stairs down from just inside them.
 function goDown(g) {

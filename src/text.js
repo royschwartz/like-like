@@ -100,6 +100,31 @@ export const TEXT = {
     chain: 'it wears a chain with a golden key around its neck',
   },
 
+  // HIS. The esoteric encounters in the first floor's eastern room.
+  toadEsoteric: {
+    asleep: 'a toad sleeping in the dirt',
+    chain: 'around the toad’s neck is necklace holding a golden key',
+    opening: ['the toad is covered in boils', 'its muscles seem to bulge out of its body'],
+    talk: 'talkt to the toad',
+    key: 'try to grab the key',
+  },
+  statueEsoteric: {
+    opening: ['you pause next to the statue', 'a wild man with outstretched arms'],
+    touch: 'touch the statue',
+    talk: 'talk to it',
+    offer: 'place an item in its arms',
+    glow: (name, plural) => `the ${name} ${plural ? 'glow' : 'glows'} and the statue emits a low hum`,
+    greeting: ['I LIVE. THANK YOU', 'I AM DEE. WE USED TO KNOW EACH OTHER', 'I’VE BEEN ON YOUR SIDE SINCE DAY ONE'],
+    where: 'where am I?',
+    world: ["THE WORLD WAS DESTROYED, THAT'S TRUE"],
+    who: 'who are you?',
+    friend: ['I AM DEE, YOUR OLD FRIEND', 'REMEMBER? I SHOWED YOU THE HOLE'],
+    continue: 'continue',
+    farewell: ['DEE shudders', 'I AM GETTING SLEEPY. BRING ME SOMETHING ELSE', 'AND PUT SOME LOVE INTO IT'],
+    end: 'end',
+    gained: 'gained new abiliity: imbue',
+  },
+
   // HIS. The toad's event, opened by moving into it while it sleeps (decision 155).
   // "singing" is what observing it tells of its song, up close. The event opens on "sings",
   // with "necklace" before it while you have not been told of its key (decisions 176, 186:
@@ -222,6 +247,7 @@ export const TEXT = {
     // PLAIN. The menu's setting for the lines round the buttons: none, or a step of grey.
     outlines: (n) => (n ? `outlines ${n}` : 'outlines off'),
     dig: 'dig for worms', // HIS
+    imbue: 'imbue', // HIS
     // HIS (November 20): "you can eat the corpse take items". The esoteric corpse's menu.
     eat: 'eat',
     takeItems: 'take items',

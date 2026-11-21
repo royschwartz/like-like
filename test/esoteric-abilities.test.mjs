@@ -202,24 +202,16 @@ test('going about the toad\'s room, nothing comes by itself: what was sensed is 
   assert.equal(g.knowsWorms, false);
 });
 
-test('beside a sleeping toad you notice its details, never its plain line, and nothing blinks', () => {
+test('waiting beside a sleeping toad reveals only its necklace, and nothing blinks', () => {
   const g = newGame({ seed: 3, edition: 'esoteric' });
-  toadRoom(g);
-  // a toad beside you, put back to sleep every turn
-  const room = currentRoom(g);
-  const { size } = terrainGrid(room.t);
-  const open = (x, y) => ['floor', 'grass'].includes(room.t[y * size + x]);
-  let spot = null;
-  for (let y = 1; y < size - 1 && !spot; y++) for (let x = 1; x < size - 2 && !spot; x++) if (open(x, y) && open(x + 1, y)) spot = [x, y];
-  [g.x, g.y] = spot;
-  const toad = putToad(g, spot[0] + 1, spot[1], true);
-  for (let k = 0; k < 60 && !(g.observed['unit.toad.chain'] && g.observed['unit.toad.sings']); k++) {
+  putToad(g, g.x + 1, g.y, true);
+  for (let k = 0; k < 60; k++) {
     act(g, { type: 'wait' });
-    toad.asleep = true;
     assert.ok(view(g).cells.every((c) => !c.more));
   }
-  for (const id of ['unit.toad.stronger', 'unit.toad.chain', 'unit.toad.sings']) assert.ok(g.observed[id], id);
-  assert.ok(!g.observed['unit.toad.asleep']);
+  assert.deepEqual(g.log.filter((l) => l.kind === 'observe').map((l) => l.text), [
+    'around the toad’s neck is necklace holding a golden key',
+  ]);
   g.items.push({ key: 'key', inHand: false });
   act(g, { type: 'menu', id: 'inv' });
   assert.deepEqual(view(g).event.options.map((o) => o.label), [TEXT.thing.sword, TEXT.thing.key, TEXT.menu.back]);

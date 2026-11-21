@@ -281,6 +281,9 @@
   margin: auto calc(var(--ev-side) * -1);
   padding-block: calc(var(--u) * 5);
 }
+#event:is([data-id="statue"], [data-id="toad"]) #event-links .link {
+  font-style: italic;
+}
 #btn-event-sys { margin-top: 0; }
 #event:has(#btn-event-sys.open) .brightness {
   margin-top: auto;
@@ -348,7 +351,7 @@
    psyche, the abilities, the memories, an item's page, and the corpse's take items, whose
    "corpse" is in the corpse's red. Events are not submenus and have none. */
 #event:is([data-id="inventory"], [data-id="psyche"], [data-id="abilities"], [data-id="memories"],
-  [data-id="item"], [data-id="loot"]) .passage:first-child {
+  [data-id="item"], [data-id="loot"], [data-id="imbue"]) .passage:first-child {
   text-decoration: underline;
   text-decoration-thickness: .09em;
   text-underline-offset: .22em;

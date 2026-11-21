@@ -442,12 +442,15 @@ function firstFloor(rng, grid) {
 // A room with no grass gets a patch, on open ground you can reach from where you come in
 // without the golden door ("purple green grass will have worms underneath").
 function ensureGrass(rng, room) {
-  if (room.t.includes('grass')) return;
   const { idx } = terrainGrid(room.t);
+  const bed = idx(room.toad.x, room.toad.y);
+  room.t[bed] = 'floor';
+  if (room.t.includes('grass')) return;
   const [ax, ay] = arrivalCells(room)[0];
   const reach = roomDistances(room.t, ax, ay, (c) => walkable(c) && c !== 'golddoor');
-  const spots = interiorCells(room.t, (c, x, y) => c === 'floor' && reach[idx(x, y)] > 0);
+  const spots = interiorCells(room.t, (c, x, y) => c === 'floor' && idx(x, y) !== bed && reach[idx(x, y)] > 0);
   if (spots.length) growGrass(rng, room.t, pick(rng, spots));
+  room.t[bed] = 'floor'; // the patch may have grown across the dirt where the toad sleeps
 }
 
 // In the esoteric edition the stairs down are anywhere on the edge of the map that has one way

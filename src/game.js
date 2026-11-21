@@ -49,6 +49,7 @@ function makeState(seed, look, nextLogId, outlines = CONFIG.outlines.start, edit
     // noticing without trying has its own chance, so it changes nothing else's luck
     noticeRng: makeRng((seed ^ 0x6e07ce) >>> 0),
     knowsWorms: false, // the toad's room's last line tells you (inspecting its grass); then digging
+    knowsImbue: false,
     memories: [], //   the memories you have, by id, in the order they came back
     recall: null, //   a memory on its way back: { id, turn }, or null
     heardSounds: false, // the bust's sounds were heard on this approach to it
@@ -456,7 +457,8 @@ function wound(g, room, toad, dmg, ev) {
   if (toad.hp <= 0) {
     room.toad = null;
     // its key, on its corpse
-    room.corpses.push({ x: toad.x, y: toad.y, items: hasItem(g, 'key') ? [] : [{ key: 'key' }] });
+    const hasKey = toad.key && !hasItem(g, 'key');
+    room.corpses.push({ x: toad.x, y: toad.y, items: hasKey ? [{ key: 'key' }] : [] });
     say(g, TEXT.log.toadDies, 'good');
     ev.push({ type: 'kill', x: toad.x, y: toad.y });
   }
@@ -565,6 +567,7 @@ function abilityIds(g, shortcutsOnly = false) {
   if (g.edition === 'esoteric') {
     const ids = variableIds(g);
     if (shortcutsOnly) return ids.slice(0, 2);
+    if (g.knowsImbue) ids.push('imbue');
     ids.push('wait');
     if (!awakeInSight(g) && g.hp === g.maxHp) ids.push('rest');
     return ids;
@@ -595,6 +598,11 @@ function runAbility(g, id, ev) {
     case 'rest': return rest(g, ev);
     case 'dig': return dig(g, ev);
     case 'inspect': return inspectGround(g, ev);
+    case 'imbue': {
+      const lines = [TEXT.menu.imbue];
+      if (!g.items.some((it) => !it.enchanted)) lines.push(TEXT.menu.nothing);
+      return openEvent(g, { id: 'imbue', passages: paragraphs(lines) }, ev);
+    }
   }
 }
 
@@ -1252,11 +1260,15 @@ const sayings = (name) => [].concat(TEXT.observe[name]).map((text, k) => ({ id: 
 
 // The toad's plain line, as Brogue's: who, doing what, on what ground. Its id is by what it
 // is doing, so a toad that wakes has a new line to observe. Always "a toad" (decision 185).
-function toadLine(room, toad) {
+function toadLine(g, room, toad) {
   const { idx } = terrainGrid(room.t);
   if (!toad.asleep) return { id: 'unit.toad.awake', text: TEXT.observe.toad, plain: true };
   const u = TEXT.unit;
-  const ground = u.ground[room.t[idx(toad.x, toad.y)]];
+  const tile = room.t[idx(toad.x, toad.y)];
+  if (g.edition === 'esoteric' && tile === 'floor') {
+    return { id: 'unit.toad.asleep', text: TEXT.toadEsoteric.asleep, plain: true };
+  }
+  const ground = u.ground[tile];
   return { id: 'unit.toad.asleep', text: ground ? u.line(u.who.toad, u.doing.asleep, ground) : u.elsewhere.toad, plain: true };
 }
 
@@ -1267,13 +1279,18 @@ function toadLine(room, toad) {
 // plain: from observing, not found by sensing, so it never makes a unit blink. Everything
 // is, for now: sensing finds nothing about a unit (180).
 function unitCycle(g, room, kind) {
+  if (g.edition === 'esoteric' && kind === 'statue') return sayings('statueLifeless');
   if (kind === 'toad') {
     const t = room.toad;
-    const s = TEXT.toadSeen;
     const close = isNear(g, t.x, t.y);
-    const out = [toadLine(room, t), { id: 'unit.toad.stronger', text: s.stronger, plain: true }];
+    const out = [toadLine(g, room, t)];
     const near = (id, text) => (close || g.observed[id]) && out.push({ id, text, plain: true });
-    if (t.key) near('unit.toad.chain', s.chain);
+    if (g.edition === 'esoteric') {
+      if (t.key) near('unit.toad.chain', TEXT.toadEsoteric.chain);
+      return out;
+    }
+    out.push({ id: 'unit.toad.stronger', text: TEXT.toadSeen.stronger, plain: true });
+    if (t.key) near('unit.toad.chain', TEXT.toadSeen.chain);
     if (t.asleep) near('unit.toad.sings', TEXT.toad.singing);
     return out;
   }
@@ -1349,6 +1366,7 @@ function sayObserved(g, key, o) {
 
 const prose = (text) => ({ text, song: false });
 const sung = (text) => ({ text, song: true });
+const paragraphs = (lines) => lines.map((line) => [prose(line)]);
 
 function openEvent(g, e, ev, keepMenu = false) {
   if (!keepMenu) g.menu = null;
@@ -1361,6 +1379,9 @@ function openEvent(g, e, ev, keepMenu = false) {
 // If you have not been told of its key, the first line tells you (decision 176): from then
 // on its chain is one of what observing it goes round, already had, and you can go for it.
 function openToad(g, ev) {
+  if (g.edition === 'esoteric') {
+    return openEvent(g, { id: 'toad', passages: paragraphs(TEXT.toadEsoteric.opening) }, ev);
+  }
   const toad = currentRoom(g).toad;
   // Its key, if you have not been told of it, then that it sings: "it" right after the
   // necklace; alone, the event's first line has nothing before it, so "the toad" (183, 186).
@@ -1375,9 +1396,43 @@ function openToad(g, ev) {
 
 // Moving into the bust: the first time it speaks; after that, its opening, with what you carry.
 function openBust(g, ev) {
+  if (g.edition === 'esoteric') return statuePage(g, 'approach', TEXT.statueEsoteric.opening, ev);
   const s = currentRoom(g).statue;
   if (!s.spoke) return openDee(g, ev);
   openEvent(g, { id: 'bust', passages: [[prose(TEXT.observe.statueLifeless)]], over: false }, ev);
+}
+
+function statuePage(g, stage, lines, ev) {
+  openEvent(g, { id: 'statue', stage, passages: paragraphs(lines) }, ev);
+}
+
+// Offering and imbuing select one item by name. Many identical worms need only one row.
+function carriedChoices(g, run) {
+  const choices = new Map();
+  for (const [i, it] of g.items.entries()) {
+    if (choices.has(it.key) || (run === 'imbueItem' && it.enchanted)) continue;
+    choices.set(it.key, { label: TEXT.thing[it.key], kind: 'item', run, arg: i });
+  }
+  return [...choices.values(), BACK];
+}
+
+function statueOptions(g) {
+  const t = TEXT.statueEsoteric;
+  const action = (label, run) => ({ label, kind: 'action', run });
+  switch (g.event.stage) {
+    case 'approach':
+      return [action(t.touch, 'back'), action(t.talk, 'back'), action(t.offer, 'offer')];
+    case 'offering':
+      return carriedChoices(g, 'place');
+    case 'questions':
+      return [action(t.where, 'where'), action(t.who, 'who')];
+    case 'answer':
+      return [action(t.continue, 'farewell')];
+    case 'farewell':
+      return [action(t.end, 'learnImbue')];
+    case 'again':
+      return [action(t.end, 'back')];
+  }
 }
 
 // The bust's first event, two pages (decision 157). The first ends at its greeting, and its
@@ -1432,6 +1487,8 @@ function recall(g, id, ev) {
 // DEE's first page has no way back: it ends at its greeting, and you answer.
 function eventOptions(g) {
   const e = g.event;
+  if (e.id === 'statue') return statueOptions(g);
+  if (e.id === 'imbue') return carriedChoices(g, 'imbueItem');
   // The opening has one way on and no way back.
   if (e.id === 'opening') return [{ label: TEXT.openingEsoteric.jump, kind: 'action', run: 'jump' }];
   if (!e.over && e.id === 'dee') return [{ label: TEXT.dee.ask, kind: 'action', run: 'ask' }];
@@ -1472,6 +1529,11 @@ function eventOptions(g) {
   }
   if (!e.over && e.id === 'toad') {
     const toad = currentRoom(g).toad;
+    if (g.edition === 'esoteric') {
+      list.push({ label: TEXT.toadEsoteric.talk, kind: 'action', run: 'toadTalk' });
+      if (toad.key) list.push({ label: TEXT.toadEsoteric.key, kind: 'action', run: 'key' });
+      return [...list, BACK];
+    }
     const o = TEXT.toad.options;
     list.push({ label: o.listen, kind: 'action', run: 'listen' });
     // only once you know of the key: you have observed its chain, or been told of it here
@@ -1490,7 +1552,42 @@ function eventChoose(g, i, ev) {
   const e = g.event;
   const room = currentRoom(g);
   const toad = room.toad;
+  const statue = TEXT.statueEsoteric;
   switch (o.run) {
+    case 'toadTalk':
+      // Its reply is unwritten. The key and the way back are still available.
+      break;
+    case 'offer': {
+      const lines = [statue.offer];
+      if (!g.items.length) lines.push(TEXT.menu.nothing);
+      statuePage(g, 'offering', lines, ev);
+      g.event.parentEvent = e;
+      break;
+    }
+    case 'place': {
+      const { key } = g.items[o.arg];
+      const glow = statue.glow(TEXT.thing[key], key === 'worms');
+      if (room.statue.spoke) statuePage(g, 'again', [glow], ev);
+      else statuePage(g, 'questions', [glow, ...statue.greeting], ev);
+      break;
+    }
+    case 'where':
+    case 'who':
+      statuePage(g, 'answer', o.run === 'where' ? statue.world : statue.friend, ev);
+      break;
+    case 'farewell':
+      statuePage(g, 'farewell', statue.farewell, ev);
+      break;
+    case 'learnImbue':
+      room.statue.spoke = true;
+      g.knowsImbue = true;
+      g.event = null;
+      say(g, statue.gained, 'good');
+      break;
+    case 'imbueItem':
+      g.items[o.arg].enchanted = true;
+      openItem(g, o.arg, ev);
+      break;
     case 'jump':
       // into the room, with the same cover as going down stairs; no turn passes
       g.event = null;
@@ -1773,8 +1870,10 @@ function plan(g, tx, ty) {
   // Gaps are destinations, never intermediate steps. Going to the mother's gap
   // takes the final step into her encounter, just as walking there by arrow does.
   const pass = (i) => !PATH_STOPS.has(t[i]) && t[i] !== 'door' && t[i] !== 'upstairs' && !drawnToad(i);
-  const isBump = t[there] === 'statue' || t[there] === 'golddoor' || drawnToad(there);
-  if (isBump && isStep(t, g.x, g.y, tx, ty)) return { bump: true, path: [] };
+  const targetToad = drawnToad(there);
+  const isBump = t[there] === 'statue' || t[there] === 'golddoor' || targetToad;
+  const encounter = g.edition === 'esoteric' && (t[there] === 'statue' || (targetToad && room.toad.asleep));
+  if (isBump && isStep(t, g.x, g.y, tx, ty)) return { bump: true, encounter, path: [] };
   let goals;
   if (pass(there) || t[there] === 'door' || t[there] === 'upstairs') {
     goals = [there];
@@ -1790,7 +1889,7 @@ function plan(g, tx, ty) {
     }
   }
   const dist = stepsFrom(t, goals, (i) => pass(i) || i === idx(g.x, g.y));
-  return { bump: false, path: walkDown(t, dist, g.x, g.y, tx, ty) ?? [] };
+  return { bump: false, encounter, path: walkDown(t, dist, g.x, g.y, tx, ty) ?? [] };
 }
 
 function toadInView(g) {
@@ -1801,7 +1900,7 @@ function toadInView(g) {
 }
 
 // One step of a travel to (tx, ty). `first`: the press that starts it, which may wait
-// (your own cell) or bump; a continuing travel only ever steps.
+// (your own cell) or bump. A tap on an esoteric encounter takes its final step into it.
 function travel(g, tx, ty, ev, first) {
   g.going = null;
   if (first && tx === g.x && ty === g.y) {
@@ -1810,7 +1909,7 @@ function travel(g, tx, ty, ev, first) {
   }
   const way = plan(g, tx, ty);
   if (way.bump) {
-    if (first) step(g, tx - g.x, ty - g.y, ev);
+    if (first || way.encounter) step(g, tx - g.x, ty - g.y, ev);
     return;
   }
   const next = way.path[0];
@@ -1827,14 +1926,15 @@ function travel(g, tx, ty, ev, first) {
     ev.some((e) => e.type === 'death') ||
     g.room !== before.room ||
     !!g.event ||
-    g.said > 0 ||
-    (!before.saw && toadInView(g)) ||
+    (g.said > 0 && !(way.encounter && g.log.at(-1)?.about === 'toad')) ||
+    (!before.saw && toadInView(g) && !way.encounter) ||
     awakeInSight(g) ||
     (marks.toad && !before.toad) ||
     (marks.statue && !before.statue);
-  const path = stopped ? [] : plan(g, tx, ty).path;
+  const onward = stopped ? null : plan(g, tx, ty);
+  const path = onward?.path ?? [];
   ev.push({ type: 'travel', x: tx, y: ty, path });
-  if (path.length) g.going = { x: tx, y: ty };
+  if (path.length || (onward?.bump && onward.encounter)) g.going = { x: tx, y: ty };
 }
 
 // Looking at a cell: the way a travel there would walk. Free.

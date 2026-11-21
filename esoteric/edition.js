@@ -7,7 +7,7 @@ const tiles = {
   grass:     ['--shoot', TEXT.observe.grass],
   wall:      ['--chalk', TEXT.observe.wall],
   player:    ['--chalk', TEXT.observe.you], // "player icon is black and white though"
-  statue:    ['--bust', TEXT.observe.statue], // "a cool blue color" (decision 300)
+  statue:    ['--bust', TEXT.observe.statueLifeless], // "a cool blue color" (decision 300)
   door:      ['--chalk', TEXT.observe.door],
   entrance:  ['--rope', TEXT.observe.entrance],
   stairs:    ['--sulphur', TEXT.observe.stairs],
