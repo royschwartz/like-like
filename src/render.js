@@ -79,6 +79,7 @@ export function createRenderer(root = document, { marks: withMarks = true, cellP
   };
   const frameMs = num('--f', 70);
   const passageMs = frameMs * num('--ev-every', 4);
+  const paceChoices = screen.ownerDocument.documentElement.dataset.edition === 'esoteric';
   const blinkMs = frameMs * num('--blink-on', 2);
   const blinkEveryMs = frameMs * num('--blink-every', 28);
   const stepMs = frameMs * num('--step-on', 5); // a unit's icon stepping to white and back
@@ -157,6 +158,10 @@ export function createRenderer(root = document, { marks: withMarks = true, cellP
     drawScreenMode(view);
     drawInv(view.inv);
     drawEvent(view.event);
+    if (paceChoices && !view.event && (before?.event || before?.menu?.id !== view.menu?.id)) {
+      stopPassages();
+      if (view.menu) streamPassages(); // A map menu has no opening paragraph.
+    }
     drawEventLinks(view.event, view.menu);
     drawStats(view.stats);
     drawButtons(view);
@@ -536,33 +541,27 @@ export function createRenderer(root = document, { marks: withMarks = true, cellP
   function stopPassages() {
     clearTimeout(passageTimer);
     passageTimer = null;
-    eventEl?.removeAttribute('data-streaming');
+    screen.removeAttribute('data-streaming');
   }
 
   // The first new paragraph is already visible. Reveal the rest, then the choices,
   // on the same clock. Hidden paragraphs and links reserve their space on the page.
-  function streamPassages(first, choiceDelayMs) {
-    eventEl.setAttribute('data-streaming', '');
-    let next = first.nextElementSibling;
+  function streamPassages(first) {
+    screen.setAttribute('data-streaming', '');
+    let next = first?.nextElementSibling;
     for (let p = next; p; p = p.nextElementSibling) p.style.visibility = 'hidden';
-    function scheduleNext() {
-      if (!next) {
-        passageTimer = setTimeout(stopPassages, choiceDelayMs);
-        return;
-      }
-      passageTimer = setTimeout(() => {
-        next.style.visibility = '';
-        next = next.nextElementSibling;
-        scheduleNext();
-      }, passageMs);
+    function advance() {
+      if (!next) return stopPassages();
+      next.style.visibility = '';
+      next = next.nextElementSibling;
+      passageTimer = setTimeout(advance, passageMs);
     }
-    scheduleNext();
+    passageTimer = setTimeout(advance, passageMs);
   }
 
   function drawEvent(event) {
     if (!eventEl) return;
     if (!event) {
-      if (passageTimer !== null) stopPassages();
       eventEl.hidden = true;
       eventKey = null;
       eventDrawn = { sig: null, texts: [] };
@@ -574,7 +573,6 @@ export function createRenderer(root = document, { marks: withMarks = true, cellP
     stopPassages();
     eventKey = key;
     setAttr(eventEl, 'data-id', event.id);
-    const choiceDelayMs = frameMs * Number(win.getComputedStyle(eventEl).getPropertyValue('--story-choice-delay'));
     const groups = [];
     for (const l of lines) {
       const n = Number.isInteger(l.passage) && l.passage >= 0 ? l.passage : 0;
@@ -595,7 +593,7 @@ export function createRenderer(root = document, { marks: withMarks = true, cellP
     while (eventLines.firstChild) eventLines.removeChild(eventLines.firstChild);
     groups.forEach((group, n) => {
       const box = doc.createElement('div');
-      box.className = 'passage ' + (n >= event.now ? 'now' : 'old') + (!choiceDelayMs && n >= from ? ' enter' : '');
+      box.className = 'passage ' + (n >= event.now ? 'now' : 'old') + (!paceChoices && n >= from ? ' enter' : '');
       box.style.setProperty('--k', Math.max(0, n - from));
       let verse = null;
       for (const l of group || []) {
@@ -616,7 +614,7 @@ export function createRenderer(root = document, { marks: withMarks = true, cellP
       }
       eventLines.appendChild(box);
     });
-    if (choiceDelayMs > 0 && from < groups.length) streamPassages(eventLines.children[from], choiceDelayMs);
+    if (paceChoices) streamPassages(eventLines.children[from]);
     eventDrawn = { sig, texts };
     eventLines.scrollTop = from > 0 ? eventLines.scrollHeight : 0;
   }
