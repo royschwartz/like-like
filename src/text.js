@@ -50,6 +50,7 @@ export const TEXT = {
     you: '[you]',
     corpse: '[corpse]',
     grass: '[grass]',
+    purplishGrass: 'purplish grass',
     dirt: '[dirt]',
     wall: '[wall]',
     door: '[door]',
@@ -62,8 +63,10 @@ export const TEXT = {
     golddoor: 'the door at the far corner of the room is golden',
     // HIS. The mother as you first see her.
     mother: 'a cloaked woman',
+    motherKnown: 'the mother',
     // The bust. "statue description is short": before it has spoken, [...], his to write.
     statue: '[bust]',
+    statueUnruly: 'statue of an unruly man',
     // HIS. After it has spoken. It is also the text of its event from then on.
     // No period at the end: "as a rule we should limit periods".
     statueLifeless: 'the lifeless bust of DEE',
@@ -107,6 +110,7 @@ export const TEXT = {
     opening: ['the toad is covered in boils', 'its muscles seem to bulge out of its body'],
     talk: 'talk to the toad',
     key: 'try to grab the key',
+    attack: 'attack the toad',
   },
   statueEsoteric: {
     opening: ['you pause next to the statue', 'a wild man with outstretched arms'],
@@ -153,8 +157,8 @@ export const TEXT = {
   // HIS. Entering the mother's room, then approaching her.
   mother: {
     room: 'the room is cold and you are suddenly afraid',
-    opening: [
-      'the woman looks up at you',
+    opening: (met) => [
+      met ? 'the mother looks up at you' : 'the woman looks up at you',
       'her face is ghoulish',
       'she is mumbling about her missing baby',
     ],

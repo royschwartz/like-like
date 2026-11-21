@@ -7,7 +7,7 @@ const tiles = {
   grass:     ['--shoot', TEXT.observe.grass],
   wall:      ['--chalk', TEXT.observe.wall],
   player:    ['--chalk', TEXT.observe.you], // "player icon is black and white though"
-  statue:    ['--bust', TEXT.observe.statueLifeless], // "a cool blue color" (decision 300)
+  statue:    ['--bust', TEXT.observe.statueUnruly], // "a cool blue color" (decision 300)
   door:      ['--chalk', TEXT.observe.door],
   entrance:  ['--rope', TEXT.observe.entrance],
   stairs:    ['--sulphur', TEXT.observe.stairs],
@@ -44,7 +44,7 @@ export function paintEsoteric(cell, x, y, env) {
   const [ink, name] = tiles[kind];
   const color = `var(${ink})`;
   const fg = cell.state === 'remembered' ? `color-mix(in srgb, ${color} 44%, ${bg})` : color;
-  const label = name.replace(/[[\]]/g, '');
+  const label = (cell.label ?? name).replace(/[[\]]/g, '');
   // The toad is the font's lowercase t. Living things hold still (decision 312).
   if (kind === 'toad') return { ch: 't', fg, bg, label };
   const edge = env.size - 1;

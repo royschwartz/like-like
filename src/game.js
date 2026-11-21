@@ -388,8 +388,10 @@ function step(g, dx, dy, ev) {
   if (c === 'wall' || c === 'void') return; // no turn, nothing
   if (c === 'statue') return openBust(g, ev); // into the bust, never onto it: its event, no turn
   // She stays in the gap. Walking into her opens the encounter without spending a turn.
-  if (motherAt(room, x, y)) {
-    const passages = TEXT.mother.opening.map((line) => [prose(line)]);
+  const mother = motherAt(room, x, y);
+  if (mother) {
+    const passages = paragraphs(TEXT.mother.opening(mother.met));
+    mother.met = true;
     return openEvent(g, { id: 'mother', passages }, ev);
   }
   if (c === 'golddoor') return goldDoor(g, room, x, y, ev);
@@ -1268,7 +1270,7 @@ function toadLine(g, room, toad) {
   if (g.edition === 'esoteric' && tile === 'floor') {
     return { id: 'unit.toad.asleep', text: TEXT.toadEsoteric.asleep, plain: true };
   }
-  const ground = u.ground[tile];
+  const ground = tile === 'grass' && grassOf(room) === 'purple' ? TEXT.observe.purplishGrass : u.ground[tile];
   return { id: 'unit.toad.asleep', text: ground ? u.line(u.who.toad, u.doing.asleep, ground) : u.elsewhere.toad, plain: true };
 }
 
@@ -1279,7 +1281,6 @@ function toadLine(g, room, toad) {
 // plain: from observing, not found by sensing, so it never makes a unit blink. Everything
 // is, for now: sensing finds nothing about a unit (180).
 function unitCycle(g, room, kind) {
-  if (g.edition === 'esoteric' && kind === 'statue') return sayings('statueLifeless');
   if (kind === 'toad') {
     const t = room.toad;
     const close = isNear(g, t.x, t.y);
@@ -1294,7 +1295,8 @@ function unitCycle(g, room, kind) {
     if (t.asleep) near('unit.toad.sings', TEXT.toad.singing);
     return out;
   }
-  return sayings(room.statue?.spoke ? 'statueLifeless' : 'statue').map((o) => ({ ...o, plain: true }));
+  const unknown = g.edition === 'esoteric' ? 'statueUnruly' : 'statue';
+  return sayings(room.statue?.spoke ? 'statueLifeless' : unknown).map((o) => ({ ...o, plain: true }));
 }
 
 // Something found that you have not observed: a default observation never counts
@@ -1305,7 +1307,7 @@ const hasNew = (g, list) => list.some((o) => !o.plain && !g.observed[o.id]);
 // by; unit: the kind of unit, which can blink, or null.
 function observable(g, room, i, thing) {
   if (thing?.kind === 'toad') return { key: 'toad', unit: 'toad', list: unitCycle(g, room, 'toad') };
-  if (thing?.kind === 'mother') return { key: 'mother', unit: null, list: sayings('mother') };
+  if (thing?.kind === 'mother') return { key: 'mother', unit: null, list: sayings(room.mother.met ? 'motherKnown' : 'mother') };
   // an item on the floor: its name
   if (thing?.kind === 'item') return { key: 'item', unit: null, list: [{ id: `item.${thing.key}`, text: TEXT.thing[thing.key] }] };
   if (thing) {
@@ -1313,7 +1315,8 @@ function observable(g, room, i, thing) {
     return { key: name, unit: null, list: sayings(name) };
   }
   if (room.t[i] === 'statue') return { key: 'statue', unit: 'statue', list: unitCycle(g, room, 'statue') };
-  const name = TERRAIN_NAME[room.t[i]];
+  const tile = room.t[i];
+  const name = tile === 'grass' && grassOf(room) === 'purple' ? 'purplishGrass' : TERRAIN_NAME[tile];
   return { key: name, unit: null, list: sayings(name) };
 }
 
@@ -1532,6 +1535,7 @@ function eventOptions(g) {
     if (g.edition === 'esoteric') {
       list.push({ label: TEXT.toadEsoteric.talk, kind: 'action', run: 'toadTalk' });
       if (toad.key) list.push({ label: TEXT.toadEsoteric.key, kind: 'action', run: 'key' });
+      list.push({ label: TEXT.toadEsoteric.attack, kind: 'action', run: 'attack' });
       return [...list, BACK];
     }
     const o = TEXT.toad.options;
@@ -1568,7 +1572,10 @@ function eventChoose(g, i, ev) {
       const { key } = g.items[o.arg];
       const glow = statue.glow(TEXT.thing[key], key === 'worms');
       if (room.statue.spoke) statuePage(g, 'again', [glow], ev);
-      else statuePage(g, 'questions', [glow, ...statue.greeting], ev);
+      else {
+        room.statue.spoke = true;
+        statuePage(g, 'questions', [glow, ...statue.greeting], ev);
+      }
       break;
     }
     case 'where':
@@ -1579,7 +1586,6 @@ function eventChoose(g, i, ev) {
       statuePage(g, 'farewell', statue.farewell, ev);
       break;
     case 'learnImbue':
-      room.statue.spoke = true;
       g.knowsImbue = true;
       g.event = null;
       say(g, statue.gained, 'good');
@@ -2046,13 +2052,17 @@ export function view(g) {
     const state = room.t[i] === 'void' ? 'unknown' : shown[i] ? 'visible' : room.seen[i] ? 'remembered' : 'unknown';
     const thing = thingAt(g, room, i, vis, shown, sensed) ?? null;
     // A unit in sight that you have noticed, with something you have not observed, blinks.
-    let more = false;
-    if (state === 'visible') {
+    const cell = { t: room.t[i], state, thing, more: false };
+    if (g.edition === 'esoteric') {
+      // Use the same name for the map and a hold, including on remembered squares.
+      const kind = thing?.kind ?? cell.t;
+      if (state !== 'unknown' && (kind === 'grass' || kind === 'statue' || kind === 'mother')) {
+        cell.label = observable(g, room, i, thing).list[0].text;
+      }
+    } else if (state === 'visible') {
       const o = observable(g, room, i, thing);
-      // Nothing blinks in the esoteric edition (decision 245).
-      more = g.edition !== 'esoteric' && !!o.unit && !!noticedIn(room)[o.unit] && hasNew(g, o.list);
+      cell.more = !!o.unit && !!noticedIn(room)[o.unit] && hasNew(g, o.list);
     }
-    const cell = { t: room.t[i], state, thing, more };
     if (room.t[i] === 'grass' && grassOf(room)) cell.grass = grassOf(room);
     cells.push(cell);
   }

@@ -260,6 +260,12 @@ test('talking to the woman and looking through items return to her choices, and 
   chooseLabel(g, 'back');
   assert.equal(view(g).event, null);
   assert.deepEqual([g.room, g.x, g.y, g.turn], [1, 1, 3, turn]);
+  act(g, { type: 'observe', x: 0, y: 3 });
+  assert.equal(view(g).log.at(-1).text, 'the mother');
+  assert.equal(view(g).cells[3 * 7].label, 'the mother');
+  act(g, { type: 'move', dir: 'w' });
+  assert.equal(eventLines(g)[0], 'the mother looks up at you');
+  assert.deepEqual(eventLabels(g), motherChoices);
 });
 
 test('taking the cloak or attacking leads to her accusation and only die restarts the game', () => {
@@ -343,6 +349,18 @@ test('the toad has one distant observation and reveals its necklace up close whi
   assert.equal(observe(), plain);
 });
 
+test('choosing to attack the sleeping toad strikes it and spends a turn', () => {
+  const { g, target: toad, bump } = besideEncounter('toad');
+  const hp = toad.hp, turn = g.turn;
+  bump();
+  const events = chooseLabel(g, 'attack the toad');
+  assert.ok(events.some((e) => e.type === 'attack' && e.by === 'player' && e.hit));
+  assert.equal(toad.hp, hp - playerDamage(g));
+  assert.equal(toad.asleep, false);
+  assert.equal(g.turn, turn + 1);
+  assert.equal(view(g).event, null);
+});
+
 test('walking into the sleeping toad opens its encounter and grabbing the key can succeed or wake it', () => {
   const chance = CONFIG.keyChance.calm;
   try {
@@ -352,7 +370,7 @@ test('walking into the sleeping toad opens its encounter and grabbing the key ca
       const turn = g.turn;
       bump();
       assert.deepEqual(eventLines(g), ['the toad is covered in boils', 'its muscles seem to bulge out of its body']);
-      assert.deepEqual(eventLabels(g), ['talk to the toad', 'try to grab the key', 'back']);
+      assert.deepEqual(eventLabels(g), ['talk to the toad', 'try to grab the key', 'attack the toad', 'back']);
       const beforeTalk = view(g);
       chooseLabel(g, 'talk to the toad');
       assert.deepEqual(view(g), beforeTalk, 'talking leaves the sleeping toad and its choices as they were');
@@ -367,7 +385,7 @@ test('walking into the sleeping toad opens its encounter and grabbing the key ca
       if (succeeds) {
         chooseLabel(g, 'back');
         bump();
-        assert.deepEqual(eventLabels(g), ['talk to the toad', 'back']);
+        assert.deepEqual(eventLabels(g), ['talk to the toad', 'attack the toad', 'back']);
         chooseLabel(g, 'back');
         // Leave the stolen key on the floor, then kill the toad with the sword.
         toad.hp = playerDamage(g);
@@ -395,7 +413,9 @@ test('an offering wakes DEE, who answers exactly one question before teaching im
   for (const [question, answer] of questions) {
     const { g, target, bump } = besideEncounter('statue');
     act(g, { type: 'observe', x: target.x, y: target.y });
-    assert.equal(view(g).log.at(-1).text, 'the lifeless bust of DEE');
+    assert.equal(view(g).log.at(-1).text, 'statue of an unruly man');
+    const statueLabel = () => view(g).cells[target.y * 7 + target.x].label;
+    assert.equal(statueLabel(), 'statue of an unruly man');
     act(g, { type: 'menu', id: 'act' });
     assert.ok(!eventLabels(g).includes('imbue'));
     chooseLabel(g, 'back');
@@ -409,6 +429,7 @@ test('an offering wakes DEE, who answers exactly one question before teaching im
       chooseLabel(g, choice);
       assert.equal(view(g).event, null);
       assert.equal(g.turn, turn);
+      assert.equal(statueLabel(), 'statue of an unruly man');
     }
     bump();
     chooseLabel(g, 'place an item in its arms');
@@ -435,6 +456,9 @@ test('an offering wakes DEE, who answers exactly one question before teaching im
     assert.equal(view(g).event, null);
     const reward = 'gained new ability: imbue';
     assert.equal(view(g).log.at(-1).text, reward);
+    act(g, { type: 'observe', x: target.x, y: target.y });
+    assert.equal(view(g).log.at(-1).text, 'the lifeless bust of DEE');
+    assert.equal(statueLabel(), 'the lifeless bust of DEE');
 
     // A later offering can glow, but does not replay either question or grant the ability twice.
     const worms = Array.from({ length: 30 }, (_, i) => ({ key: 'worms', enchanted: i === 0 }));

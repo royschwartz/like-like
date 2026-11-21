@@ -165,6 +165,24 @@ test('inspecting the first room\'s grass: it glows; nothing under it, and no dig
   assert.ok(!shortcuts(g).includes('dig'));
 });
 
+test('holding on grass uses its local name without learning to dig', () => {
+  const g = start();
+  const observeGrass = (x, y, name) => {
+    const cell = view(g).cells[y * 7 + x];
+    assert.equal(cell.t, 'grass');
+    assert.equal(cell.label, name);
+    act(g, { type: 'observe', x, y });
+    assert.equal(g.log.at(-1).text, name);
+    assert.equal(g.knowsWorms, false);
+  };
+  observeGrass(2, 2, TEXT.observe.grass);
+  toadRoom(g);
+  [g.x, g.y] = [1, 3];
+  const i = view(g).cells.findIndex((c) => c.t === 'grass' && c.state === 'visible' && !c.thing);
+  assert.ok(i >= 0);
+  observeGrass(i % 7, Math.floor(i / 7), 'purplish grass');
+});
+
 test('inspecting the toad\'s purple-green grass: the ground struggles, and you can dig for worms', () => {
   for (let seed = 1; seed <= 30; seed++) {
     const g = newGame({ seed, edition: 'esoteric' });
