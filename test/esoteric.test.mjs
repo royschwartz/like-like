@@ -352,9 +352,9 @@ test('walking into the sleeping toad opens its encounter and grabbing the key ca
       const turn = g.turn;
       bump();
       assert.deepEqual(eventLines(g), ['the toad is covered in boils', 'its muscles seem to bulge out of its body']);
-      assert.deepEqual(eventLabels(g), ['talkt to the toad', 'try to grab the key', 'back']);
+      assert.deepEqual(eventLabels(g), ['talk to the toad', 'try to grab the key', 'back']);
       const beforeTalk = view(g);
-      chooseLabel(g, 'talkt to the toad');
+      chooseLabel(g, 'talk to the toad');
       assert.deepEqual(view(g), beforeTalk, 'talking leaves the sleeping toad and its choices as they were');
       chooseLabel(g, 'back');
       assert.equal(view(g).event, null);
@@ -367,7 +367,7 @@ test('walking into the sleeping toad opens its encounter and grabbing the key ca
       if (succeeds) {
         chooseLabel(g, 'back');
         bump();
-        assert.deepEqual(eventLabels(g), ['talkt to the toad', 'back']);
+        assert.deepEqual(eventLabels(g), ['talk to the toad', 'back']);
         chooseLabel(g, 'back');
         // Leave the stolen key on the floor, then kill the toad with the sword.
         toad.hp = playerDamage(g);
@@ -433,7 +433,7 @@ test('an offering wakes DEE, who answers exactly one question before teaching im
     assert.deepEqual(eventLabels(g), ['end']);
     chooseLabel(g, 'end');
     assert.equal(view(g).event, null);
-    const reward = 'gained new abiliity: imbue';
+    const reward = 'gained new ability: imbue';
     assert.equal(view(g).log.at(-1).text, reward);
 
     // A later offering can glow, but does not replay either question or grant the ability twice.

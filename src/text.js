@@ -105,7 +105,7 @@ export const TEXT = {
     asleep: 'a toad sleeping in the dirt',
     chain: 'around the toad’s neck is necklace holding a golden key',
     opening: ['the toad is covered in boils', 'its muscles seem to bulge out of its body'],
-    talk: 'talkt to the toad',
+    talk: 'talk to the toad',
     key: 'try to grab the key',
   },
   statueEsoteric: {
@@ -122,7 +122,7 @@ export const TEXT = {
     continue: 'continue',
     farewell: ['DEE shudders', 'I AM GETTING SLEEPY. BRING ME SOMETHING ELSE', 'AND PUT SOME LOVE INTO IT'],
     end: 'end',
-    gained: 'gained new abiliity: imbue',
+    gained: 'gained new ability: imbue',
   },
 
   // HIS. The toad's event, opened by moving into it while it sleeps (decision 155).
