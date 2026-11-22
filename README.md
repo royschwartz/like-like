@@ -62,6 +62,8 @@ Then go to `http://localhost:5173`. Add `?seed=7` to the address to play the sam
 | `style.css`, `src/palette.js` | the base layout and colours, shared with the archived original |
 | `original/` | the archived first game |
 | `study/marks/` | an old study for the original's marks. [Play it](https://royschwartz.github.io/like-like/study/marks/) |
+| `study/stairs/` | a study of ways to go up and down stairs. [Play it](https://royschwartz.github.io/like-like/study/stairs/) |
+| `study/log/` | a study of how new lines in the log show: lit, blinking, spaced. [Play it](https://royschwartz.github.io/like-like/study/log/) |
 | `test/` | tests for the simulation |
 
 The same seed and the same presses always give the same game.

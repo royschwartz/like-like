@@ -1,0 +1,195 @@
+/* The log study. The log's lines as the panel sets them (log.js puts the settings on #screen),
+   then the panel: flat, hard-edged and mono, like the stairs study's. */
+
+/* --- lit: every line the latest action said, not only the newest --- */
+#screen[data-lg-lit] #log-lines > .line.now {
+  color: var(--reading-ink);
+  -webkit-text-stroke: 0.02em currentColor;
+}
+#screen[data-lg-lit] #log-lines > .line.old {
+  color: color-mix(in srgb, var(--reading-ink) var(--lg-old, 60%), var(--slab));
+  -webkit-text-stroke: 0;
+}
+/* inverse: a block of ink behind the latest lines' type, hugging it line by line */
+#screen[data-lg-lit="inverse"] #log-lines > .line.now > span {
+  background: var(--reading-ink);
+  color: var(--slab);
+  -webkit-text-stroke: 0;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+
+/* --- spacing: the same gap above every entry, or the game's (one action's lines closer) --- */
+#screen[data-lg-space] #log-lines > .line {
+  padding-top: var(--lg-gap, .72em);
+}
+#screen[data-lg-space="grouped"] #log-lines > .line.same-action {
+  padding-top: .24em;
+}
+#screen[data-lg-space] #log-lines > .line:last-child {
+  padding-top: 0;
+}
+
+/* --- the blink. Before its turn a line is not there; off is gone, dim or inverse --- */
+#screen #log-lines .lg-wait {
+  visibility: hidden;
+}
+#screen[data-lg-off="gone"] #log-lines .lg-off {
+  visibility: hidden;
+}
+#screen[data-lg-off="dim"] #log-lines .line .lg-off {
+  color: color-mix(in srgb, var(--reading-ink) var(--lg-old, 60%), var(--slab));
+  -webkit-text-stroke: 0;
+}
+#screen[data-lg-off="inverse"] #log-lines .line .lg-off {
+  background: var(--reading-ink);
+  color: var(--slab);
+  -webkit-text-stroke: 0;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+/* lit in inverse already: off is the plain type */
+#screen[data-lg-lit="inverse"][data-lg-off="inverse"] #log-lines > .line.now > .lg-off {
+  background: none;
+  color: var(--reading-ink);
+}
+
+/* --- the panel --- */
+#study {
+  --st-bg: #000;
+  --st-ink: #c9c3b4;
+  --st-quiet: #6f6a5f;
+  --st-line: #4a463e;
+  --st-bright: #fff;
+  font-family: Monaco, Menlo, "Courier New", monospace;
+  font-size: 11px;
+  line-height: 1.25;
+  color: var(--st-ink);
+}
+#study button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  border-radius: 0;
+  -webkit-appearance: none;
+  appearance: none;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.st-panel {
+  position: fixed;
+  z-index: 20;
+  box-sizing: border-box;
+  overflow-y: auto;
+  background: var(--st-bg);
+  padding: 6px 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border-top: 1px solid var(--st-line);
+}
+#study.side .st-panel {
+  border-top: 0;
+  border-right: 1px solid var(--st-line);
+  justify-content: center;
+}
+#study.side .st-panel > :first-child {
+  margin-top: auto;
+}
+#study.side .st-panel > :last-child {
+  margin-bottom: auto;
+}
+#study.closed .st-panel {
+  display: none;
+}
+.st-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: var(--st-quiet);
+}
+.st-head-buttons {
+  display: flex;
+  gap: 4px;
+}
+.st-small,
+.st-show {
+  padding: 4px 6px !important;
+  border: 1px solid var(--st-line) !important;
+  color: var(--st-quiet) !important;
+}
+.st-show {
+  position: fixed;
+  z-index: 21;
+  bottom: 6px;
+  right: 6px;
+  background: var(--st-bg) !important;
+  display: none;
+}
+#study.closed .st-show {
+  display: block;
+}
+
+.st-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.st-say {
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.st-go-btn {
+  flex: 1 0 auto;
+  min-height: 32px;
+  padding: 0 6px !important;
+  color: var(--st-bright) !important;
+  border: 1px solid var(--st-ink) !important;
+}
+.st-note:empty {
+  display: none;
+}
+.st-note {
+  color: var(--st-quiet);
+}
+.st-section {
+  margin-top: 4px;
+  color: var(--st-bright);
+  border-bottom: 1px solid var(--st-line);
+}
+.st-label {
+  flex: 0 0 9.5em;
+  color: var(--st-quiet);
+}
+.st-seg {
+  flex: 1;
+  min-height: 26px;
+  border: 1px solid var(--st-line) !important;
+}
+.st-seg.on {
+  color: var(--st-bg) !important;
+  background: var(--st-ink) !important;
+  border-color: var(--st-ink) !important;
+}
+.st-slider input {
+  flex: 1;
+  min-width: 0;
+  height: 22px;
+  margin: 0;
+  accent-color: var(--st-ink);
+}
+.st-value {
+  flex: 0 0 5.5em;
+  text-align: right;
+}
+.st-readout,
+.st-now {
+  white-space: pre-line;
+  color: var(--st-quiet);
+}
+.st-readout {
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid var(--st-line);
+}

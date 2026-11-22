@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en" data-edition="esoteric">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#000000">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<title>LIKE LIKE, log study</title>
+<link rel="icon" href="data:,">
+<link rel="preload" href="../../esoteric/font/crooked-hand.woff2?v=6" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="../../style.css?v=7">
+<link rel="stylesheet" href="../../esoteric/edition.css?v=14">
+<link rel="stylesheet" href="../../esoteric/type.css?v=9">
+<link rel="stylesheet" href="../../esoteric/controls.css?v=28">
+<link rel="stylesheet" href="study.css?v=1">
+<!-- The log study: the game as it is, with a panel to try how new lines in the log show.
+     Load matching room geometry, pointer input and art even with a previous edition cached. -->
+<script type="importmap">
+{
+  "imports": {
+    "./log.js": "./log.js?v=1",
+    "./panel.js": "./panel.js?v=1",
+    "../../src/config.js": "../../src/config.js?v=12",
+    "../../src/game.js": "../../src/game.js?v=24",
+    "../../src/gen.js": "../../src/gen.js?v=16",
+    "../../src/fov.js": "../../src/fov.js?v=4",
+    "../../src/path.js": "../../src/path.js?v=4",
+    "../../src/render.js": "../../src/render.js?v=19",
+    "../../src/marks.js": "../../src/marks.js?v=4",
+    "../../src/text.js": "../../src/text.js?v=20",
+    "../../src/input.js": "../../src/input.js?v=9",
+    "../../esoteric/edition.js": "../../esoteric/edition.js?v=16",
+    "../../esoteric/more.js": "../../esoteric/more.js?v=1",
+    "../../esoteric/stairs.js": "../../esoteric/stairs.js?v=1",
+    "../../esoteric/symbols.js": "../../esoteric/symbols.js?v=12",
+    "../../esoteric/terrain.js": "../../esoteric/terrain.js?v=14"
+  }
+}
+</script>
+</head>
+<body>
+<main id="stage">
+  <div id="screen" data-look="dark">
+
+    <section id="log" aria-live="polite">
+      <div id="log-lines"></div>
+    </section>
+
+    <section id="map-wrap">
+      <div id="map-field">
+        <div id="map" class="map"></div>
+      </div>
+      <div id="inv" hidden>
+        <div id="inv-title"></div>
+        <div id="inv-rows"></div>
+      </div>
+    </section>
+
+    <button id="stats" class="btn" type="button" data-menu="psy"></button>
+
+    <section id="event" hidden aria-live="polite">
+      <div id="event-lines"></div>
+      <div id="event-items"></div>
+      <div id="event-links"></div>
+      <button id="btn-event-sys" class="link" type="button" data-menu="sys"></button>
+    </section>
+
+    <section id="controls">
+      <div id="buttons">
+        <button id="btn-context" class="btn" type="button" data-action="context"></button>
+        <button id="btn-secondary" class="btn" type="button" hidden></button>
+        <button id="btn-wait" class="btn" type="button" data-action="wait" data-repeat></button>
+        <button id="btn-act" class="btn" type="button" data-menu="act"></button>
+        <button id="btn-use" class="btn" type="button" data-action="use"></button>
+      </div>
+
+      <div id="options">
+        <button class="btn opt" type="button" data-choose="0"></button>
+        <button class="btn opt" type="button" data-choose="1"></button>
+        <button class="btn opt" type="button" data-choose="2"></button>
+        <button class="btn opt" type="button" data-choose="3"></button>
+      </div>
+
+      <div id="navigation">
+        <button id="btn-sys" class="btn" type="button" data-menu="sys"></button>
+        <button id="btn-memories" class="btn" type="button" data-menu="memories"></button>
+        <button id="btn-inv" class="btn" type="button" data-menu="inv"></button>
+      </div>
+    </section>
+
+  </div>
+</main>
+<template id="brightness-control">
+  <label class="brightness">
+    <span class="brightness-label"></span>
+    <input type="range" min="40" max="100" value="100">
+    <span class="brightness-value" aria-hidden="true"></span>
+  </label>
+</template>
+<script type="module" src="../../esoteric/center.js?v=1"></script>
+<script type="module" src="../../esoteric/icons.js?v=3"></script>
+<script type="module" src="../../esoteric/brightness.js?v=3"></script>
+<script type="module" src="play.js?v=1"></script>
+</body>
+</html>
