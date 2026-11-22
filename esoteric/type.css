@@ -9,19 +9,17 @@
   line-height: 1.12;
   padding-top: .72em;
 }
-/* Newer entries sit below their predecessors. The gap belongs above them. */
-.line.same-action {
-  padding-top: .24em;
-}
+/* Newer entries sit below their predecessors. The gap belongs above them, and every
+   entry has the same one, lines said by one action too (decision 382). */
 .line:last-child {
   padding-top: 0;
 }
-/* The log puts the newest entry first, even when one turn reports two things. */
-#log-lines > .line:first-child {
+/* Every line the latest action said is lit alike; older ones dim (decision 382). */
+#log-lines > .line.now {
   color: var(--reading-ink);
   -webkit-text-stroke: 0.02em currentColor;
 }
-#log-lines > .line ~ .line {
+#log-lines > .line.old {
   color: color-mix(in srgb, var(--reading-ink) 60%, var(--slab));
 }
 

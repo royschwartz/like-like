@@ -38,23 +38,9 @@
   padding-inline: var(--control-side);
   padding-top: env(safe-area-inset-top, 0px);
 }
+/* Every line at the controls' size, never squeezed: a long one wraps (decision 381). */
 #log .line {
-  /* A letter advances 0.6 em. Only tighten lines that would push an
-     action past two rows. Their height stays the same as the controls. */
-  --log-scale: min(1, calc((100 - 2 * var(--side-units)) /
-    (var(--text-units) * .6 * (var(--log-measure, 1) + .2))));
-  width: calc(100% / var(--log-scale));
-  transform: scaleX(var(--log-scale));
-  transform-origin: left;
   font-size: var(--text-size);
-}
-/* The slab width can grow independently of the type. Use the log's measured
-   width where the browser supports dividing lengths in calc(). */
-@supports (opacity: calc(1px / 1px)) {
-  #log { container-type: inline-size; }
-  #log .line {
-    --log-scale: min(1, calc(100cqi / ((var(--log-measure, 1) + .2) * 1ch)));
-  }
 }
 
 #stats {

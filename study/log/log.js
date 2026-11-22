@@ -2,7 +2,8 @@
 //
 // render.js already marks every line the latest action said `.now` and the rest `.old`, and
 // makes a new element for every line it hasn't drawn before, a count going up included. So:
-//   - lit: the study's CSS lights every `.now` line, not only the newest (study.css);
+//   - lit: the game lights every `.now` line; the study can light them in inverse, and set
+//     how dim older lines are (study.css);
 //   - blink: a watcher sees each new element as it goes in, before it is painted, and
 //     blinks it in hard frames, off and on, then leaves it lit.
 // Settings come from the panel and go on #screen as data attributes and CSS variables.
@@ -49,7 +50,6 @@ export function createLogLayer(screen, logLines) {
 
   function apply(spans, state) {
     for (const sp of spans) {
-      sp.classList.toggle('lg-wait', state === 'wait');
       sp.classList.toggle('lg-off', state === false);
     }
   }
@@ -62,26 +62,23 @@ export function createLogLayer(screen, logLines) {
     listener(null);
   }
 
-  // Start blinking the lines that just went in: the upper (said first) first.
+  // Start blinking the lines that just went in, all together (decision 382).
   function start(els) {
     finish();
     if (!settings || !els.length) return;
-    const ordered = els.slice().sort((a, b) => (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? 1 : -1));
     const f = frames(settings);
-    const apart = Math.round(settings.apart / settings.frame);
-    const targets = ordered.map((el, i) => {
+    const targets = els.map((el) => {
       const parts = el._lg;
       const repeat = parts.count && settings.repeat === 'count';
-      return { el, spans: repeat ? [parts.count] : [parts.msg, parts.count].filter(Boolean), at: i * apart };
+      return { el, spans: repeat ? [parts.count] : [parts.msg, parts.count].filter(Boolean) };
     });
-    if (!f.list.length && !apart) return;
-    const total = f.loop >= 0 ? Infinity : targets.at(-1).at + f.list.length;
+    if (!f.list.length) return;
+    const total = f.loop >= 0 ? Infinity : f.list.length;
     job = { targets, t0: performance.now(), total, f, timer: null };
     tick();
   }
 
   function stateAt(local, f) {
-    if (local < 0) return 'wait';
     if (local < f.list.length) return f.list[local];
     if (f.loop < 0) return true;
     // keeps blinking until the next action: the off-and-on part over and over
@@ -94,7 +91,7 @@ export function createLogLayer(screen, logLines) {
     if (!job.targets.length) return finish();
     const ms = settings.frame;
     const k = Math.floor((performance.now() - job.t0) / ms);
-    for (const t of job.targets) apply(t.spans, stateAt(k - t.at, job.f));
+    for (const t of job.targets) apply(t.spans, stateAt(k, job.f));
     listener({ frame: Math.min(k + 1, job.total), total: job.total, lines: job.targets.length });
     if (k + 1 >= job.total) {
       job = null;
@@ -133,10 +130,8 @@ export function createLogLayer(screen, logLines) {
     set(next) {
       settings = { ...next };
       screen.dataset.lgLit = settings.lit;
-      screen.dataset.lgSpace = settings.space;
       screen.dataset.lgOff = settings.offIs;
       screen.style.setProperty('--lg-old', `${settings.older}%`);
-      screen.style.setProperty('--lg-gap', `${settings.gap}em`);
     },
     // Blink the latest action's lines again, as if they had just come.
     replay() {

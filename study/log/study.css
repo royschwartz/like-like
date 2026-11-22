@@ -1,11 +1,7 @@
 /* The log study. The log's lines as the panel sets them (log.js puts the settings on #screen),
    then the panel: flat, hard-edged and mono, like the stairs study's. */
 
-/* --- lit: every line the latest action said, not only the newest --- */
-#screen[data-lg-lit] #log-lines > .line.now {
-  color: var(--reading-ink);
-  -webkit-text-stroke: 0.02em currentColor;
-}
+/* --- lit: the game lights every line the latest action said; how dim the older are --- */
 #screen[data-lg-lit] #log-lines > .line.old {
   color: color-mix(in srgb, var(--reading-ink) var(--lg-old, 60%), var(--slab));
   -webkit-text-stroke: 0;
@@ -19,21 +15,7 @@
   box-decoration-break: clone;
 }
 
-/* --- spacing: the same gap above every entry, or the game's (one action's lines closer) --- */
-#screen[data-lg-space] #log-lines > .line {
-  padding-top: var(--lg-gap, .72em);
-}
-#screen[data-lg-space="grouped"] #log-lines > .line.same-action {
-  padding-top: .24em;
-}
-#screen[data-lg-space] #log-lines > .line:last-child {
-  padding-top: 0;
-}
-
-/* --- the blink. Before its turn a line is not there; off is gone, dim or inverse --- */
-#screen #log-lines .lg-wait {
-  visibility: hidden;
-}
+/* --- the blink: off is gone, dim or inverse --- */
 #screen[data-lg-off="gone"] #log-lines .lg-off {
   visibility: hidden;
 }

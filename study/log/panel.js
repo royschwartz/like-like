@@ -1,6 +1,8 @@
 // The log study's panel. On a phone it sits under the map, over the buttons, and the map
 // can still be played; on a wide screen it sits beside the game. Its first row puts lines in
-// the log; the rest is how they show. Every number is a first guess, kept in localStorage.
+// the log; the rest is how they blink and are lit. Lines said at once come together and are
+// spaced like any others, as in the game (decision 382). Every number is a first guess, kept
+// in localStorage.
 
 const KEY = 'likelike.study.log.1';
 
@@ -12,11 +14,8 @@ export const DEFAULTS = {
   starts: 'on', // a new line first shows on, or off
   offIs: 'gone', // what off looks like: gone, dim, inverse
   repeat: 'line', // a count going up blinks the line, or its count alone
-  apart: 0, // ms between the first line's blink and the second's; 0, together
   lit: 'bright', // how the latest action's lines are lit: bright, inverse
   older: 60, // older lines' brightness, %
-  space: 'even', // the gap above every entry: even, or grouped (the game's now)
-  gap: 0.72, // em
 };
 
 const RANGES = {
@@ -24,9 +23,7 @@ const RANGES = {
   off: { min: 1, max: 8, step: 1 },
   on: { min: 1, max: 8, step: 1 },
   frame: { min: 30, max: 200, step: 10 },
-  apart: { min: 0, max: 700, step: 10 },
   older: { min: 20, max: 100, step: 5 },
-  gap: { min: 0.24, max: 1.6, step: 0.04 },
 };
 
 const CHOICES = {
@@ -34,7 +31,6 @@ const CHOICES = {
   offIs: ['gone', 'dim', 'inverse'],
   repeat: ['line', 'count'],
   lit: ['bright', 'inverse'],
-  space: ['even', 'grouped'],
 };
 
 const clamp = (v, { min, max, step }) => Number((Math.round(Math.min(max, Math.max(min, Number(v))) / step) * step).toFixed(2));
@@ -173,12 +169,9 @@ export function createPanel({ screen, mapWrap, onSay, onChange }) {
     segments('starts', 'starts'),
     segments('offIs', 'off is'),
     segments('repeat', 'a count blinks'),
-    slider('apart', 'second line after', (v) => (v ? `${v} ms` : 'together')),
     section('lit'),
     segments('lit', 'latest lines'),
     slider('older', 'older lines', (v) => `${v}%`),
-    segments('space', 'spacing'),
-    slider('gap', 'gap', (v) => `${v.toFixed(2)} em`),
     readout,
     now,
   );
@@ -194,10 +187,8 @@ export function createPanel({ screen, mapWrap, onSay, onChange }) {
     const first = s.starts === 'on' ? `on ${s.on}, then ` : '';
     const blink = s.blinks === 0 ? 'none, a new line just appears' : `${first}(off ${s.off}, on ${s.on}) ${n}`;
     const length = s.blinks > 8 ? `${s.frame} ms frames, blinking on` : `${frames} frames × ${s.frame} ms = ${frames * s.frame} ms`;
-    const two = s.apart ? `the second line starts ${s.apart} ms after the first` : 'two lines blink together';
     const lit = `${s.lit === 'bright' ? 'lit bright' : 'lit in inverse'}: every line of the latest action · older ${s.older}%`;
-    const gap = `${s.space === 'even' ? 'every entry' : 'entries, one action closer'} ${s.gap.toFixed(2)} em apart`;
-    return [`blink: ${blink}`, s.blinks ? length : '', `off is ${s.offIs} · a count blinks the ${s.repeat === 'count' ? 'count alone' : 'whole line'}`, two, lit, gap]
+    return [`blink: ${blink}`, s.blinks ? length : '', `off is ${s.offIs} · a count blinks the ${s.repeat === 'count' ? 'count alone' : 'whole line'}`, lit]
       .filter(Boolean)
       .join('\n');
   }
