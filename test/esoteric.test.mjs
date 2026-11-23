@@ -304,7 +304,7 @@ test('speaking to the woman and looking through items return to her choices, and
   // what you say to her is set in capitals, and only that (November 23)
   assert.deepEqual(view(g).event.options.map((o) => !!o.said), [true, true, false, false, false, false]);
   chooseLabel(g, 'what happened?');
-  assert.deepEqual(eventLines(g), ['the mothers looks at you as if offended']);
+  assert.deepEqual(eventLines(g), ['the mother looks at you as if offended']);
   assert.deepEqual(eventLabels(g), motherChoices);
   chooseLabel(g, 'can I help you?');
   assert.deepEqual(eventLines(g), ["A BABY'S FACE REFLECTS THE UNIVERSE"]);

@@ -196,8 +196,9 @@ export const TEXT = {
 
   // HIS. Entering the mother's room, then approaching her. What you say to her (November 23),
   // in place of "talk to her": "what happened?" and "can I help you?" ("question marks for all
-  // questions you ask to the mother"), each with her answer. "the mothers looks at you as if
-  // offended" is as he wrote it, in place of "the mother looks at you with great offense".
+  // questions you ask to the mother"), each with her answer. "the mother looks at you as if
+  // offended" replaces "the mother looks at you with great offense" ("the mothers", fixed
+  // with his yes).
   // talk, "she keeps mumbling about her baby", was what talking said; not used now, kept for
   // him to place.
   mother: {
@@ -209,7 +210,7 @@ export const TEXT = {
     ],
     talk: 'she keeps mumbling about her baby',
     answers: {
-      happened: 'the mothers looks at you as if offended',
+      happened: 'the mother looks at you as if offended',
       help: 'A BABY\'S FACE REFLECTS THE UNIVERSE',
     },
     death: [
