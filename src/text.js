@@ -46,11 +46,14 @@ export const TEXT = {
   // One click, one line. A list is what further clicks say, going round.
   // A unit (the toad) says its plain line instead (TEXT.unit), and what sensing found.
   // None may run past two lines of the log (see test/log.test.mjs).
+  // Since November 22 the main game says a plain line for most things (TEXT.readout, below).
+  // It still uses you, wall, door, golddoor, stairs, entrance and upstairs from here. corpse,
+  // grass, dirt, toad, statue and statueLifeless are the archived original's. mother,
+  // motherKnown and statueUnruly are his and not used now, kept for him to place.
   observe: {
     you: '[you]',
     corpse: '[corpse]',
     grass: '[grass]',
-    purplishGrass: 'purplish grass',
     dirt: '[dirt]',
     wall: '[wall]',
     door: '[door]',
@@ -92,6 +95,31 @@ export const TEXT = {
     elsewhere: { toad: '[toad, asleep]' },
   },
 
+  // HIS (November 22, decisions 386 to 391). What holding on a thing says in the main game:
+  // one plain line, "entity, activity, kind of terrain its on", with commas between:
+  // "toad, sleeping, dirt". "toad can be preceded by an additional modifier, like wounded".
+  // A part that doesn't apply is left out, and a name changes with what you know:
+  // "statue of a man", then "statue of DEE" ("observations can change like this").
+  // "cloaked woman is awake". Claude's readings, his to change: "awake" for the awake toad
+  // too, and "mother" once you have met her (his "the mother", with no article, as "toad"
+  // has none). What a thing carries, seen up close, is a last part: its name in TEXT.thing.
+  // line and modified only put the parts together.
+  readout: {
+    line: (parts) => parts.join(', '),
+    modified: (modifier, who) => `${modifier} ${who}`,
+    who: {
+      toad: 'toad',
+      mother: 'cloaked woman',
+      motherKnown: 'mother',
+      statue: 'statue of a man',
+      statueKnown: 'statue of DEE',
+    },
+    modifier: { wounded: 'wounded' },
+    doing: { asleep: 'sleeping', awake: 'awake' },
+    // the first room's grass, the toad room's purple-green grass (decision 371), bare ground
+    ground: { grass: 'grass', purple: 'purplish grass', floor: 'dirt' },
+  },
+
   // HIS. What observing the toad says after its plain line, never sensing (decision 180:
   // sense is ambient, what is about a thing is observed). "stronger" at any distance, asleep
   // or awake (172); the chain only within 2 steps, while it has the key ("when you come
@@ -103,7 +131,9 @@ export const TEXT = {
     chain: 'it wears a chain with a golden key around its neck',
   },
 
-  // HIS. The esoteric encounters in the first floor's eastern room.
+  // HIS. The esoteric encounters in the first floor's eastern room. asleep and chain were
+  // what holding on the toad said; since November 22 it says its plain line (TEXT.readout),
+  // and these two are not used, kept for him to place.
   toadEsoteric: {
     asleep: 'a toad sleeping in the dirt',
     chain: 'around the toad’s neck is necklace holding a golden key',

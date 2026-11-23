@@ -44,7 +44,8 @@ Then go to `http://localhost:5173`. Add `?seed=7` to the address to play the sam
 - Stairs are always in the outer wall. Their treads narrow toward the edge going down and widen going up. Walk into them. Going down, you arrive just inside the stairs up, on the same square of the screen; going up takes you back to the floor above as you left it.
 - The log at the top says what happens. The lines your last action said are brightest, and each new one blinks in. One action adds at most two lines.
 - As you go about, things come to you: a smell, a feeling, a detail of something in sight. In grass you can inspect the ground.
-- In the room east of the entrance, a toad sleeps in the dirt near purplish grass. Hold on it up close to see its necklace. Walk into it to talk, try for the golden key, or attack it. The key opens the way downstairs.
+- Hold on a thing and the log says one plain line about it: what it is, what it's doing and what it's on, as in "toad, sleeping, dirt". The line changes as the thing does and as you learn about it.
+- In the room east of the entrance, a toad sleeps in the dirt near purplish grass. Hold on it up close and its line also says what it carries. Walk into it to talk, try for the golden key, or attack it. The key opens the way downstairs.
 - The statue stands in the same room. Walk into it and put something in its arms to learn who it is. You have time for one question. Afterward, open `*` to imbue an item.
 - When you die you begin again at the floor's entrance, and the floor is as you left it.
 - Apart from a new line in the log, nothing blinks. Browsing pages takes no turn.

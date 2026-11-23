@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { paintEsoteric } from '../esoteric/edition.js';
 import { newGame, act, view, playerDamage } from '../src/game.js';
 import { levelDistances } from '../src/gen.js';
-import { TEXT } from '../src/text.js';
+import { TEXT, isSlot as isSlotText } from '../src/text.js';
 import { CONFIG } from '../src/config.js';
 import { putToad } from './helpers.mjs';
 
@@ -205,7 +205,7 @@ function chooseLabel(g, label) {
   return act(g, { type: 'choose', index });
 }
 
-test('entering the mother’s room brings its cold the first time only, and observing her reveals a cloaked woman', () => {
+test('entering the mother’s room brings its cold the first time only, and observing her says cloaked woman, awake', () => {
   const g = enterMotherRoom();
   const cold = 'the room is cold and you are suddenly afraid';
   assert.equal(view(g).log.at(-1).text, cold);
@@ -231,9 +231,10 @@ test('entering the mother’s room brings its cold the first time only, and obse
   assert.deepEqual([right - left, bottom - top, left, top], [26, 21, 5, 7]);
   assert.ok(runs.every((r) => r[3] === 1));
   assert.match(mark.fg, /--mother/);
-  assert.equal(mark.label, 'a cloaked woman');
+  // "cloaked woman is awake" (decision 391); the gap she stands in has no word, so no ground
+  assert.equal(mark.label, 'cloaked woman, awake');
   act(g, { type: 'observe', x: 0, y: 3 });
-  assert.equal(view(g).log.at(-1).text, 'a cloaked woman');
+  assert.equal(view(g).log.at(-1).text, 'cloaked woman, awake');
   assert.equal(view(g).event, null);
 });
 
@@ -263,8 +264,8 @@ test('talking to the woman and looking through items return to her choices, and 
   assert.equal(view(g).event, null);
   assert.deepEqual([g.room, g.x, g.y, g.turn], [1, 1, 3, turn]);
   act(g, { type: 'observe', x: 0, y: 3 });
-  assert.equal(view(g).log.at(-1).text, 'the mother');
-  assert.equal(view(g).cells[3 * 7].label, 'the mother');
+  assert.equal(view(g).log.at(-1).text, 'mother, awake');
+  assert.equal(view(g).cells[3 * 7].label, 'mother, awake');
   act(g, { type: 'move', dir: 'w' });
   assert.equal(eventLines(g)[0], 'the mother looks up at you');
   assert.deepEqual(eventLabels(g), motherChoices);
@@ -334,22 +335,94 @@ test('holding on the toad or the statue observes it; one tap from across the roo
   }
 });
 
-test('the toad has one distant observation and reveals its necklace up close while it holds the key', () => {
+// Decisions 386 to 391: holding on a thing says one plain line, "entity, activity, kind of
+// terrain its on", and the line changes as the thing does and as you learn.
+function readoutGame() {
   const g = newGame({ edition: 'esoteric', seed: 7 });
+  const room = g.level.rooms[g.room];
   [g.x, g.y] = [1, 3];
-  const toad = putToad(g, 5, 3, true);
-  const observe = () => {
-    act(g, { type: 'observe', x: toad.x, y: toad.y });
-    return view(g).log.at(-1).text;
+  const said = (x, y) => {
+    act(g, { type: 'observe', x, y });
+    return g.log.at(-1);
   };
-  const plain = 'a toad sleeping in the dirt';
-  assert.equal(observe(), plain);
-  assert.equal(observe(), plain);
-  g.x = 3;
-  assert.equal(observe(), 'around the toad’s neck is necklace holding a golden key');
+  return { g, room, said };
+}
+
+test('the toad says one plain line: who, doing what, on what; its key is a last part, up close', () => {
+  const { g, room, said } = readoutGame();
+  const toad = putToad(g, 5, 3, true);
+  room.t[3 * 7 + 5] = 'floor';
+  const observe = () => said(toad.x, toad.y).text;
+  assert.equal(observe(), 'toad, sleeping, dirt');
+  assert.equal(observe(), 'toad, sleeping, dirt');
+  assert.deepEqual([view(g).log.at(-1).text, view(g).log.at(-1).count], ['toad, sleeping, dirt', 2], 'the same line again is counted');
+  g.x = 3; // within CONFIG.observeClose steps
+  const key = `toad, sleeping, dirt, ${TEXT.thing.key}`;
+  assert.equal(observe(), key);
+  assert.equal(said(toad.x, toad.y).kind, isSlotText(TEXT.thing.key) ? 'slot' : 'observe', 'a line with an empty slot in it is drawn as one');
+  g.x = 1; // once made out, it shows from anywhere
+  assert.equal(observe(), key);
   toad.key = false;
-  assert.equal(observe(), plain);
-  assert.equal(observe(), plain);
+  assert.equal(observe(), 'toad, sleeping, dirt');
+  assert.equal(said(toad.x, toad.y).kind, 'observe');
+  assert.equal(view(g).event, null, 'observing never opens its page');
+});
+
+test('the toad’s line changes as it does: wounded, awake, and the ground under it', () => {
+  const { g, room, said } = readoutGame();
+  const toad = putToad(g, 5, 3, true);
+  toad.key = false;
+  const observe = () => said(toad.x, toad.y).text;
+  room.t[3 * 7 + 5] = 'grass';
+  room.grass = 'glowing';
+  assert.equal(observe(), 'toad, sleeping, grass');
+  room.grass = 'purple';
+  assert.equal(observe(), 'toad, sleeping, purplish grass');
+  room.t[3 * 7 + 5] = 'floor';
+  toad.hp -= 1;
+  assert.equal(observe(), 'wounded toad, sleeping, dirt');
+  toad.hp = CONFIG.toad.hp;
+  toad.asleep = false;
+  assert.match(observe(), /^toad, awake(, |$)/); // it has had its turn, and may have moved
+  room.t[toad.y * 7 + toad.x] = 'entrance'; // ground with no word of his: no ground part
+  toad.asleep = true;
+  assert.equal(observe(), 'toad, sleeping');
+});
+
+test('with more sensitivity you make out the toad’s key from further off, and with less from nearer', () => {
+  const far = CONFIG.observeClose + 1;
+  for (const [sensitivity, sees] of [[CONFIG.player.sensitivity, false], [CONFIG.player.sensitivity + 2, true]]) {
+    const { g, room, said } = readoutGame();
+    const toad = putToad(g, 1 + far, 3, true);
+    room.t[3 * 7 + toad.x] = 'floor';
+    g.sensitivity = sensitivity;
+    assert.equal(said(toad.x, toad.y).text.endsWith(TEXT.thing.key), sees, `sensitivity ${sensitivity}`);
+  }
+  const { g, room, said } = readoutGame();
+  const toad = putToad(g, 1 + CONFIG.observeClose, 3, true);
+  room.t[3 * 7 + toad.x] = 'floor';
+  g.sensitivity = CONFIG.player.sensitivity - 2;
+  assert.equal(said(toad.x, toad.y).text, 'toad, sleeping, dirt');
+  assert.equal(view(g).stats.sensitivity, undefined, 'sensitivity is never shown');
+});
+
+test('the ground, a corpse and an item on the floor each say one plain line; walls and doors keep their slots', () => {
+  const { g, room, said } = readoutGame();
+  room.toad = null;
+  room.t[3 * 7 + 3] = 'floor';
+  room.t[3 * 7 + 4] = 'floor';
+  room.t[3 * 7 + 5] = 'grass';
+  assert.deepEqual([said(3, 3).text, said(3, 3).kind], ['dirt', 'observe']);
+  assert.equal(said(5, 3).text, 'grass');
+  room.corpses.push({ x: 3, y: 3, items: [] });
+  assert.equal(said(3, 3).text, 'corpse, dirt');
+  room.loose.push({ key: 'sword', x: 4, y: 3 });
+  assert.equal(said(4, 3).text, 'sword, dirt');
+  room.loose.push({ key: 'sword', x: 5, y: 3 });
+  assert.equal(said(5, 3).text, 'sword, grass');
+  assert.equal(said(g.x, g.y).text, TEXT.observe.you);
+  const wall = room.t.findIndex((c, i) => c === 'wall' && view(g).cells[i].state === 'visible');
+  assert.deepEqual([said(wall % 7, Math.floor(wall / 7)).text, g.log.at(-1).kind], [TEXT.observe.wall, 'slot']);
 });
 
 test('choosing to attack the sleeping toad strikes it and spends a turn', () => {
@@ -416,9 +489,10 @@ test('an offering wakes DEE, who answers exactly one question before teaching im
   for (const [question, answer] of questions) {
     const { g, target, bump } = besideEncounter('statue');
     act(g, { type: 'observe', x: target.x, y: target.y });
-    assert.equal(view(g).log.at(-1).text, 'statue of an unruly man');
+    // "statue will be simplified": "statue of a man", then "statue of DEE" (decision 389)
+    assert.equal(view(g).log.at(-1).text, 'statue of a man');
     const statueLabel = () => view(g).cells[target.y * 7 + target.x].label;
-    assert.equal(statueLabel(), 'statue of an unruly man');
+    assert.equal(statueLabel(), 'statue of a man');
     act(g, { type: 'menu', id: 'act' });
     assert.ok(!eventLabels(g).includes('imbue'));
     chooseLabel(g, 'back');
@@ -432,7 +506,7 @@ test('an offering wakes DEE, who answers exactly one question before teaching im
       chooseLabel(g, choice);
       assert.equal(view(g).event, null);
       assert.equal(g.turn, turn);
-      assert.equal(statueLabel(), 'statue of an unruly man');
+      assert.equal(statueLabel(), 'statue of a man');
     }
     bump();
     chooseLabel(g, 'place an item in its arms');
@@ -460,8 +534,8 @@ test('an offering wakes DEE, who answers exactly one question before teaching im
     const reward = 'gained new ability: imbue';
     assert.equal(view(g).log.at(-1).text, reward);
     act(g, { type: 'observe', x: target.x, y: target.y });
-    assert.equal(view(g).log.at(-1).text, 'the lifeless bust of DEE');
-    assert.equal(statueLabel(), 'the lifeless bust of DEE');
+    assert.equal(view(g).log.at(-1).text, 'statue of DEE');
+    assert.equal(statueLabel(), 'statue of DEE');
 
     // A later offering can glow, but does not replay either question or grant the ability twice.
     const worms = Array.from({ length: 30 }, (_, i) => ({ key: 'worms', enchanted: i === 0 }));

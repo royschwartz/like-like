@@ -17,11 +17,15 @@ export const CONFIG = {
   // Chance a level's entrance is in grass; otherwise it is on dirt (plain floor).
   entranceInGrass: 0.5,
 
-  // Sensing finds more about a unit this many steps from you, or nearer: the toad's chain
-  // and its song (steps go eight ways, so a diagonal counts as one).
+  // You make out more about a unit this many steps from you, or nearer: the toad's key, and
+  // in the original its song (steps go eight ways, so a diagonal counts as one).
   observeClose: 2,
 
-  player: { hp: 3, str: 10, love: 10, will: 10 },
+  // sensitivity is never shown (decision 17). With more of it than you begin with, you make
+  // out more about a thing from further off: sensitivityReach steps a point (provisional).
+  // Nothing changes it yet.
+  player: { hp: 3, str: 10, love: 10, will: 10, sensitivity: 10 },
+  sensitivityReach: 0.5,
 
   // Damage is the stat times this, rounded, never less than 1.
   swordDamagePerStr: 0.2, // sword in hand: 10 str -> 2

@@ -175,7 +175,7 @@ test('holding on grass uses its local name without learning to dig', () => {
     assert.equal(g.log.at(-1).text, name);
     assert.equal(g.knowsWorms, false);
   };
-  observeGrass(2, 2, TEXT.observe.grass);
+  observeGrass(2, 2, 'grass');
   toadRoom(g);
   [g.x, g.y] = [1, 3];
   const i = view(g).cells.findIndex((c) => c.t === 'grass' && c.state === 'visible' && !c.thing);
@@ -220,16 +220,17 @@ test('going about the toad\'s room, nothing comes by itself: what was sensed is 
   assert.equal(g.knowsWorms, false);
 });
 
-test('waiting beside a sleeping toad reveals only its necklace, and nothing blinks', () => {
+test('waiting beside a sleeping toad brings its line with its key, once, and nothing blinks', () => {
   const g = newGame({ seed: 3, edition: 'esoteric' });
-  putToad(g, g.x + 1, g.y, true);
+  const toad = putToad(g, g.x + 1, g.y, true);
+  g.level.rooms[g.room].t[toad.y * 7 + toad.x] = 'floor';
+  const from = g.nextLogId;
   for (let k = 0; k < 60; k++) {
     act(g, { type: 'wait' });
     assert.ok(view(g).cells.every((c) => !c.more));
   }
-  assert.deepEqual(g.log.filter((l) => l.kind === 'observe').map((l) => l.text), [
-    'around the toad’s neck is necklace holding a golden key',
-  ]);
+  // what comes by itself comes once (decision 375)
+  assert.deepEqual(g.log.filter((l) => l.id >= from).map((l) => l.text), [`toad, sleeping, dirt, ${TEXT.thing.key}`]);
   g.items.push({ key: 'key', inHand: false });
   act(g, { type: 'menu', id: 'inv' });
   assert.deepEqual(view(g).event.options.map((o) => o.label), [TEXT.thing.sword, TEXT.thing.key, TEXT.menu.back]);

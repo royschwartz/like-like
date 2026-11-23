@@ -34,6 +34,7 @@ function makeState(seed, look, nextLogId, outlines = CONFIG.outlines.start, edit
     str: CONFIG.player.str,
     love: CONFIG.player.love,
     will: CONFIG.player.will,
+    sensitivity: CONFIG.player.sensitivity, // never shown (decision 17): how far off you make out more
     items: [{ key: 'sword', inHand: true }],
     selfUntil: -1, //  you perceive your own numbers while turn < selfUntil
     sensedTurn: -1, // what pillars hide is drawn while turn === sensedTurn ...
@@ -853,9 +854,10 @@ function noticeEsoteric(g, waiting = false) {
   const t = room.toad;
   if (t && los(room.t, g.x, g.y, t.x, t.y)) {
     const steps = chebyshev(t.x, t.y, g.x, g.y);
-    const o = unitCycle(g, room, 'toad').find((it, n) => n > 0 && !g.observed[it.id]);
+    // its line, when it tells something you have not made out yet (its key, up close)
+    const o = toadReadout(g, room);
     const p = Math.min(1, k * detail * Math.max(0, 1 - (steps - 1) / reach));
-    if (o && chance(g.noticeRng, p)) sayObserved(g, 'toad', o);
+    if (o.found.some((id) => !g.observed[id]) && chance(g.noticeRng, p)) sayObserved(g, 'toad', o);
   }
 }
 
@@ -1275,11 +1277,7 @@ function toadLine(g, room, toad) {
   const { idx } = terrainGrid(room.t);
   if (!toad.asleep) return { id: 'unit.toad.awake', text: TEXT.observe.toad, plain: true };
   const u = TEXT.unit;
-  const tile = room.t[idx(toad.x, toad.y)];
-  if (g.edition === 'esoteric' && tile === 'floor') {
-    return { id: 'unit.toad.asleep', text: TEXT.toadEsoteric.asleep, plain: true };
-  }
-  const ground = tile === 'grass' && grassOf(room) === 'purple' ? TEXT.observe.purplishGrass : u.ground[tile];
+  const ground = u.ground[room.t[idx(toad.x, toad.y)]];
   return { id: 'unit.toad.asleep', text: ground ? u.line(u.who.toad, u.doing.asleep, ground) : u.elsewhere.toad, plain: true };
 }
 
@@ -1295,17 +1293,68 @@ function unitCycle(g, room, kind) {
     const close = isNear(g, t.x, t.y);
     const out = [toadLine(g, room, t)];
     const near = (id, text) => (close || g.observed[id]) && out.push({ id, text, plain: true });
-    if (g.edition === 'esoteric') {
-      if (t.key) near('unit.toad.chain', TEXT.toadEsoteric.chain);
-      return out;
-    }
     out.push({ id: 'unit.toad.stronger', text: TEXT.toadSeen.stronger, plain: true });
     if (t.key) near('unit.toad.chain', TEXT.toadSeen.chain);
     if (t.asleep) near('unit.toad.sings', TEXT.toad.singing);
     return out;
   }
-  const unknown = g.edition === 'esoteric' ? 'statueUnruly' : 'statue';
-  return sayings(room.statue?.spoke ? 'statueLifeless' : unknown).map((o) => ({ ...o, plain: true }));
+  return sayings(room.statue?.spoke ? 'statueLifeless' : 'statue').map((o) => ({ ...o, plain: true }));
+}
+
+// ---- the readout (esoteric; decisions 386 to 391) ----------------------------------------
+// In the main game, holding on a thing says one plain line: its name, with a modifier before
+// it if it has one, what it is doing, what it is on, and what else you make out, with commas
+// between ("toad, sleeping, dirt"). A part that doesn't apply is left out. The line is how
+// things stand as far as you know, so a thing has one line at a time and nothing goes round.
+
+// His word for the ground at cell i, or null where it has none (a wall, a door, stairs).
+function groundWord(room, i) {
+  const w = TEXT.readout.ground;
+  if (room.t[i] === 'grass') return grassOf(room) === 'purple' ? w.purple : w.grass;
+  return room.t[i] === 'floor' ? w.floor : null;
+}
+
+// How many steps off you make out more about a thing (eight ways): CONFIG.observeClose, and
+// further with more sensitivity than you begin with, nearer with less.
+const moreReach = (g) =>
+  Math.max(0, Math.floor(CONFIG.observeClose + (g.sensitivity - CONFIG.player.sensitivity) * CONFIG.sensitivityReach));
+
+// A readout: { id, text, found, slot }. found: ids of what it tells that you had to make out,
+// kept as had once it is said; from then on they show at any distance, while they hold.
+// slot: a part of it is an empty slot, his to write.
+function readout(id, parts, found = []) {
+  const said = parts.filter(Boolean);
+  return { id, text: TEXT.readout.line(said), found, slot: said.some(isSlot), plain: true };
+}
+
+// The toad: "wounded" once it has lost any hp; sleeping or awake; its ground; and its key,
+// within moreReach steps or once you have made it out.
+function toadReadout(g, room) {
+  const t = room.toad;
+  const r = TEXT.readout;
+  const { idx } = terrainGrid(room.t);
+  const who = t.hp < CONFIG.toad.hp ? r.modified(r.modifier.wounded, r.who.toad) : r.who.toad;
+  const key = t.key && (g.observed[TOAD_KEY] || chebyshev(t.x, t.y, g.x, g.y) <= moreReach(g));
+  return readout('readout.toad', [who, t.asleep ? r.doing.asleep : r.doing.awake, groundWord(room, idx(t.x, t.y)), key && TEXT.thing.key], key ? [TOAD_KEY] : []);
+}
+const TOAD_KEY = 'unit.toad.chain'; // that the toad has its key: the id the original keeps it by
+
+// What holding on cell i says in the main game: { key, unit, list }, a list of one.
+function observableEsoteric(g, room, i, thing) {
+  const r = TEXT.readout;
+  const one = (key, o) => ({ key, unit: null, list: [o] });
+  const ground = groundWord(room, i);
+  if (thing?.kind === 'toad') return one('toad', toadReadout(g, room));
+  if (thing?.kind === 'mother') {
+    return one('mother', readout('readout.mother', [room.mother.met ? r.who.motherKnown : r.who.mother, r.doing.awake, ground]));
+  }
+  if (thing?.kind === 'item') return one('item', readout(`readout.item.${thing.key}`, [TEXT.thing[thing.key], ground]));
+  if (thing?.kind === 'corpse') return one('corpse', readout('readout.corpse', [TEXT.thing.corpse, ground]));
+  if (thing?.kind === 'player') return { key: 'you', unit: null, list: sayings('you') };
+  if (room.t[i] === 'statue') return one('statue', readout('readout.statue', [room.statue?.spoke ? r.who.statueKnown : r.who.statue]));
+  if (ground) return one(`ground.${ground}`, readout(`readout.ground.${ground}`, [ground]));
+  const name = TERRAIN_NAME[room.t[i]];
+  return { key: name, unit: null, list: sayings(name) };
 }
 
 // Something found that you have not observed: a default observation never counts
@@ -1315,6 +1364,7 @@ const hasNew = (g, list) => list.some((o) => !o.plain && !g.observed[o.id]);
 // What holding on cell i observes: { key, unit, list }. key: what the last one said is kept
 // by; unit: the kind of unit, which can blink, or null.
 function observable(g, room, i, thing) {
+  if (g.edition === 'esoteric') return observableEsoteric(g, room, i, thing);
   if (thing?.kind === 'toad') return { key: 'toad', unit: 'toad', list: unitCycle(g, room, 'toad') };
   if (thing?.kind === 'mother') return { key: 'mother', unit: null, list: sayings(room.mother.met ? 'motherKnown' : 'mother') };
   // an item on the floor: its name
@@ -1325,7 +1375,7 @@ function observable(g, room, i, thing) {
   }
   if (room.t[i] === 'statue') return { key: 'statue', unit: 'statue', list: unitCycle(g, room, 'statue') };
   const tile = room.t[i];
-  const name = tile === 'grass' && grassOf(room) === 'purple' ? 'purplishGrass' : TERRAIN_NAME[tile];
+  const name = TERRAIN_NAME[tile];
   return { key: name, unit: null, list: sayings(name) };
 }
 
@@ -1362,9 +1412,10 @@ function sayObserved(g, key, o) {
   const prev = g.log[g.log.length - 1];
   const text = key === 'toad' && prev?.about !== 'toad' ? TEXT.unit.named(o.text, TEXT.unit.the.toad) : o.text;
   if (!canSay(g, text)) return false;
-  say(g, text, 'observe');
+  say(g, text, o.slot ? 'slot' : 'observe');
   if (key === 'toad') g.log[g.log.length - 1].about = 'toad';
   g.observed[o.id] = true;
+  for (const id of o.found ?? []) g.observed[id] = true;
   g.lastObserved[key] = o.id;
   return true;
 }
