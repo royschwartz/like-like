@@ -274,7 +274,7 @@ test('the worms in the opening: their memory at once, back closes everything, an
     assert.ok(ev.some((e) => e.type === 'event' && e.id === 'memory'));
     let v = view(g);
     assert.equal(v.event.id, 'memory');
-    assert.ok(v.event.lines[0].text.startsWith('memory! you are standing amongst people'));
+    assert.deepEqual(v.event.lines.slice(0, 2).map((l) => l.text), ['memory!', 'you are standing amongst people wearing full bodied suits, all white']);
     assert.deepEqual(labels(v), ['back']);
     assert.deepEqual(g.memories, ['worms']);
     assert.equal(g.recall, null);

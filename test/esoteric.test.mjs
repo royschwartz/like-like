@@ -566,7 +566,7 @@ test('walking into the sleeping toad opens its encounter and grabbing the key ca
 test('an offering wakes DEE, who answers exactly one question before teaching imbue', () => {
   const questions = [
     ['where am I?', ["THE WORLD WAS DESTROYED, THAT'S TRUE"]],
-    ['who are you?', ['I AM DEE, YOUR OLD FRIEND', 'REMEMBER? I SHOWED YOU THE HOLE']],
+    ['who are you?', ['I AM DEE, YOUR OLD FRIEND', 'REMEMBER?', 'I SHOWED YOU THE HOLE']],
   ];
   for (const [question, answer] of questions) {
     const { g, target, bump } = besideEncounter('statue');
@@ -607,8 +607,10 @@ test('an offering wakes DEE, who answers exactly one question before teaching im
     chooseLabel(g, 'sword');
     assert.deepEqual(eventLines(g), [
       'the sword glows and the statue emits a low hum',
-      'I LIVE. THANK YOU',
-      'I AM DEE. WE USED TO KNOW EACH OTHER',
+      'I LIVE',
+      'THANK YOU',
+      'I AM DEE',
+      'WE USED TO KNOW EACH OTHER',
       'I’VE BEEN ON YOUR SIDE SINCE DAY ONE',
     ]);
     assert.deepEqual(eventLabels(g), questions.map(([label]) => label));
@@ -620,7 +622,7 @@ test('an offering wakes DEE, who answers exactly one question before teaching im
     act(g, { type: 'back' });
     assert.deepEqual(eventLabels(g), ['continue']);
     chooseLabel(g, 'continue');
-    assert.deepEqual(eventLines(g), ['DEE shudders', 'I AM GETTING SLEEPY. BRING ME SOMETHING ELSE', 'AND PUT SOME LOVE INTO IT']);
+    assert.deepEqual(eventLines(g), ['DEE shudders', 'I AM GETTING SLEEPY', 'BRING ME SOMETHING ELSE', 'AND PUT SOME LOVE INTO IT']);
     assert.deepEqual(eventLabels(g), ['end']);
     chooseLabel(g, 'end');
     assert.equal(view(g).event, null);

@@ -157,13 +157,14 @@ export const TEXT = {
     talk: 'talk to it',
     offer: 'place an item in its arms',
     glow: (name, plural) => `the ${name} ${plural ? 'glow' : 'glows'} and the statue emits a low hum`,
-    greeting: ['I LIVE. THANK YOU', 'I AM DEE. WE USED TO KNOW EACH OTHER', 'I’VE BEEN ON YOUR SIDE SINCE DAY ONE'],
+    // "in general lines should be broken apart" (November 23): a sentence a paragraph
+    greeting: ['I LIVE', 'THANK YOU', 'I AM DEE', 'WE USED TO KNOW EACH OTHER', 'I’VE BEEN ON YOUR SIDE SINCE DAY ONE'],
     where: 'where am I?',
     world: ["THE WORLD WAS DESTROYED, THAT'S TRUE"],
     who: 'who are you?',
-    friend: ['I AM DEE, YOUR OLD FRIEND', 'REMEMBER? I SHOWED YOU THE HOLE'],
+    friend: ['I AM DEE, YOUR OLD FRIEND', 'REMEMBER?', 'I SHOWED YOU THE HOLE'],
     continue: 'continue',
-    farewell: ['DEE shudders', 'I AM GETTING SLEEPY. BRING ME SOMETHING ELSE', 'AND PUT SOME LOVE INTO IT'],
+    farewell: ['DEE shudders', 'I AM GETTING SLEEPY', 'BRING ME SOMETHING ELSE', 'AND PUT SOME LOVE INTO IT'],
     end: 'end',
     gained: 'gained new ability: imbue',
   },
@@ -188,7 +189,7 @@ export const TEXT = {
     // his, for the last "listen more" (decision 189), in place of "the toad wakes up"
     wakes: ['its eyelids flutter, then it sees you', 'immediately you know it is bloodthirsty'],
     success: 'success!',
-    failure: 'failure! the toad wakes up',
+    failure: ['failure!', 'the toad wakes up'], // a paragraph each (November 23)
     // HIS, from "(listen more)", "(go for the key)", "(attack!)", "(back)".
     options: { listen: 'listen more', key: 'go for the key', attack: 'attack!', back: 'back' },
   },
@@ -275,10 +276,14 @@ export const TEXT = {
   // PLAIN: unequip, the way back from equip.
   item: { equip: 'equip', unequip: 'unequip', throw: 'throw' },
 
-  // HIS. Memories, by what wakes them. Each line is a paragraph of the event.
+  // HIS. Memories, by what wakes them. Each line is a paragraph of the event: "in general
+  // lines should be broken apart" (November 23), so each sentence is one.
   memories: {
     worms: [
-      'memory! you are standing amongst people wearing full bodied suits, all white. you are in a suit yourself. the figure next to you extends his hand, upon which rests a single, normal looking worm',
+      'memory!',
+      'you are standing amongst people wearing full bodied suits, all white',
+      'you are in a suit yourself',
+      'the figure next to you extends his hand, upon which rests a single, normal looking worm',
       '"we have programmed these worms to consume harmful substances that are in the ground, or just about any substance"',
     ],
   },

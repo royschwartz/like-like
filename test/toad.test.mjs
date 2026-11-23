@@ -421,7 +421,7 @@ test('go for the key: CONFIG.keyChance, calm and stirred, from the seeded chance
     act(g, { type: 'choose', index: 0 }); // listen: it stirs
     act(g, { type: 'choose', index: 1 });
     v = view(g);
-    assert.deepEqual(eventTexts(v), ['failure! the toad wakes up']);
+    assert.deepEqual(eventTexts(v), ['failure!', 'the toad wakes up']);
     assert.deepEqual(labels(v), ['back']);
     assert.equal(t.asleep, false);
     assert.ok(!g.items.some((it) => it.key === 'key'));
@@ -620,8 +620,11 @@ test('dig for worms: grass or dirt only, three turns, then worms; inspecting the
   assert.deepEqual(texts(g, from), ['you have a memory']);
   const v = view(g);
   assert.deepEqual(v.event.lines.map((l) => [l.text, l.passage]), [
-    ['memory! you are standing amongst people wearing full bodied suits, all white. you are in a suit yourself. the figure next to you extends his hand, upon which rests a single, normal looking worm', 0],
-    ['"we have programmed these worms to consume harmful substances that are in the ground, or just about any substance"', 1],
+    ['memory!', 0],
+    ['you are standing amongst people wearing full bodied suits, all white', 1],
+    ['you are in a suit yourself', 2],
+    ['the figure next to you extends his hand, upon which rests a single, normal looking worm', 3],
+    ['"we have programmed these worms to consume harmful substances that are in the ground, or just about any substance"', 4],
   ]);
   assert.deepEqual(labels(v), ['back']);
   assert.deepEqual(g.memories, ['worms']);
@@ -639,7 +642,7 @@ test('dig for worms: grass or dirt only, three turns, then worms; inspecting the
   act(g, { type: 'context' });
   pv = view(g);
   assert.equal(pv.event.id, 'memory');
-  assert.equal(pv.event.lines.length, 2);
+  assert.equal(pv.event.lines.length, TEXT.memories.worms.length);
   act(g, { type: 'back' });
   pv = view(g);
   assert.equal(pv.event, null);

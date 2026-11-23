@@ -1788,7 +1788,7 @@ function eventChoose(g, i, ev) {
         ev.push({ type: 'key' });
       } else {
         wake(g, toad);
-        e.passages = [[prose(TEXT.toad.failure)]];
+        e.passages = paragraphs(TEXT.toad.failure);
       }
       e.over = true;
       break;
