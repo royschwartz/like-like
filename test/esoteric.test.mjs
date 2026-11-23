@@ -205,7 +205,7 @@ function chooseLabel(g, label) {
   return act(g, { type: 'choose', index });
 }
 
-test('entering the mother’s room brings its cold the first time only, and observing her says cloaked woman, awake', () => {
+test('entering the mother’s room brings its cold the first time only, and observing her says cloaked woman, awake, dirt', () => {
   const g = enterMotherRoom();
   const cold = 'the room is cold and you are suddenly afraid';
   assert.equal(view(g).log.at(-1).text, cold);
@@ -231,10 +231,10 @@ test('entering the mother’s room brings its cold the first time only, and obse
   assert.deepEqual([right - left, bottom - top, left, top], [26, 21, 5, 7]);
   assert.ok(runs.every((r) => r[3] === 1));
   assert.match(mark.fg, /--mother/);
-  // "cloaked woman is awake" (decision 391); the gap she stands in has no word, so no ground
-  assert.equal(mark.label, 'cloaked woman, awake');
+  // "cloaked woman is awake" (decision 391); the gap she stands in is the ground beside it (393)
+  assert.equal(mark.label, 'cloaked woman, awake, dirt');
   act(g, { type: 'observe', x: 0, y: 3 });
-  assert.equal(view(g).log.at(-1).text, 'cloaked woman, awake');
+  assert.equal(view(g).log.at(-1).text, 'cloaked woman, awake, dirt');
   assert.equal(view(g).event, null);
 });
 
@@ -264,8 +264,8 @@ test('talking to the woman and looking through items return to her choices, and 
   assert.equal(view(g).event, null);
   assert.deepEqual([g.room, g.x, g.y, g.turn], [1, 1, 3, turn]);
   act(g, { type: 'observe', x: 0, y: 3 });
-  assert.equal(view(g).log.at(-1).text, 'mother, awake');
-  assert.equal(view(g).cells[3 * 7].label, 'mother, awake');
+  assert.equal(view(g).log.at(-1).text, 'mother, awake, dirt');
+  assert.equal(view(g).cells[3 * 7].label, 'mother, awake, dirt');
   act(g, { type: 'move', dir: 'w' });
   assert.equal(eventLines(g)[0], 'the mother looks up at you');
   assert.deepEqual(eventLabels(g), motherChoices);
@@ -368,7 +368,7 @@ test('the toad says one plain line: who, doing what, on what; its key is a last 
   assert.equal(view(g).event, null, 'observing never opens its page');
 });
 
-test('the toad’s line changes as it does: wounded, awake, and the ground under it', () => {
+test('the toad’s line changes as it does: wounded, hostile once it is up, and the ground under it', () => {
   const { g, room, said } = readoutGame();
   const toad = putToad(g, 5, 3, true);
   toad.key = false;
@@ -381,9 +381,10 @@ test('the toad’s line changes as it does: wounded, awake, and the ground under
   room.t[3 * 7 + 5] = 'floor';
   toad.hp -= 1;
   assert.equal(observe(), 'wounded toad, sleeping, dirt');
+  toad.asleep = false; // awake, it attacks on sight: "toad, hostile, dirt" (decision 395)
+  assert.match(observe(), /^wounded toad, hostile(, |$)/); // it has had its turn, and may have moved
   toad.hp = CONFIG.toad.hp;
-  toad.asleep = false;
-  assert.match(observe(), /^toad, awake(, |$)/); // it has had its turn, and may have moved
+  assert.match(observe(), /^toad, hostile(, |$)/);
   room.t[toad.y * 7 + toad.x] = 'entrance'; // ground with no word of his: no ground part
   toad.asleep = true;
   assert.equal(observe(), 'toad, sleeping');
@@ -406,7 +407,7 @@ test('with more sensitivity you make out the toad’s key from further off, and 
   assert.equal(view(g).stats.sensitivity, undefined, 'sensitivity is never shown');
 });
 
-test('the ground, a corpse and an item on the floor each say one plain line; walls and doors keep their slots', () => {
+test('the ground, a corpse and an item on the floor each say one plain line; a gap is the ground beside it; walls keep their slot', () => {
   const { g, room, said } = readoutGame();
   room.toad = null;
   room.t[3 * 7 + 3] = 'floor';
@@ -423,6 +424,28 @@ test('the ground, a corpse and an item on the floor each say one plain line; wal
   assert.equal(said(g.x, g.y).text, TEXT.observe.you);
   const wall = room.t.findIndex((c, i) => c === 'wall' && view(g).cells[i].state === 'visible');
   assert.deepEqual([said(wall % 7, Math.floor(wall / 7)).text, g.log.at(-1).kind], [TEXT.observe.wall, 'slot']);
+  // "gap in the wall will always be the same terrain it is adjacent to" (decision 393)
+  [g.x, g.y] = [3, 3];
+  room.loose.length = 0;
+  room.corpses.length = 0;
+  for (const [x, ground, word] of [[0, 'floor', 'dirt'], [6, 'grass', 'grass']]) {
+    assert.equal(room.t[3 * 7 + x], 'door', 'the first room has a gap on each side');
+    room.t[3 * 7 + (x ? x - 1 : 1)] = ground;
+    assert.equal(said(x, 3).text, word);
+  }
+});
+
+test('the golden door says its name', () => {
+  const g = newGame({ edition: 'esoteric', seed: 7 });
+  const { room: id, x, y } = g.level.golddoor;
+  const room = g.level.rooms[id];
+  g.room = id;
+  room.toad = null;
+  // stand on open ground beside it
+  const side = [[0, -1], [1, 0], [0, 1], [-1, 0]].map(([dx, dy]) => [x + dx, y + dy]).find(([nx, ny]) => ['floor', 'grass'].includes(room.t[ny * 7 + nx]));
+  [g.x, g.y] = side;
+  act(g, { type: 'observe', x, y });
+  assert.deepEqual([g.log.at(-1).text, g.log.at(-1).kind], ['golden door', 'observe']);
 });
 
 test('choosing to attack the sleeping toad strikes it and spends a turn', () => {

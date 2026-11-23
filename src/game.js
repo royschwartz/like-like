@@ -1307,11 +1307,26 @@ function unitCycle(g, room, kind) {
 // between ("toad, sleeping, dirt"). A part that doesn't apply is left out. The line is how
 // things stand as far as you know, so a thing has one line at a time and nothing goes round.
 
-// His word for the ground at cell i, or null where it has none (a wall, a door, stairs).
+// His word for the ground at cell i, or null where it has none (a wall, stairs). A gap in the
+// wall is the ground it is beside ("gap in the wall will always be the same terrain it is
+// adjacent to", decision 393): the first of the four cells round it that has a word.
+const GAPS = new Set(['door', 'opendoor']);
 function groundWord(room, i) {
   const w = TEXT.readout.ground;
-  if (room.t[i] === 'grass') return grassOf(room) === 'purple' ? w.purple : w.grass;
-  return room.t[i] === 'floor' ? w.floor : null;
+  const own = (k) => {
+    if (room.t[k] === 'grass') return grassOf(room) === 'purple' ? w.purple : w.grass;
+    return room.t[k] === 'floor' ? w.floor : null;
+  };
+  if (!GAPS.has(room.t[i])) return own(i);
+  const { size, idx } = terrainGrid(room.t);
+  const [x, y] = [i % size, Math.floor(i / size)];
+  for (const [dx, dy] of [[0, -1], [1, 0], [0, 1], [-1, 0]]) {
+    const [nx, ny] = [x + dx, y + dy];
+    if (nx < 0 || ny < 0 || nx >= size || ny >= size) continue;
+    const word = own(idx(nx, ny));
+    if (word) return word;
+  }
+  return null;
 }
 
 // How many steps off you make out more about a thing (eight ways): CONFIG.observeClose, and
@@ -1327,15 +1342,16 @@ function readout(id, parts, found = []) {
   return { id, text: TEXT.readout.line(said), found, slot: said.some(isSlot), plain: true };
 }
 
-// The toad: "wounded" once it has lost any hp; sleeping or awake; its ground; and its key,
-// within moreReach steps or once you have made it out.
+// The toad: "wounded" once it has lost any hp; sleeping, or hostile, since awake it attacks
+// on sight ("toad, hostile, dirt", decision 395); its ground; and its key, within moreReach
+// steps or once you have made it out.
 function toadReadout(g, room) {
   const t = room.toad;
   const r = TEXT.readout;
   const { idx } = terrainGrid(room.t);
   const who = t.hp < CONFIG.toad.hp ? r.modified(r.modifier.wounded, r.who.toad) : r.who.toad;
   const key = t.key && (g.observed[TOAD_KEY] || chebyshev(t.x, t.y, g.x, g.y) <= moreReach(g));
-  return readout('readout.toad', [who, t.asleep ? r.doing.asleep : r.doing.awake, groundWord(room, idx(t.x, t.y)), key && TEXT.thing.key], key ? [TOAD_KEY] : []);
+  return readout('readout.toad', [who, t.asleep ? r.doing.asleep : r.doing.hostile, groundWord(room, idx(t.x, t.y)), key && TEXT.thing.key], key ? [TOAD_KEY] : []);
 }
 const TOAD_KEY = 'unit.toad.chain'; // that the toad has its key: the id the original keeps it by
 
@@ -1352,6 +1368,7 @@ function observableEsoteric(g, room, i, thing) {
   if (thing?.kind === 'corpse') return one('corpse', readout('readout.corpse', [TEXT.thing.corpse, ground]));
   if (thing?.kind === 'player') return { key: 'you', unit: null, list: sayings('you') };
   if (room.t[i] === 'statue') return one('statue', readout('readout.statue', [room.statue?.spoke ? r.who.statueKnown : r.who.statue]));
+  if (room.t[i] === 'golddoor') return one('golddoor', readout('readout.golddoor', [r.who.golddoor]));
   if (ground) return one(`ground.${ground}`, readout(`readout.ground.${ground}`, [ground]));
   const name = TERRAIN_NAME[room.t[i]];
   return { key: name, unit: null, list: sayings(name) };

@@ -47,8 +47,8 @@ export const TEXT = {
   // A unit (the toad) says its plain line instead (TEXT.unit), and what sensing found.
   // None may run past two lines of the log (see test/log.test.mjs).
   // Since November 22 the main game says a plain line for most things (TEXT.readout, below).
-  // It still uses you, wall, door, golddoor, stairs, entrance and upstairs from here. corpse,
-  // grass, dirt, toad, statue and statueLifeless are the archived original's. mother,
+  // It still uses you, wall, stairs, entrance and upstairs from here. corpse, grass, dirt,
+  // door, golddoor, toad, statue and statueLifeless are the archived original's. mother,
   // motherKnown and statueUnruly are his and not used now, kept for him to place.
   observe: {
     you: '[you]',
@@ -100,10 +100,11 @@ export const TEXT = {
   // "toad, sleeping, dirt". "toad can be preceded by an additional modifier, like wounded".
   // A part that doesn't apply is left out, and a name changes with what you know:
   // "statue of a man", then "statue of DEE" ("observations can change like this").
-  // "cloaked woman is awake". Claude's readings, his to change: "awake" for the awake toad
-  // too, and "mother" once you have met her (his "the mother", with no article, as "toad"
-  // has none). What a thing carries, seen up close, is a last part: its name in TEXT.thing.
-  // line and modified only put the parts together.
+  // "cloaked woman is awake"; awake is "a neutral term", and "we could also use hostile for
+  // the toad": "toad, hostile, dirt" (decision 395). "let's call it the golden door" (394).
+  // Claude's readings, his to change: "mother" once you have met her (his "the mother") and
+  // "golden door", with no article, as "toad" has none. What a thing carries, seen up close,
+  // is a last part: its name in TEXT.thing. line and modified only put the parts together.
   readout: {
     line: (parts) => parts.join(', '),
     modified: (modifier, who) => `${modifier} ${who}`,
@@ -113,9 +114,10 @@ export const TEXT = {
       motherKnown: 'mother',
       statue: 'statue of a man',
       statueKnown: 'statue of DEE',
+      golddoor: 'golden door',
     },
     modifier: { wounded: 'wounded' },
-    doing: { asleep: 'sleeping', awake: 'awake' },
+    doing: { asleep: 'sleeping', awake: 'awake', hostile: 'hostile' },
     // the first room's grass, the toad room's purple-green grass (decision 371), bare ground
     ground: { grass: 'grass', purple: 'purplish grass', floor: 'dirt' },
   },
