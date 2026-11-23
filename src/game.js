@@ -1248,8 +1248,11 @@ function thingAt(g, room, i, vis, shown, sensed) {
   if (!shown[i] && !room.seen[i]) return undefined;
   const toad = toadAt(room, x, y);
   if (toad && (vis[i] || sensed)) return { kind: 'toad', asleep: toad.asleep };
-  // she stands in a gap, in the wall's ring: drawn whenever her square is
-  if (motherAt(room, x, y)) return { kind: 'mother' };
+  // She stands in a gap, in the wall's ring. The gap is drawn with the walls round what
+  // you see, but she is drawn only in a straight line of sight, as the toad is: a wall
+  // between you hides her ("mother is visible even with a pillar of cave wall blocking
+  // vision", November 22).
+  if (vis[i] && motherAt(room, x, y)) return { kind: 'mother' };
   const item = looseAt(room, x, y);
   if (item) return { kind: 'item', key: item.key };
   if (vis[i] ? corpseAt(room, x, y) : room.memCorpse[i]) return { kind: 'corpse' };
@@ -1982,6 +1985,13 @@ function toadInView(g) {
   return !!t && fov(room.t, g.x, g.y)[idx(t.x, t.y)];
 }
 
+// The woman in her gap, in a straight line of sight: the rule she is drawn by (thingAt).
+function motherInView(g) {
+  const room = currentRoom(g);
+  const m = room.mother;
+  return !!m && los(room.t, g.x, g.y, m.x, m.y);
+}
+
 // One step of a travel to (tx, ty). `first`: the press that starts it, which may wait
 // (your own cell) or bump. A tap on an esoteric encounter takes its final step into it.
 function travel(g, tx, ty, ev, first) {
@@ -1999,7 +2009,7 @@ function travel(g, tx, ty, ev, first) {
   const room = currentRoom(g);
   // never into a toad, seen or not: travel only bumps what it was sent to
   if (!next || toadAt(room, next.x, next.y)) return;
-  const before = { hp: g.hp, room: g.room, turn: g.turn, saw: toadInView(g), ...noticedIn(room) };
+  const before = { hp: g.hp, room: g.room, turn: g.turn, saw: toadInView(g), sawHer: motherInView(g), ...noticedIn(room) };
   step(g, next.x - g.x, next.y - g.y, ev);
   const now = currentRoom(g);
   const marks = noticedIn(now);
@@ -2011,6 +2021,8 @@ function travel(g, tx, ty, ev, first) {
     !!g.event ||
     (g.said > 0 && !(way.encounter && g.log.at(-1)?.about === 'toad')) ||
     (!before.saw && toadInView(g) && !way.encounter) ||
+    // she comes into view from behind a wall: stop, as for the toad, and tap again to go on
+    (!before.sawHer && motherInView(g)) ||
     awakeInSight(g) ||
     (marks.toad && !before.toad) ||
     (marks.statue && !before.statue);

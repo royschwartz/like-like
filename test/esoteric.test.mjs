@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { paintEsoteric } from '../esoteric/edition.js';
 import { newGame, act, view, playerDamage } from '../src/game.js';
 import { levelDistances } from '../src/gen.js';
+import { los } from '../src/fov.js';
 import { TEXT, isSlot as isSlotText } from '../src/text.js';
 import { CONFIG } from '../src/config.js';
 import { putToad } from './helpers.mjs';
@@ -236,6 +237,58 @@ test('entering the mother’s room brings its cold the first time only, and obse
   act(g, { type: 'observe', x: 0, y: 3 });
   assert.equal(view(g).log.at(-1).text, 'cloaked woman, awake, dirt');
   assert.equal(view(g).event, null);
+});
+
+test('the woman is drawn only in a straight line of sight: a wall between you hides her, though her gap is drawn', () => {
+  // "mother is visible even with a pillar of cave wall blocking vision, I think because
+  // she is in the gap" (November 22): the gap is drawn with the walls, she is not
+  let hidden = 0;
+  for (let seed = 1; seed <= 12; seed++) {
+    const g = newGame({ edition: 'esoteric', seed });
+    g.room = 1;
+    const room = g.level.rooms[1];
+    const her = room.mother;
+    const at = her.y * 7 + her.x;
+    for (let i = 0; i < room.t.length; i++) {
+      if (room.t[i] !== 'floor') continue;
+      [g.x, g.y] = [i % 7, Math.floor(i / 7)];
+      const cell = view(g).cells[at];
+      const inSight = los(room.t, g.x, g.y, her.x, her.y);
+      assert.deepEqual(cell.thing, inSight ? { kind: 'mother' } : null, `seed ${seed}, from ${g.x},${g.y}`);
+      if (inSight || cell.state !== 'visible') continue;
+      hidden++;
+      assert.equal(cell.label, undefined);
+    }
+  }
+  assert.ok(hidden > 0, 'in some rooms a wall stands between you and her gap while the gap is drawn');
+
+  // seed 2: a pillar stands between the doorway and her. Holding on her gap says its ground;
+  // a step to the side and she is there, and back behind the pillar she is gone again
+  const g = newGame({ edition: 'esoteric', seed: 2 });
+  g.room = 1;
+  [g.x, g.y] = [5, 3];
+  const her = () => view(g).cells[3 * 7];
+  assert.deepEqual([her().state, her().thing], ['visible', null]);
+  act(g, { type: 'observe', x: 0, y: 3 });
+  assert.equal(g.log.at(-1).text, 'dirt');
+  act(g, { type: 'move', dir: 's' });
+  assert.deepEqual(her().thing, { kind: 'mother' });
+  act(g, { type: 'observe', x: 0, y: 3 });
+  assert.equal(g.log.at(-1).text, 'cloaked woman, awake, dirt');
+  act(g, { type: 'move', dir: 'n' });
+  assert.equal(her().thing, null);
+
+  // a tap on her gap from behind the pillar stops when she comes into view, with no event;
+  // a second tap goes on to her
+  act(g, { type: 'travel', x: 0, y: 3 });
+  for (let i = 0; i < 7 && g.going; i++) act(g, { type: 'continue' });
+  assert.deepEqual(her().thing, { kind: 'mother' });
+  assert.equal(view(g).event, null);
+  assert.notDeepEqual([g.x, g.y], [1, 3], 'stopped on the way');
+  act(g, { type: 'travel', x: 0, y: 3 });
+  for (let i = 0; i < 7 && g.going; i++) act(g, { type: 'continue' });
+  assert.equal(view(g).event?.id, 'mother');
+  assert.deepEqual([g.x, g.y], [1, 3]);
 });
 
 test('talking to the woman and looking through items return to her choices, and back leaves her in the gap', () => {
