@@ -83,11 +83,8 @@ export const CONFIG = {
   // Noticing without trying, each turn, as Brogue searches without being asked.
   // near: the chance of noticing a unit in sight beside you; it falls away to nothing
   // `reach` steps further off. secret: the chance a secret of the room comes to you.
-  // esoteric (decision 246): a detail of something in sight, at most `detail` a turn beside it,
-  // none `reach` steps on. Provisional.
   eatHeals: 1, // esoteric: eating a corpse, once, gives back this much hp (provisional)
-  // esoteric.waiting: how much likelier noticing is on a turn you wait (decision 297).
-  notice: { near: 0.5, reach: 8, secret: 0.04, esoteric: { detail: 0.3, reach: 5, waiting: 1.5 } },
+  notice: { near: 0.5, reach: 8, secret: 0.04 },
   // Esoteric: the chance, each turn you wait, that a memory on its way back comes now.
   memoryWait: 0.25,
   // Esoteric: holding wait waits once, then again after firstMs, then every everyMs, until

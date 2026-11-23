@@ -54,7 +54,12 @@ function save(key, value) {
 // Measure the ink of the wait and action buttons after the edition's face has loaded.
 if (esoteric && document.fonts) await document.fonts.load('1em "Crooked Hand"').catch(() => {});
 // The esoteric edition begins on its opening screen.
-const game = newGame({ seed: readSeed(), look: readLook(), outlines: readOutlines(), edition: document.documentElement.dataset.edition, opening: esoteric });
+// Full screen, where the browser has it (not an iPhone's Safari): the whole screen black
+// round the game (style.css). The menu offers it.
+const page = document.documentElement;
+const fullscreenEl = () => document.fullscreenElement ?? document.webkitFullscreenElement ?? null;
+const canFullscreen = esoteric && !!(document.fullscreenEnabled || document.webkitFullscreenEnabled);
+const game = newGame({ seed: readSeed(), look: readLook(), outlines: readOutlines(), edition: document.documentElement.dataset.edition, opening: esoteric, fullscreen: canFullscreen });
 const opening = view(game);
 const size = opening.room.size ?? Math.sqrt(opening.cells.length);
 // the square that means more, a new version of it each time one is made (esoteric)
@@ -75,11 +80,38 @@ function run(action) {
     // the paper or dark look (a looked-at cell's look event has no look of that kind)
     if (e && e.type === 'look' && typeof e.look === 'string') saveLook(e.look);
     if (e && e.type === 'outlines') save(OUTLINES_KEY, e.outlines);
+    if (e && e.type === 'fullscreen') setFullscreen(e.on);
   }
   const v = view(game);
   renderer.draw(v, events);
   nextStep(v, events);
   return events;
+}
+
+// Into full screen or out of it. A browser grants it only during a press it counts, and a
+// touch counts as it lifts, not as it lands (when the game acts on it): if the browser says
+// no now, it is asked again when the finger comes up.
+function setFullscreen(on) {
+  if (!on) {
+    if (fullscreenEl()) (document.exitFullscreen ?? document.webkitExitFullscreen)?.call(document);
+    return;
+  }
+  const request = page.requestFullscreen ?? page.webkitRequestFullscreen;
+  if (!request || fullscreenEl()) return;
+  const attempt = () =>
+    Promise.resolve(request.call(page, { navigationUI: 'hide' })).then(() => screen.orientation?.lock?.('portrait').catch(() => {}));
+  attempt().catch(() => {
+    const kinds = ['pointerup', 'keyup', 'click'];
+    const again = () => {
+      kinds.forEach((k) => document.removeEventListener(k, again, true));
+      if (!fullscreenEl()) attempt().catch(() => {});
+    };
+    kinds.forEach((k) => document.addEventListener(k, again, true));
+  });
+}
+// The browser went in or out (Esc leaves it): the menu says which way it goes next.
+for (const kind of ['fullscreenchange', 'webkitfullscreenchange']) {
+  document.addEventListener(kind, () => run({ type: 'fullscreen', on: !!fullscreenEl() }));
 }
 
 // A fast move takes its next step one step's time from now, unless something has taken

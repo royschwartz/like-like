@@ -136,17 +136,24 @@ export const TEXT = {
   // HIS. The esoteric encounters in the first floor's eastern room. asleep and chain were
   // what holding on the toad said; since November 22 it says its plain line (TEXT.readout),
   // and these two are not used, kept for him to place.
+  // Its page (November 23): "the giant toad sleeps ruefully", its muscles, and the locket
+  // while it still has its key. "you cannot talk to it": no talk.
   toadEsoteric: {
     asleep: 'a toad sleeping in the dirt',
     chain: 'around the toad’s neck is necklace holding a golden key',
-    opening: ['the toad is covered in boils', 'its muscles seem to bulge out of its body'],
-    talk: 'talk to the toad',
+    opening: ['the giant toad sleeps ruefully', 'its muscles are exposed'],
+    locket: 'it wears a golden locket around its neck',
     key: 'try to grab the key',
     attack: 'attack the toad',
   },
+  // HIS. Walking up to the statue, and touching and inspecting it (November 23): "in general
+  // lines should be broken apart", so each sentence is a paragraph of its own.
   statueEsoteric: {
-    opening: ['you pause next to the statue', 'a wild man with outstretched arms'],
+    opening: ['you pause next to the statue', 'a wild man with outstretched arms', 'the eyes, though granite, blaze with passion and discontent'],
     touch: 'touch the statue',
+    warm: ['it is surprisingly warm', 'you feel slightly different after touching it'],
+    inspect: 'inspect the statue',
+    engraving: ['there is an engraving near the bottom', 'a streak of flame runs cross the base', 'it moves as the stone is still'],
     talk: 'talk to it',
     offer: 'place an item in its arms',
     glow: (name, plural) => `the ${name} ${plural ? 'glow' : 'glows'} and the statue emits a low hum`,
@@ -186,7 +193,10 @@ export const TEXT = {
     options: { listen: 'listen more', key: 'go for the key', attack: 'attack!', back: 'back' },
   },
 
-  // HIS. Entering the mother's room, then approaching her.
+  // HIS. Entering the mother's room, then approaching her. What you say to her (November 23),
+  // in place of "talk to her": "what happened?" and "can I help you", each with her answer.
+  // talk, "she keeps mumbling about her baby", was what talking said; not used now, kept for
+  // him to place.
   mother: {
     room: 'the room is cold and you are suddenly afraid',
     opening: (met) => [
@@ -195,12 +205,16 @@ export const TEXT = {
       'she is mumbling about her missing baby',
     ],
     talk: 'she keeps mumbling about her baby',
+    answers: {
+      happened: 'the mother looks at you with great offense',
+      help: 'A BABY\'S FACE REFLECTS THE UNIVERSE',
+    },
     death: [
       'she seizes you with surprising strength',
       'her fingers enter you as a knife through butter',
       'YOU DIDN’T CARE ABOUT MY BABY DID YOU',
     ],
-    options: { talk: 'talk to her', cloak: 'try to take her cloak', attack: 'attack her', item: 'item', die: 'die' },
+    options: { happened: 'what happened?', help: 'can I help you', cloak: 'try to take her cloak', attack: 'attack her', item: 'item', die: 'die' },
   },
 
   // HIS. Stock writing for statues: "you may not encounter DEE first so this is stock
@@ -280,6 +294,9 @@ export const TEXT = {
     lookDark: 'dark',
     lookPaper: 'paper',
     textBrightness: 'text brightness',
+    // PLAIN. The menu's setting for the whole screen, black round the game.
+    fullScreen: 'full screen',
+    leaveFullScreen: 'leave full screen',
     // PLAIN. The menu's setting for the lines round the buttons: none, or a step of grey.
     outlines: (n) => (n ? `outlines ${n}` : 'outlines off'),
     dig: 'dig for worms', // HIS

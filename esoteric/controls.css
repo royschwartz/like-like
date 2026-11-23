@@ -1,23 +1,29 @@
 /* The log and the thumb controls share the same cut of Crooked Hand. */
 #screen {
+  /* The game is a phone, upright, 9.5 wide and 20 tall, whatever it is played on ("lock the
+     app to the phone dimensions", November 23): as tall as the window and no wider than a
+     phone that tall. A phone narrower than that fills its own screen. */
+  --app-h: 100dvh;
+  --app-w: min(100vw, calc(var(--app-h) * 9.5 / 20));
   --side-units: 4;
   --control-side: calc(var(--side-units) * var(--u));
   --control-gap: clamp(2px, calc(.75 * var(--u)), 4px);
   --footer-padding: max(clamp(4px, calc(2 * var(--u)), 8px), env(safe-area-inset-bottom, 0px));
   --footer-space: calc(2 * var(--control-gap) + var(--footer-padding));
-  --min-control-height: min(44px, 8dvh);
+  /* short phones compact the buttons to keep a full-width room; taller ones keep thumb room */
+  --min-control-height: min(32px, calc(var(--app-h) * .065));
   --min-footer: calc(3 * var(--min-control-height) + var(--footer-space));
   --min-log: calc(env(safe-area-inset-top, 0px) + 3 * var(--text-size));
   /* Make the square as wide as possible with equal space above and below it.
      Safe insets stay inside those bands so neither shifts the map's center. */
-  --board-side: min(100vw, calc(100dvh - 2 * max(var(--min-footer), var(--min-log))));
-  --room-margin: calc((100dvh - var(--board-side)) / 2);
+  --board-side: min(var(--app-w), calc(var(--app-h) - 2 * max(var(--min-footer), var(--min-log))));
+  --room-margin: calc((var(--app-h) - var(--board-side)) / 2);
   /* In a phone's browser the room is lifted to the middle of the whole screen (center.js),
      never so far that the log has less than its least. */
   --lift: max(0px, min(var(--chrome-lift, 0px), calc(var(--room-margin) - var(--min-log))));
   --control-height: min(max(44px, calc(10 * var(--u))), calc((var(--room-margin) - var(--footer-space)) / 3));
   width: var(--board-side);
-  height: 100dvh;
+  height: var(--app-h);
   /* one column, the square's width: a row too long for it never widens the screen */
   grid-template-columns: minmax(0, 1fr);
   grid-template-rows: calc(var(--room-margin) - var(--lift)) var(--board-side) calc(var(--control-height) + var(--control-gap)) minmax(0, 1fr);
@@ -26,11 +32,6 @@
   grid-area: 2 / 1;
   width: 100%;
   height: var(--board-side);
-}
-/* On short portrait phones the buttons can compact to preserve a full-width
-   room. On a taller phone they keep their regular thumb targets. */
-@media (orientation: portrait) {
-  #screen { --min-control-height: min(32px, 6.5dvh); }
 }
 
 #log {
@@ -267,7 +268,9 @@
   margin: auto calc(var(--ev-side) * -1);
   padding-block: calc(var(--u) * 5);
 }
-#event:is([data-id="statue"], [data-id="toad"]) #event-links .link {
+/* Choices are in the regular face, except what you say aloud ("except if they are literal
+   dialogue from you", November 23): "where am I?", "what happened?". */
+#event-links .link[data-said] {
   font-style: italic;
 }
 #btn-event-sys { margin-top: 0; }

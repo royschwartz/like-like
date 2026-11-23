@@ -220,7 +220,7 @@ test('going about the toad\'s room, nothing comes by itself: what was sensed is 
   assert.equal(g.knowsWorms, false);
 });
 
-test('waiting beside a sleeping toad brings its line with its key, once, and nothing blinks', () => {
+test('waiting beside a sleeping toad says nothing about it, and nothing blinks', () => {
   const g = newGame({ seed: 3, edition: 'esoteric' });
   const toad = putToad(g, g.x + 1, g.y, true);
   g.level.rooms[g.room].t[toad.y * 7 + toad.x] = 'floor';
@@ -229,8 +229,9 @@ test('waiting beside a sleeping toad brings its line with its key, once, and not
     act(g, { type: 'wait' });
     assert.ok(view(g).cells.every((c) => !c.more));
   }
-  // what comes by itself comes once (decision 375)
-  assert.deepEqual(g.log.filter((l) => l.id >= from).map((l) => l.text), [`toad, sleeping, dirt, ${TEXT.thing.key}`]);
+  // what is about a thing comes only from holding on it ("those observations can only occur
+  // with direct targeting", November 23)
+  assert.deepEqual(g.log.filter((l) => l.id >= from).map((l) => l.text), []);
   g.items.push({ key: 'key', inHand: false });
   act(g, { type: 'menu', id: 'inv' });
   assert.deepEqual(view(g).event.options.map((o) => o.label), [TEXT.thing.sword, TEXT.thing.key, TEXT.menu.back]);

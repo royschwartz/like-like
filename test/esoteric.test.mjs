@@ -196,7 +196,7 @@ function enterMotherRoom() {
   return g;
 }
 
-const motherChoices = ['talk to her', 'try to take her cloak', 'attack her', 'item', 'back'];
+const motherChoices = ['what happened?', 'can I help you', 'try to take her cloak', 'attack her', 'item', 'back'];
 const eventLabels = (g) => view(g).event.options.map((o) => o.label);
 const eventLines = (g) => view(g).event.lines.map((l) => l.text);
 
@@ -291,7 +291,7 @@ test('the woman is drawn only in a straight line of sight: a wall between you hi
   assert.deepEqual([g.x, g.y], [1, 3]);
 });
 
-test('talking to the woman and looking through items return to her choices, and back leaves her in the gap', () => {
+test('speaking to the woman and looking through items return to her choices, and back leaves her in the gap', () => {
   const g = enterMotherRoom();
   const turn = g.turn + 4; // four steps from the doorway to the square beside her
   act(g, { type: 'travel', x: 0, y: 3 }); // one tap from across the room
@@ -301,8 +301,13 @@ test('talking to the woman and looking through items return to her choices, and 
     'the woman looks up at you', 'her face is ghoulish', 'she is mumbling about her missing baby',
   ]);
   assert.deepEqual(eventLabels(g), motherChoices);
-  chooseLabel(g, 'talk to her');
-  assert.equal(eventLines(g).at(-1), 'she keeps mumbling about her baby');
+  // what you say to her is in italics, and only that (November 23)
+  assert.deepEqual(view(g).event.options.map((o) => !!o.said), [true, true, false, false, false, false]);
+  chooseLabel(g, 'what happened?');
+  assert.deepEqual(eventLines(g), ['the mother looks at you with great offense']);
+  assert.deepEqual(eventLabels(g), motherChoices);
+  chooseLabel(g, 'can I help you');
+  assert.deepEqual(eventLines(g), ["A BABY'S FACE REFLECTS THE UNIVERSE"]);
   assert.deepEqual(eventLabels(g), motherChoices);
   chooseLabel(g, 'item');
   assert.deepEqual(eventLabels(g), [TEXT.thing.sword, TEXT.menu.back]);
@@ -367,7 +372,7 @@ function besideEncounter(kind) {
 
 test('holding on the toad or the statue observes it; one tap from across the room walks into its event', () => {
   for (const [kind, seed, firstLine] of [
-    ['toad', 3, 'the toad is covered in boils'],
+    ['toad', 3, 'the giant toad sleeps ruefully'],
     ['statue', 12, 'you pause next to the statue'],
   ]) {
     const g = newGame({ edition: 'esoteric', seed });
@@ -521,11 +526,10 @@ test('walking into the sleeping toad opens its encounter and grabbing the key ca
       const { g, target: toad, bump } = besideEncounter('toad');
       const turn = g.turn;
       bump();
-      assert.deepEqual(eventLines(g), ['the toad is covered in boils', 'its muscles seem to bulge out of its body']);
-      assert.deepEqual(eventLabels(g), ['talk to the toad', 'try to grab the key', 'attack the toad', 'back']);
-      const beforeTalk = view(g);
-      chooseLabel(g, 'talk to the toad');
-      assert.deepEqual(view(g), beforeTalk, 'talking leaves the sleeping toad and its choices as they were');
+      assert.deepEqual(eventLines(g), ['the giant toad sleeps ruefully', 'its muscles are exposed', 'it wears a golden locket around its neck']);
+      // "you cannot talk to it"; no choice here is said aloud
+      assert.deepEqual(eventLabels(g), ['try to grab the key', 'attack the toad', 'back']);
+      assert.ok(view(g).event.options.every((o) => !o.said));
       chooseLabel(g, 'back');
       assert.equal(view(g).event, null);
       bump();
@@ -537,7 +541,9 @@ test('walking into the sleeping toad opens its encounter and grabbing the key ca
       if (succeeds) {
         chooseLabel(g, 'back');
         bump();
-        assert.deepEqual(eventLabels(g), ['talk to the toad', 'attack the toad', 'back']);
+        // the locket goes with the key
+        assert.deepEqual(eventLines(g), ['the giant toad sleeps ruefully', 'its muscles are exposed']);
+        assert.deepEqual(eventLabels(g), ['attack the toad', 'back']);
         chooseLabel(g, 'back');
         // Leave the stolen key on the floor, then kill the toad with the sword.
         toad.hp = playerDamage(g);
@@ -575,10 +581,19 @@ test('an offering wakes DEE, who answers exactly one question before teaching im
 
     const damage = playerDamage(g);
     const turn = g.turn;
-    for (const choice of ['touch the statue', 'talk to it']) {
+    const approach = ['touch the statue', 'inspect the statue', 'talk to it', 'place an item in its arms', 'back'];
+    for (const choice of ['talk to it', 'back']) {
       bump();
-      assert.deepEqual(eventLines(g), ['you pause next to the statue', 'a wild man with outstretched arms']);
-      assert.deepEqual(eventLabels(g), ['touch the statue', 'talk to it', 'place an item in its arms']);
+      assert.deepEqual(eventLines(g), ['you pause next to the statue', 'a wild man with outstretched arms', 'the eyes, though granite, blaze with passion and discontent']);
+      assert.deepEqual(eventLabels(g), approach);
+      assert.ok(view(g).event.options.every((o) => !o.said));
+      // touching and inspecting say more, each sentence a paragraph, and keep the choices
+      chooseLabel(g, 'touch the statue');
+      assert.deepEqual(eventLines(g), ['it is surprisingly warm', 'you feel slightly different after touching it']);
+      assert.deepEqual(eventLabels(g), approach);
+      chooseLabel(g, 'inspect the statue');
+      assert.deepEqual(eventLines(g), ['there is an engraving near the bottom', 'a streak of flame runs cross the base', 'it moves as the stone is still']);
+      assert.deepEqual(eventLabels(g), approach);
       chooseLabel(g, choice);
       assert.equal(view(g).event, null);
       assert.equal(g.turn, turn);
@@ -597,6 +612,8 @@ test('an offering wakes DEE, who answers exactly one question before teaching im
       'I’VE BEEN ON YOUR SIDE SINCE DAY ONE',
     ]);
     assert.deepEqual(eventLabels(g), questions.map(([label]) => label));
+    // what you ask DEE is said aloud: in italics
+    assert.ok(view(g).event.options.every((o) => o.said));
     chooseLabel(g, question);
     assert.deepEqual(eventLines(g), answer);
     assert.deepEqual(eventLabels(g), ['continue']);

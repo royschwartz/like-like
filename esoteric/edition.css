@@ -10,6 +10,11 @@
   --mono: "Crooked Hand", Monaco, monospace;
   --around: #0c0c0b;
 }
+/* Full screen, from the menu: the whole screen black round the game ("a full screen mode
+   that makes the screen all black", November 23). */
+:root:fullscreen { --around: #000; }
+:root:-webkit-full-screen { --around: #000; }
+::backdrop { background: #000; }
 
 #screen[data-look="dark"] {
   --chalk: #fff;

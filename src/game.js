@@ -13,7 +13,7 @@ const SQUARE_MENUS = ['inv', 'act', 'psy', 'sys'];
 
 // ---- a new game --------------------------------------------------------
 
-function makeState(seed, look, nextLogId, outlines = CONFIG.outlines.start, edition, opening = false) {
+function makeState(seed, look, nextLogId, outlines = CONFIG.outlines.start, edition, opening = false, fullscreen = null) {
   const rng = makeRng(seed);
   const level = makeLevel(rng, 1, edition);
   const g = {
@@ -22,6 +22,7 @@ function makeState(seed, look, nextLogId, outlines = CONFIG.outlines.start, edit
     opening, // esoteric: the game begins on its opening screen (and so does a restart)
     look,
     outlines, // the lines round the buttons in the dark look: 0 none, up to CONFIG.outlines.levels
+    fullscreen, // esoteric: null where the browser has no full screen, else whether it is on
     rng,
     depth: 1,
     turn: 0,
@@ -81,11 +82,12 @@ function makeState(seed, look, nextLogId, outlines = CONFIG.outlines.start, edit
 
 // opening: begin on the esoteric edition's opening screen. The page asks for it; a game
 // made without it starts in the room, as the tests do.
-export function newGame({ seed, look, outlines, edition, opening } = {}) {
+// fullscreen: true if the browser can show the page full screen (the esoteric menu offers it).
+export function newGame({ seed, look, outlines, edition, opening, fullscreen } = {}) {
   const s = Number.isInteger(seed) ? seed : Date.now() % 2147483647;
   const lines = Number.isInteger(outlines) && outlines >= 0 && outlines <= CONFIG.outlines.levels ? outlines : undefined;
   const ed = edition === 'esoteric' ? edition : undefined;
-  return makeState(s, look === 'dark' ? 'dark' : 'paper', 1, lines, ed, !!ed && opening === true);
+  return makeState(s, look === 'dark' ? 'dark' : 'paper', 1, lines, ed, !!ed && opening === true, ed && fullscreen === true ? false : null);
 }
 
 // ---- small helpers -----------------------------------------------------
@@ -253,13 +255,12 @@ export function playerDamage(g) {
 // discovery gets reported if you survived, before idle notices and memories.
 // `idle`: you may notice things without trying this turn (not while sensing, which is
 // the strong search in the archived original, and not while resting or digging).
-// `waiting`: the turn was a wait, in which the esoteric edition notices more.
-function endTurn(g, ev, report, idle = true, waiting = false) {
+function endTurn(g, ev, report, idle = true) {
   const r = toadActs(g, ev);
   g.turn++;
   see(g);
   if (!r.died) report?.();
-  if (idle && !r.died && !g.busy) noticeIdly(g, waiting);
+  if (idle && !r.died && !g.busy) noticeIdly(g);
   recallDue(g, ev);
   return r;
 }
@@ -824,8 +825,11 @@ export function noticeChance(steps) {
   return near * Math.max(0, 1 - (steps - 1) / reach);
 }
 
-function noticeIdly(g, waiting) {
-  if (g.edition === 'esoteric') return noticeEsoteric(g, waiting);
+function noticeIdly(g) {
+  // The esoteric edition notices nothing about a thing by itself: what is about a thing comes
+  // only from holding on it ("those observations can only occur with direct targeting",
+  // November 23). What comes unasked is the place's, once (sayUnbidden).
+  if (g.edition === 'esoteric') return;
   const room = currentRoom(g);
   const { idx } = terrainGrid(room.t);
   const vis = fov(room.t, g.x, g.y);
@@ -842,32 +846,12 @@ function noticeIdly(g, waiting) {
   }
 }
 
-// The esoteric edition has no sense ("there is no more sense in the game", decisions 244,
-// 297). As you go about, or wait, now and then you notice a detail of something in sight,
-// as if you had observed it: the nearer, the likelier, and likelier still waiting. One at a
-// time, never over anything said. The mother's room has its own observation, on first entry.
-function noticeEsoteric(g, waiting = false) {
-  if (g.said > 0) return;
-  const room = currentRoom(g);
-  const { detail, reach, waiting: more } = CONFIG.notice.esoteric;
-  const k = waiting ? more : 1;
-  const t = room.toad;
-  if (t && los(room.t, g.x, g.y, t.x, t.y)) {
-    const steps = chebyshev(t.x, t.y, g.x, g.y);
-    // its line, when it tells something you have not made out yet (its key, up close)
-    const o = toadReadout(g, room);
-    const p = Math.min(1, k * detail * Math.max(0, 1 - (steps - 1) / reach));
-    if (o.found.some((id) => !g.observed[id]) && chance(g.noticeRng, p)) sayObserved(g, 'toad', o);
-  }
-}
-
-// Waiting a turn. In the esoteric edition you notice more (noticeEsoteric), and a memory on
-// its way back may come now instead of later ("if you wait you may also make more
-// observations or gain new memories", decision 297).
+// Waiting a turn. In the esoteric edition a memory on its way back may come now instead of
+// later ("if you wait you may also make more observations or gain new memories", decision 297).
 function wait(g, ev) {
   if (g.edition !== 'esoteric') return endTurn(g, ev);
   if (g.recall && g.recall.turn > g.turn + 1 && chance(g.noticeRng, CONFIG.memoryWait)) g.recall.turn = g.turn + 1;
-  return endTurn(g, ev, undefined, true, true);
+  return endTurn(g, ev);
 }
 
 // Inspecting the grass you stand in (esoteric), by its kind. The glowing grass of the first
@@ -990,7 +974,7 @@ function dig(g, ev) {
 }
 
 function restart(g, ev) {
-  const fresh = makeState(deriveSeed(g.seed), g.look, g.nextLogId, g.outlines, g.edition, g.opening);
+  const fresh = makeState(deriveSeed(g.seed), g.look, g.nextLogId, g.outlines, g.edition, g.opening, g.fullscreen);
   for (const k of Object.keys(g)) delete g[k];
   Object.assign(g, fresh);
   ev.push({ type: 'restart' });
@@ -1028,6 +1012,14 @@ function entries(g, menu) {
     case 'sys':
       return [
         { label: TEXT.menu.restart, kind: 'action', disabled: false, run: 'restart' },
+        // the whole screen, black round the game ("a full screen mode that makes the screen
+        // all black", November 23), where the browser has one
+        ...(g.fullscreen === null ? [] : [{
+          label: g.fullscreen ? TEXT.menu.leaveFullScreen : TEXT.menu.fullScreen,
+          kind: 'action',
+          disabled: false,
+          run: 'fullscreen',
+        }]),
         {
           label: g.look === 'paper' ? TEXT.menu.lookDark : TEXT.menu.lookPaper,
           kind: 'action',
@@ -1463,7 +1455,10 @@ function openEvent(g, e, ev, keepMenu = false) {
 // on its chain is one of what observing it goes round, already had, and you can go for it.
 function openToad(g, ev) {
   if (g.edition === 'esoteric') {
-    return openEvent(g, { id: 'toad', passages: paragraphs(TEXT.toadEsoteric.opening) }, ev);
+    // its locket only while it still has its key
+    const t = TEXT.toadEsoteric;
+    const lines = currentRoom(g).toad.key ? [...t.opening, t.locket] : t.opening;
+    return openEvent(g, { id: 'toad', passages: paragraphs(lines) }, ev);
   }
   const toad = currentRoom(g).toad;
   // Its key, if you have not been told of it, then that it sings: "it" right after the
@@ -1499,16 +1494,22 @@ function carriedChoices(g, run) {
   return [...choices.values(), BACK];
 }
 
+// A choice that is what you say aloud is `said`, and set in italics; every other choice is
+// in the regular face (">actions always in regular font except if they are literal dialogue
+// from you", November 23).
+const spoken = (label, run, arg) => ({ label, kind: 'action', run, arg, said: true });
+
 function statueOptions(g) {
   const t = TEXT.statueEsoteric;
   const action = (label, run) => ({ label, kind: 'action', run });
   switch (g.event.stage) {
     case 'approach':
-      return [action(t.touch, 'back'), action(t.talk, 'back'), action(t.offer, 'offer')];
+      // touching and inspecting say more on the same page; talking still does nothing
+      return [action(t.touch, 'touch'), action(t.inspect, 'inspectStatue'), action(t.talk, 'back'), action(t.offer, 'offer'), BACK];
     case 'offering':
       return carriedChoices(g, 'place');
     case 'questions':
-      return [action(t.where, 'where'), action(t.who, 'who')];
+      return [spoken(t.where, 'where'), spoken(t.who, 'who')];
     case 'answer':
       return [action(t.continue, 'farewell')];
     case 'farewell':
@@ -1579,7 +1580,8 @@ function eventOptions(g) {
     const o = TEXT.mother.options;
     if (e.over) return [{ label: o.die, kind: 'action', run: 'restart' }];
     return [
-      { label: o.talk, kind: 'action', run: 'talk' },
+      spoken(o.happened, 'motherAnswers', 'happened'),
+      spoken(o.help, 'motherAnswers', 'help'),
       { label: o.cloak, kind: 'action', run: 'motherSeizes' },
       { label: o.attack, kind: 'action', run: 'motherSeizes' },
       { label: o.item, kind: 'action', run: 'inventory' },
@@ -1613,7 +1615,7 @@ function eventOptions(g) {
   if (!e.over && e.id === 'toad') {
     const toad = currentRoom(g).toad;
     if (g.edition === 'esoteric') {
-      list.push({ label: TEXT.toadEsoteric.talk, kind: 'action', run: 'toadTalk' });
+      // "you cannot talk to it"
       if (toad.key) list.push({ label: TEXT.toadEsoteric.key, kind: 'action', run: 'key' });
       list.push({ label: TEXT.toadEsoteric.attack, kind: 'action', run: 'attack' });
       return [...list, BACK];
@@ -1638,9 +1640,6 @@ function eventChoose(g, i, ev) {
   const toad = room.toad;
   const statue = TEXT.statueEsoteric;
   switch (o.run) {
-    case 'toadTalk':
-      // Its reply is unwritten. The key and the way back are still available.
-      break;
     case 'offer': {
       const lines = [statue.offer];
       if (!g.items.length) lines.push(TEXT.menu.nothing);
@@ -1658,6 +1657,12 @@ function eventChoose(g, i, ev) {
       }
       break;
     }
+    case 'touch':
+      statuePage(g, 'approach', statue.warm, ev);
+      break;
+    case 'inspectStatue':
+      statuePage(g, 'approach', statue.engraving, ev);
+      break;
     case 'where':
     case 'who':
       statuePage(g, 'answer', o.run === 'where' ? statue.world : statue.friend, ev);
@@ -1691,8 +1696,8 @@ function eventChoose(g, i, ev) {
         g.menu = e.returnScreen.menu;
       }
       break;
-    case 'talk':
-      e.passages = [[prose(TEXT.mother.talk)]];
+    case 'motherAnswers':
+      e.passages = [[prose(TEXT.mother.answers[o.arg])]];
       break;
     case 'motherSeizes':
       e.passages = TEXT.mother.death.map((line) => [prose(line)]);
@@ -1917,6 +1922,10 @@ function chooseSlot(g, i, ev) {
       g.outlines = (g.outlines + 1) % (CONFIG.outlines.levels + 1);
       ev.push({ type: 'outlines', outlines: g.outlines });
       break;
+    case 'fullscreen':
+      // the screen code asks the browser; what it did comes back as a fullscreen action
+      ev.push({ type: 'fullscreen', on: !g.fullscreen });
+      break;
     case 'take': {
       const [it] = corpseHere(g).items.splice(slot.arg, 1);
       g.items.push({ key: it.key, inHand: false });
@@ -2049,6 +2058,11 @@ const inRoom = (n, g) => Number.isInteger(n) && n >= 0 && n < terrainGrid(curren
 
 export function act(g, a) {
   if (!a || typeof a !== 'object') return [];
+  // The browser went into full screen or out of it (Esc, say). Nothing else changes.
+  if (a.type === 'fullscreen') {
+    if (g.fullscreen !== null) g.fullscreen = !!a.on;
+    return [];
+  }
   const ev = [];
   g.said = 0;
   // anything but going on with it ends a travel
@@ -2172,7 +2186,7 @@ export function view(g) {
       id: e.id,
       lines: e.passages.flatMap((p, n) => p.map((l) => ({ text: l.text, song: l.song, slot: isSlot(l.text), passage: n }))),
       now: e.now,
-      options: eventOptions(g).map((o) => ({ label: o.label, kind: o.kind, slot: isSlot(o.label) })),
+      options: eventOptions(g).map((o) => ({ label: o.label, kind: o.kind, slot: isSlot(o.label), ...(o.said && { said: true }) })),
       cursor: e.cursor,
     };
   }
