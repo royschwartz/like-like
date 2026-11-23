@@ -27,6 +27,8 @@ export const TEXT = {
   button: {
     inv: 'inv', psy: 'psy', act: '*', wait: '...', use: 'use', sys: 'menu',
     inventory: 'inventory', psyche: 'psyche', memories: 'memories', abilities: 'abilities', waitName: 'wait',
+    // HIS: "the options menu" (November 23), the settings' page, from the psyche
+    options: 'options',
   },
 
   // HIS. What the wide button says, by where you stand; inspect in the inventory.
@@ -302,6 +304,9 @@ export const TEXT = {
     lookDark: 'dark',
     lookPaper: 'paper',
     textBrightness: 'text brightness',
+    // PLAIN. The size of all the text, on the options page ("an option to make ALL the text
+    // smaller").
+    textSize: 'text size',
     // PLAIN. The menu's setting for the whole screen, black round the game.
     fullScreen: 'full screen',
     leaveFullScreen: 'leave full screen',

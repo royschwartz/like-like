@@ -1,6 +1,11 @@
 #screen {
   --text-units: 4.9;
-  --text-size: calc(var(--u) * var(--text-units));
+  /* --text-scale: the options page's text size ("an option to make ALL the text smaller",
+     November 23), set by esoteric/brightness.js, with --text-weight: the smaller the text,
+     the thinner the cut of Crooked Hand ("the text should also get skinnier as you shrink
+     it"). The map's signs keep their size and weight. */
+  --text-size: calc(var(--u) * var(--text-units) * var(--text-scale, 1));
+  font-weight: var(--text-weight, 400);
   --reading-ink: color-mix(in srgb, white var(--text-brightness, 100%), black);
   --reading-paper-ink: color-mix(in srgb, #17150f var(--text-brightness, 100%), #878477);
 }
@@ -47,10 +52,14 @@
   color: inherit;
 }
 
+/* The pages' text runs almost to the sides ("expand the margins almost to the sides for all
+   non-map screens", November 23). */
 #event {
-  --ev-side: calc(var(--u) * 6);
+  --ev-side: calc(var(--u) * 2.5);
   line-height: 1.42;
 }
+#screen button { font-weight: inherit; }
+.map { font-weight: 400; }
 
 /* The toad's lowercase t follows the smaller of the room and the type slab.
    Widening a short phone's room still leaves space around the letter. */
@@ -112,7 +121,10 @@
 #controls[data-menu="sys"] #options {
   grid-row: 2 / 5;
 }
-#event:has(#btn-event-sys.open) .brightness {
+/* on the options page the two sliders' tracks line up */
+#event[data-id="options"] .brightness { grid-template-columns: 16ch minmax(0, 1fr) 4ch; }
+#event:has(#btn-event-sys.open) .brightness,
+#event[data-id="options"] .brightness {
   display: grid;
   flex: none;
   margin-top: calc(var(--u) * 4);

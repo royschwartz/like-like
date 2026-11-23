@@ -718,9 +718,14 @@ export function createRenderer(root = document, { marks: withMarks = true, cellP
     nameOnly(menuButtons.sys, TEXT.button.sys);
     setText(menuButtons.act, TEXT.button.act);
     setText(menuButtons.psy, TEXT.button.psy);
+    // The esoteric edition (it has a second ability's place). Since November 23 its page has
+    // no icons at the bottom; the studies' pages still do.
+    const esoteric = !!btnSecondary;
     if (btnMemories) {
       nameOnly(btnMemories, TEXT.button.memories);
       setAttr(btnMemories, 'title', TEXT.button.memories);
+    }
+    if (esoteric) {
       setAttr(menuButtons.act, 'aria-label', TEXT.button.abilities);
       setAttr(menuButtons.act, 'title', TEXT.button.abilities);
       const invLabel = view.inv ? TEXT.menu.back : TEXT.button.inventory;
@@ -731,11 +736,11 @@ export function createRenderer(root = document, { marks: withMarks = true, cellP
       setText(menuButtons.inv, view.inv ? TEXT.menu.back : TEXT.button.inv);
     }
     // The esoteric edition writes wait out, as its list of abilities does.
-    setText(btnWait, (btnMemories ? TEXT.button.waitName : TEXT.button.wait) ?? '');
+    setText(btnWait, (esoteric ? TEXT.button.waitName : TEXT.button.wait) ?? '');
     setText(btnUse, TEXT.button.use ?? '');
     // the two labels that are marks, not words: their ink in the middle of the button
     centreInk(menuButtons.act);
-    if (!btnMemories) centreInk(btnWait);
+    if (!esoteric) centreInk(btnWait);
     const shortcuts = view.abilities || [];
     const ctx = btnSecondary && !view.inv ? shortcuts[0] || {} : shortcuts[0] || view.context || {};
     if (btnSecondary) {

@@ -1550,6 +1550,21 @@ function openMemories(g, ev) {
   openEvent(g, { id: 'memories', passages }, ev);
 }
 
+// The settings, a page of their own (November 23), reached from the psyche: the two sliders
+// (the screen's) and the settings menu's choices.
+function openOptions(g, ev) {
+  openEvent(g, { id: 'options', passages: [[prose(TEXT.button.options)]] }, ev);
+}
+
+// The psyche, opened by the stat row and its claw, is the way to everything that had an icon
+// at the bottom of the screen ("remove all the option icons at the bottom of the screen",
+// November 23): the inventory, the memories and the options, then back.
+const PSYCHE_CHOICES = [
+  { key: 'inventory', run: 'inventory' },
+  { key: 'memories', run: 'memories' },
+  { key: 'options', run: 'options' },
+];
+
 // A memory on its way back comes back once its turn is reached, when the action
 // under way has room to say so and you are not resting or digging.
 function recallDue(g, ev) {
@@ -1571,6 +1586,8 @@ function recall(g, id, ev) {
 function eventOptions(g) {
   const e = g.event;
   if (e.id === 'statue') return statueOptions(g);
+  if (e.id === 'psyche') return [...PSYCHE_CHOICES.map(({ key, run }) => ({ label: TEXT.button[key], kind: 'action', run })), BACK];
+  if (e.id === 'options') return [...entries(g, { id: 'sys' }), BACK];
   if (e.id === 'imbue') return carriedChoices(g, 'imbueItem');
   // The opening has one way on and no way back.
   if (e.id === 'opening') return [{ label: TEXT.openingEsoteric.jump, kind: 'action', run: 'jump' }];
@@ -1709,6 +1726,18 @@ function eventChoose(g, i, ev) {
       e.cursor = i;
       openInventory(g, ev);
       g.event.parentEvent = e;
+      break;
+    case 'memories':
+    case 'options':
+      e.cursor = i;
+      (o.run === 'memories' ? openMemories : openOptions)(g, ev);
+      g.event.parentEvent = e;
+      break;
+    // the options page: the same as the settings menu's
+    case 'look':
+    case 'outlines':
+    case 'fullscreen':
+      changeSetting(g, o.run, ev);
       break;
     case 'take': {
       takeFromCorpse(g, o.arg);
@@ -1882,6 +1911,20 @@ function eventAct(g, a, ev) {
   return false;
 }
 
+// A setting, from the settings menu or the options page: the look, the outlines, full screen.
+function changeSetting(g, run, ev) {
+  if (run === 'look') {
+    g.look = g.look === 'paper' ? 'dark' : 'paper';
+    ev.push({ type: 'look', look: g.look });
+  } else if (run === 'outlines') {
+    g.outlines = (g.outlines + 1) % (CONFIG.outlines.levels + 1);
+    ev.push({ type: 'outlines', outlines: g.outlines });
+  } else if (run === 'fullscreen') {
+    // the screen code asks the browser; what it did comes back as a fullscreen action
+    ev.push({ type: 'fullscreen', on: !g.fullscreen });
+  }
+}
+
 function chooseSlot(g, i, ev) {
   const slot = slots(g, g.menu)[i];
   if (!choosable(slot)) return;
@@ -1914,16 +1957,9 @@ function chooseSlot(g, i, ev) {
       restart(g, ev);
       break;
     case 'look':
-      g.look = g.look === 'paper' ? 'dark' : 'paper';
-      ev.push({ type: 'look', look: g.look });
-      break;
     case 'outlines':
-      g.outlines = (g.outlines + 1) % (CONFIG.outlines.levels + 1);
-      ev.push({ type: 'outlines', outlines: g.outlines });
-      break;
     case 'fullscreen':
-      // the screen code asks the browser; what it did comes back as a fullscreen action
-      ev.push({ type: 'fullscreen', on: !g.fullscreen });
+      changeSetting(g, slot.run, ev);
       break;
     case 'take': {
       const [it] = corpseHere(g).items.splice(slot.arg, 1);

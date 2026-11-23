@@ -62,7 +62,6 @@
    (render.js sets it as --more). At the end of the stat row, which opens the psyche, and
    beside each item listed, which opens more about it. The actions under the stats have no
    arrow ("remove those actually in the main screen the >"). */
-#stats::after,
 #event-items .link::after {
   content: "";
   flex: none;
@@ -74,6 +73,18 @@
   image-rendering: pixelated;
 }
 #event-items .link::after { margin-left: .45em; }
+/* At the end of the stat row, his claw in place of the square (November 23): the way to the
+   psyche, and from it the inventory, the memories and the options. Traced from his drawing
+   in esoteric/icons.js. */
+#stats::after {
+  content: "";
+  flex: none;
+  width: 1.4em;
+  height: 1.4em;
+  background: currentColor;
+  -webkit-mask: var(--icon-claw) center / contain no-repeat;
+  mask: var(--icon-claw) center / contain no-repeat;
+}
 #stats.down { background: var(--paper); color: var(--slab); }
 #stats.down .stat .v { color: inherit; }
 
@@ -85,6 +96,7 @@
   padding: 0 var(--control-side) var(--footer-padding);
 }
 #buttons,
+#choices,
 #navigation {
   margin-top: auto;
   display: flex;
@@ -92,14 +104,27 @@
   min-height: var(--control-height);
   gap: calc(2 * var(--u));
 }
-#buttons .btn {
+#buttons .btn,
+#choices .btn {
   padding-inline: var(--u);
   white-space: nowrap;
 }
+/* Wait and the star on their own line, at its end; on the line below, what you can do where
+   you stand ("dig for worms"), from the left, well apart ("choices should always be mindfully
+   spaced", November 23). */
+#buttons { justify-content: flex-end; }
+#choices {
+  justify-content: flex-start;
+  gap: calc(var(--text-size) * 2.5);
+}
+#choices .btn { flex: none; }
+#choices [hidden] { display: none; }
+#controls[data-menu] #choices { display: none; }
 /* Two actions, wait and the star too long for the row ("inspect", "dig for worms"): their
    words are set a little smaller to fit (render.js sets --row-fit), before the second is left
    off the row. */
-#buttons .btn:not(#btn-act) {
+#buttons .btn:not(#btn-act),
+#choices .btn {
   font-size: calc(var(--row-fit, 1) * var(--text-size));
 }
 #btn-context,
@@ -123,21 +148,21 @@
 
 /* The variable actions are tinted by what they are about: the grass, the stair, a
    corpse, rest and the ground dug. The slab is dark in both looks. */
-#buttons {
+#controls {
   --tint-inspect: #75fb4c;
   --tint-stairs: #ffff54;
   --tint-corpse: #ff7467;
   --tint-rest: #8fd3ff;
   --tint-dig: #e7a35f;
 }
-#buttons .btn[data-ability]:not(.down) {
+#controls .btn[data-ability]:not(.down) {
   color: color-mix(in srgb, var(--tint) var(--text-brightness, 100%), black);
 }
-#buttons .btn[data-ability="inspect"] { --tint: var(--tint-inspect); }
-#buttons .btn[data-ability="stairs"] { --tint: var(--tint-stairs); }
-#buttons .btn[data-ability="corpse"] { --tint: var(--tint-corpse); }
-#buttons .btn[data-ability="rest"] { --tint: var(--tint-rest); }
-#buttons .btn[data-ability="dig"] { --tint: var(--tint-dig); }
+#controls .btn[data-ability="inspect"] { --tint: var(--tint-inspect); }
+#controls .btn[data-ability="stairs"] { --tint: var(--tint-stairs); }
+#controls .btn[data-ability="corpse"] { --tint: var(--tint-corpse); }
+#controls .btn[data-ability="rest"] { --tint: var(--tint-rest); }
+#controls .btn[data-ability="dig"] { --tint: var(--tint-dig); }
 
 #navigation {
   justify-content: space-between;
@@ -341,7 +366,7 @@
    psyche, the abilities, the memories, an item's page, and the corpse's take items, whose
    "corpse" is in the corpse's red. Events are not submenus and have none. */
 #event:is([data-id="inventory"], [data-id="psyche"], [data-id="abilities"], [data-id="memories"],
-  [data-id="item"], [data-id="loot"], [data-id="imbue"]) .passage:first-child {
+  [data-id="item"], [data-id="loot"], [data-id="imbue"], [data-id="options"]) .passage:first-child {
   text-decoration: underline;
   text-decoration-thickness: .09em;
   text-underline-offset: .22em;

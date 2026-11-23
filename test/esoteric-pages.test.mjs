@@ -24,7 +24,8 @@ test('the esoteric psyche page shows the same masked or perceived stats as the p
       `${TEXT.stat.love} ${wanted('love')}`,
       `${TEXT.stat.hp} ${stats.hp}/${stats.maxHp}`,
     ]);
-    assert.deepEqual(view(g).event.options.map((o) => o.label), [TEXT.menu.back]);
+    // the way to what had icons at the bottom of the screen (November 23)
+    assert.deepEqual(view(g).event.options.map((o) => o.label), [TEXT.button.inventory, TEXT.button.memories, TEXT.button.options, TEXT.menu.back]);
     act(g, { type: 'wait' });
     back(g);
     assert.equal(g.turn, turn);
@@ -51,7 +52,7 @@ test('psyche preserves a menu cursor through its own system menu', () => {
     assert.equal(g.menu.cursor, 0, 'the system menu on this page starts fresh');
     back(g);
     assert.equal(g.event.id, 'psyche');
-    act(g, { type: 'choose', index: 0 });
+    act(g, { type: 'choose', index: 3 }); // back
     assert.deepEqual(view(g), origin);
   }
 });
@@ -292,4 +293,41 @@ test('thrown at the toad in sight: it wakes, the sword wounds it, and lands wher
   assert.ok(toad.hp < 20, 'wounded');
   assert.deepEqual(room.loose.map((it) => [it.key, it.x, it.y]), [['sword', spot[0], spot[1]]]);
   assert.ok(view(g).log.some((l) => l.text.startsWith(`the ${TEXT.thing.sword} hits the toad`)));
+});
+
+test('the psyche leads to the inventory, the memories and the options, and back to itself', () => {
+  const g = start();
+  const turn = g.turn;
+  menu(g, 'psy');
+  const choose = (label) => act(g, { type: 'choose', index: view(g).event.options.findIndex((o) => o.label === label) });
+  for (const [label, id, title] of [
+    [TEXT.button.inventory, 'inventory', TEXT.button.inventory],
+    [TEXT.button.memories, 'memories', TEXT.button.memories],
+    [TEXT.button.options, 'options', TEXT.button.options],
+  ]) {
+    choose(label);
+    assert.equal(g.event.id, id);
+    assert.equal(lines(g)[0], title);
+    if (id === 'options') {
+      // the settings menu's choices, as a page; no full screen where the browser has none
+      assert.deepEqual(view(g).event.options.map((o) => o.label), [TEXT.menu.restart, TEXT.menu.lookDark, TEXT.menu.outlines(g.outlines), TEXT.menu.back]);
+      const look = g.look;
+      assert.deepEqual(choose(TEXT.menu.lookDark), [{ type: 'look', look: 'dark' }]);
+      assert.notEqual(g.look, look);
+      assert.equal(g.event.id, 'options');
+    }
+    choose(TEXT.menu.back);
+    assert.equal(g.event.id, 'psyche');
+  }
+  back(g);
+  assert.equal(g.event, null);
+  assert.equal(g.turn, turn);
+
+  // where the browser has full screen, the options page offers it
+  const f = newGame({ seed: 7, edition: 'esoteric', fullscreen: true });
+  menu(f, 'psy');
+  act(f, { type: 'choose', index: 2 });
+  const labels = view(f).event.options.map((o) => o.label);
+  assert.ok(labels.includes(TEXT.menu.fullScreen));
+  assert.deepEqual(act(f, { type: 'choose', index: labels.indexOf(TEXT.menu.fullScreen) }), [{ type: 'fullscreen', on: true }]);
 });
