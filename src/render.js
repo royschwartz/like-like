@@ -92,6 +92,16 @@ export function createRenderer(root = document, { marks: withMarks = true, cellP
     stepMs: frameMs * num('--travel-step', 1), // a fast move's step
     slideMs: (frameMs / 2) * size, // a room sliding in: --slide-step, half a frame, a tile
   };
+  // A new line in the log blinks in, in frames (--log-* in esoteric/type.css, decision 384).
+  // Without them, as in the original, it just appears.
+  const logFrames = blinkFrames({
+    blinks: num('--log-blinks', 0),
+    off: num('--log-off', 0),
+    on: num('--log-on', 0),
+    starts: num('--log-starts', 1),
+  });
+  let logBlink = null; // the lines blinking in: { els, t0, timer }
+  let logUnseen = []; // lines that went in under an event page, to blink when it closes
   // going up and down stairs, if the edition has its own way (decision 346)
   const stairs = makeStairs ? makeStairs({ host: mapHost, size, num, paint: cellPainter }) : null;
   // the marks round the square under a finger (--mark-* in style.css)
@@ -154,7 +164,7 @@ export function createRenderer(root = document, { marks: withMarks = true, cellP
     drawLook(view);
     drawMap(view);
     const onStairs = !!oldMap && stairs.play({ oldMap, newMap: map.cloneNode(true), before, after: view, way: stairway.type === 'descend' ? 'down' : 'up' });
-    drawLog(view.log, view.fresh);
+    drawLog(view.log, view.fresh, !!view.event);
     drawScreenMode(view);
     drawInv(view.inv);
     drawEvent(view.event);
@@ -449,10 +459,11 @@ export function createRenderer(root = document, { marks: withMarks = true, cellP
 
   // --- log: one list. The lines the latest action said are bright; older ones dim. ---
 
-  function drawLog(log, fresh) {
+  function drawLog(log, fresh, covered) {
     const lines = Array.isArray(log) ? log.filter(Boolean).slice(-LOG_KEEP).reverse() : [];
     const freshFrom = Number.isInteger(fresh) ? fresh : lines.length ? lines[0].id : 0;
     const keep = new Set();
+    const arrived = []; // the latest action's lines, just gone in
 
     lines.forEach((line, i) => {
       let rec = logEls.get(line.id);
@@ -470,6 +481,7 @@ export function createRenderer(root = document, { marks: withMarks = true, cellP
         rec = { el, text: line.text, turn: line.turn, kind: null };
         logEls.set(line.id, rec);
         el.className = 'line';
+        if (line.id >= freshFrom) arrived.push(el);
       }
       if (rec.kind !== line.kind) {
         if (rec.kind) rec.el.classList.remove(`k-${rec.kind}`);
@@ -489,6 +501,44 @@ export function createRenderer(root = document, { marks: withMarks = true, cellP
         logEls.delete(id);
       }
     }
+    // Lines that go in under an event page (the opening's first line, say) wait to blink
+    // until it closes, unless newer ones have come since.
+    if (covered) {
+      if (arrived.length) {
+        stopLogBlink();
+        logUnseen = arrived;
+      }
+      return;
+    }
+    const blinking = arrived.length ? arrived : logUnseen.filter((el) => el.isConnected && el.classList.contains('now'));
+    logUnseen = [];
+    if (blinking.length) blinkLog(blinking);
+  }
+
+  // New lines blink in together, in hard frames, then stay; a line whose count went up is a
+  // new line. Its first frame is set before the page is painted, so it never shows first.
+  // The next lines to come end it.
+  function blinkLog(els) {
+    stopLogBlink();
+    if (!logFrames.length) return;
+    logBlink = { els, t0: win.performance.now(), timer: null };
+    stepLogBlink();
+  }
+
+  function stepLogBlink() {
+    const b = logBlink;
+    if (!b) return;
+    const k = Math.floor((win.performance.now() - b.t0) / frameMs);
+    if (k >= logFrames.length) return stopLogBlink();
+    for (const el of b.els) el.classList.toggle('blink-off', !logFrames[k]);
+    b.timer = setTimeout(stepLogBlink, Math.max(0, b.t0 + (k + 1) * frameMs - win.performance.now()));
+  }
+
+  function stopLogBlink() {
+    if (!logBlink) return;
+    clearTimeout(logBlink.timer);
+    for (const el of logBlink.els) el.classList.remove('blink-off');
+    logBlink = null;
   }
 
   // --- the inventory: a list in place of the map ---
@@ -745,10 +795,25 @@ export function createRenderer(root = document, { marks: withMarks = true, cellP
     clearTimeout(stepOff);
     clearTimeout(blinkOff);
     stopWave();
+    stopLogBlink();
     map.removeEventListener('animationend', onWaveCellEnd);
     screen.classList.remove('blink');
     endSlide();
   } };
+}
+
+// A new log line's blink, frame by frame from when it goes in: true is shown, false is not.
+// It shows for `on` frames first if it starts on (1), then `blinks` times off and on; after
+// the last frame it stays.
+function blinkFrames({ blinks, off, on, starts }) {
+  const out = [];
+  if (!(blinks > 0) || !(off > 0)) return out;
+  if (starts) for (let i = 0; i < on; i++) out.push(true);
+  for (let b = 0; b < blinks; b++) {
+    for (let i = 0; i < off; i++) out.push(false);
+    for (let i = 0; i < on; i++) out.push(true);
+  }
+  return out;
 }
 
 // --- building, once ---

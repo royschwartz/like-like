@@ -1,17 +1,17 @@
 // The log study's panel. On a phone it sits under the map, over the buttons, and the map
 // can still be played; on a wide screen it sits beside the game. Its first row puts lines in
 // the log; the rest is how they blink and are lit. Lines said at once come together and are
-// spaced like any others, as in the game (decision 382). Every number is a first guess, kept
-// in localStorage.
+// spaced like any others, as in the game (decision 382). The defaults are the game's, as he
+// set them here (decision 384); what's changed is kept in localStorage.
 
 const KEY = 'likelike.study.log.1';
 
 export const DEFAULTS = {
-  blinks: 2, // off-and-on blinks; past 8, until the next action
-  off: 2, // frames off in a blink
-  on: 2, // frames on in a blink, and before the first if it starts on
+  blinks: 1, // off-and-on blinks; past 8, until the next action
+  off: 3, // frames off in a blink
+  on: 1, // frames on in a blink, and before the first if it starts on
   frame: 70, // ms, the game's frame
-  starts: 'on', // a new line first shows on, or off
+  starts: 'off', // a new line first shows on, or off
   offIs: 'gone', // what off looks like: gone, dim, inverse
   repeat: 'line', // a count going up blinks the line, or its count alone
   lit: 'bright', // how the latest action's lines are lit: bright, inverse

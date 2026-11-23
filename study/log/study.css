@@ -1,6 +1,11 @@
 /* The log study. The log's lines as the panel sets them (log.js puts the settings on #screen),
    then the panel: flat, hard-edged and mono, like the stairs study's. */
 
+/* The game's own blink is off here (decision 384): the panel's does it, as set. */
+#screen {
+  --log-blinks: 0;
+}
+
 /* --- lit: the game lights every line the latest action said; how dim the older are --- */
 #screen[data-lg-lit] #log-lines > .line.old {
   color: color-mix(in srgb, var(--reading-ink) var(--lg-old, 60%), var(--slab));

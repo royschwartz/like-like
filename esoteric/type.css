@@ -22,6 +22,18 @@
 #log-lines > .line.old {
   color: color-mix(in srgb, var(--reading-ink) 60%, var(--slab));
 }
+/* A new line blinks in, as he set it in the log study (decision 384): gone for three frames,
+   then there. In frames of --f; render.js reads these four. Starts: 1 shows the line for
+   --log-on frames before its first blink, 0 does not. */
+#screen {
+  --log-blinks: 1;
+  --log-off: 3;
+  --log-on: 1;
+  --log-starts: 0;
+}
+#log-lines > .line.blink-off {
+  visibility: hidden;
+}
 
 #inv-title,
 .row .state,
