@@ -676,7 +676,7 @@ export function createRenderer(root = document, { marks: withMarks = true, cellP
         link.className = 'link';
         link.dataset.choose = String(i);
         link.dataset.kind = o.kind;
-        // what you say aloud is set in italics (controls.css)
+        // what you say aloud is set in capitals (controls.css)
         if (o.said) link.dataset.said = '';
         link.textContent = words(o.label);
         link.disabled = !!o.disabled;

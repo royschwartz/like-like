@@ -268,10 +268,11 @@
   margin: auto calc(var(--ev-side) * -1);
   padding-block: calc(var(--u) * 5);
 }
-/* Choices are in the regular face, except what you say aloud ("except if they are literal
-   dialogue from you", November 23): "where am I?", "what happened?". */
+/* Choices are in the regular face. What you say aloud ("literal dialogue from you") is in
+   capitals instead of italics: "we could just capitalize all the dialogue that you say
+   instead of italics / let's try that" (November 23). The words stay his in text.js. */
 #event-links .link[data-said] {
-  font-style: italic;
+  text-transform: uppercase;
 }
 #btn-event-sys { margin-top: 0; }
 #event:has(#btn-event-sys.open) .brightness {

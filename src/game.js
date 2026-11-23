@@ -1494,9 +1494,8 @@ function carriedChoices(g, run) {
   return [...choices.values(), BACK];
 }
 
-// A choice that is what you say aloud is `said`, and set in italics; every other choice is
-// in the regular face (">actions always in regular font except if they are literal dialogue
-// from you", November 23).
+// A choice that is what you say aloud is `said`, and set in capitals ("capitalize all the
+// dialogue that you say instead of italics"); every other choice is as written (November 23).
 const spoken = (label, run, arg) => ({ label, kind: 'action', run, arg, said: true });
 
 function statueOptions(g) {

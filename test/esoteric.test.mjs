@@ -196,7 +196,7 @@ function enterMotherRoom() {
   return g;
 }
 
-const motherChoices = ['what happened?', 'can I help you', 'try to take her cloak', 'attack her', 'item', 'back'];
+const motherChoices = ['what happened?', 'can I help you?', 'try to take her cloak', 'attack her', 'item', 'back'];
 const eventLabels = (g) => view(g).event.options.map((o) => o.label);
 const eventLines = (g) => view(g).event.lines.map((l) => l.text);
 
@@ -301,12 +301,12 @@ test('speaking to the woman and looking through items return to her choices, and
     'the woman looks up at you', 'her face is ghoulish', 'she is mumbling about her missing baby',
   ]);
   assert.deepEqual(eventLabels(g), motherChoices);
-  // what you say to her is in italics, and only that (November 23)
+  // what you say to her is set in capitals, and only that (November 23)
   assert.deepEqual(view(g).event.options.map((o) => !!o.said), [true, true, false, false, false, false]);
   chooseLabel(g, 'what happened?');
-  assert.deepEqual(eventLines(g), ['the mother looks at you with great offense']);
+  assert.deepEqual(eventLines(g), ['the mothers looks at you as if offended']);
   assert.deepEqual(eventLabels(g), motherChoices);
-  chooseLabel(g, 'can I help you');
+  chooseLabel(g, 'can I help you?');
   assert.deepEqual(eventLines(g), ["A BABY'S FACE REFLECTS THE UNIVERSE"]);
   assert.deepEqual(eventLabels(g), motherChoices);
   chooseLabel(g, 'item');
@@ -614,7 +614,7 @@ test('an offering wakes DEE, who answers exactly one question before teaching im
       'I’VE BEEN ON YOUR SIDE SINCE DAY ONE',
     ]);
     assert.deepEqual(eventLabels(g), questions.map(([label]) => label));
-    // what you ask DEE is said aloud: in italics
+    // what you ask DEE is said aloud: in capitals
     assert.ok(view(g).event.options.every((o) => o.said));
     chooseLabel(g, question);
     assert.deepEqual(eventLines(g), answer);

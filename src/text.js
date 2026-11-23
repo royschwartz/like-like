@@ -195,7 +195,9 @@ export const TEXT = {
   },
 
   // HIS. Entering the mother's room, then approaching her. What you say to her (November 23),
-  // in place of "talk to her": "what happened?" and "can I help you", each with her answer.
+  // in place of "talk to her": "what happened?" and "can I help you?" ("question marks for all
+  // questions you ask to the mother"), each with her answer. "the mothers looks at you as if
+  // offended" is as he wrote it, in place of "the mother looks at you with great offense".
   // talk, "she keeps mumbling about her baby", was what talking said; not used now, kept for
   // him to place.
   mother: {
@@ -207,7 +209,7 @@ export const TEXT = {
     ],
     talk: 'she keeps mumbling about her baby',
     answers: {
-      happened: 'the mother looks at you with great offense',
+      happened: 'the mothers looks at you as if offended',
       help: 'A BABY\'S FACE REFLECTS THE UNIVERSE',
     },
     death: [
@@ -215,7 +217,7 @@ export const TEXT = {
       'her fingers enter you as a knife through butter',
       'YOU DIDN’T CARE ABOUT MY BABY DID YOU',
     ],
-    options: { happened: 'what happened?', help: 'can I help you', cloak: 'try to take her cloak', attack: 'attack her', item: 'item', die: 'die' },
+    options: { happened: 'what happened?', help: 'can I help you?', cloak: 'try to take her cloak', attack: 'attack her', item: 'item', die: 'die' },
   },
 
   // HIS. Stock writing for statues: "you may not encounter DEE first so this is stock
