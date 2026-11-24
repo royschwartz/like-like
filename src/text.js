@@ -34,8 +34,10 @@ export const TEXT = {
   // HIS. What the wide button says, by where you stand; inspect in the inventory.
   context: { sense: 'sense', corpse: 'corpse', stairs: 'stairs', inspect: 'inspect' },
 
-  // HIS: sword, corpse. [...]: the golden key and the worms, his to name.
-  thing: { sword: 'sword', corpse: 'corpse', key: '[golden key]', worms: '[worms]' },
+  // HIS: sword, corpse. [...]: the worms, his to name. The golden key and the locket that
+  // holds it, from his lines for the locket ("you open the locket and find a golden key",
+  // "take the golden key", November 23).
+  thing: { sword: 'sword', corpse: 'corpse', key: 'golden key', worms: '[worms]', locket: 'locket' },
 
   // What inspect says about an item. [...]: his to write. HIS: the worms.
   slot: {
@@ -151,7 +153,7 @@ export const TEXT = {
   // HIS. Walking up to the statue, and touching and inspecting it (November 23): "in general
   // lines should be broken apart", so each sentence is a paragraph of its own.
   statueEsoteric: {
-    opening: ['you pause next to the statue', 'a wild man with outstretched arms', 'the eyes, though granite, blaze with passion and discontent'],
+    opening: ['you pause next to the statue', 'a wild man with outstretched arms', 'the granite eyes blaze with passion and discontent'],
     touch: 'touch the statue',
     warm: ['it is surprisingly warm', 'you feel slightly different after touching it'],
     inspect: 'inspect the statue',
@@ -274,6 +276,20 @@ export const TEXT = {
       struggles: 'the ground struggles gently beneath your hand',
       gained: 'gained new ability: dig for worms',
     },
+  },
+
+  // HIS (November 23). The toad's golden locket, which holds its key: "a locket that opens
+  // when you inspect it". Inspecting it says its engraving, then the first time it opens and
+  // you find the key; afterwards what it holds ("the locket contains a [whatever small object
+  // you put into it]"), with a choice to take it, or that it is empty, with a choice to put
+  // something in. Each sentence a paragraph.
+  locket: {
+    engraved: 'the locket is engraved with a half moon',
+    opens: 'you open the locket and find a golden key',
+    contains: (name) => `the locket contains a ${name}`,
+    take: (name) => `take the ${name}`,
+    empty: 'the locket is empty but you feel a cool energy bound within it',
+    place: 'place item inside locket',
   },
 
   // What you can do with an item, on its page (esoteric). HIS: equip and throw, from "inspect

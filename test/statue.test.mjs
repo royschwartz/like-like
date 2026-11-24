@@ -200,10 +200,10 @@ test('the opening: everything you carry as links, in order, back last', () => {
   const v = view(g);
   assert.deepEqual(v.event.options, [
     { label: 'sword', kind: 'item', slot: false },
-    { label: '[golden key]', kind: 'item', slot: true },
+    { label: TEXT.thing.key, kind: 'item', slot: false },
     { label: '[worms]', kind: 'item', slot: true },
     { label: 'sword', kind: 'item', slot: false },
-    { label: '[golden key]', kind: 'item', slot: true },
+    { label: TEXT.thing.key, kind: 'item', slot: false },
     { label: 'back', kind: 'back', slot: false },
   ]);
   assert.equal(v.event.cursor, 0);

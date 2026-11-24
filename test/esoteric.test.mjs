@@ -406,7 +406,7 @@ function readoutGame() {
   return { g, room, said };
 }
 
-test('the toad says one plain line: who, doing what, on what; its key is a last part, up close', () => {
+test('the toad says one plain line: who, doing what, on what; its locket is a last part, up close', () => {
   const { g, room, said } = readoutGame();
   const toad = putToad(g, 5, 3, true);
   room.t[3 * 7 + 5] = 'floor';
@@ -415,9 +415,9 @@ test('the toad says one plain line: who, doing what, on what; its key is a last 
   assert.equal(observe(), 'toad, sleeping, dirt');
   assert.deepEqual([view(g).log.at(-1).text, view(g).log.at(-1).count], ['toad, sleeping, dirt', 2], 'the same line again is counted');
   g.x = 3; // within CONFIG.observeClose steps
-  const key = `toad, sleeping, dirt, ${TEXT.thing.key}`;
+  const key = `toad, sleeping, dirt, ${TEXT.thing.locket}`;
   assert.equal(observe(), key);
-  assert.equal(said(toad.x, toad.y).kind, isSlotText(TEXT.thing.key) ? 'slot' : 'observe', 'a line with an empty slot in it is drawn as one');
+  assert.equal(said(toad.x, toad.y).kind, isSlotText(TEXT.thing.locket) ? 'slot' : 'observe', 'a line with an empty slot in it is drawn as one');
   g.x = 1; // once made out, it shows from anywhere
   assert.equal(observe(), key);
   toad.key = false;
@@ -448,14 +448,14 @@ test('the toad’s line changes as it does: wounded, hostile once it is up, and 
   assert.equal(observe(), 'toad, sleeping');
 });
 
-test('with more sensitivity you make out the toad’s key from further off, and with less from nearer', () => {
+test('with more sensitivity you make out the toad’s locket from further off, and with less from nearer', () => {
   const far = CONFIG.observeClose + 1;
   for (const [sensitivity, sees] of [[CONFIG.player.sensitivity, false], [CONFIG.player.sensitivity + 2, true]]) {
     const { g, room, said } = readoutGame();
     const toad = putToad(g, 1 + far, 3, true);
     room.t[3 * 7 + toad.x] = 'floor';
     g.sensitivity = sensitivity;
-    assert.equal(said(toad.x, toad.y).text.endsWith(TEXT.thing.key), sees, `sensitivity ${sensitivity}`);
+    assert.equal(said(toad.x, toad.y).text.endsWith(TEXT.thing.locket), sees, `sensitivity ${sensitivity}`);
   }
   const { g, room, said } = readoutGame();
   const toad = putToad(g, 1 + CONFIG.observeClose, 3, true);
@@ -536,18 +536,19 @@ test('walking into the sleeping toad opens its encounter and grabbing the key ca
       chooseLabel(g, 'try to grab the key');
       assert.equal(toad.asleep, succeeds);
       assert.equal(toad.key, !succeeds);
-      assert.equal(g.items.filter((item) => item.key === 'key').length, Number(succeeds));
+      // the key comes in the toad's locket (November 23)
+      assert.equal(g.items.filter((item) => item.key === 'locket' && item.holds?.key === 'key').length, Number(succeeds));
       assert.equal(g.turn, turn);
       if (succeeds) {
         chooseLabel(g, 'back');
         bump();
-        // the locket goes with the key
+        // the locket line goes with it
         assert.deepEqual(eventLines(g), ['the giant toad sleeps ruefully', 'its muscles are exposed']);
         assert.deepEqual(eventLabels(g), ['attack the toad', 'back']);
         chooseLabel(g, 'back');
-        // Leave the stolen key on the floor, then kill the toad with the sword.
+        // Leave the stolen locket on the floor, then kill the toad with the sword.
         toad.hp = playerDamage(g);
-        for (const item of [TEXT.thing.key, TEXT.thing.sword]) {
+        for (const item of [TEXT.thing.locket, TEXT.thing.sword]) {
           act(g, { type: 'menu', id: 'inv' });
           chooseLabel(g, item);
           chooseLabel(g, TEXT.item.throw);
@@ -555,12 +556,91 @@ test('walking into the sleeping toad opens its encounter and grabbing the key ca
         const room = g.level.rooms[g.room];
         assert.equal(room.toad, null);
         assert.deepEqual(room.corpses.at(-1).items, []);
-        assert.equal(room.loose.filter((it) => it.key === 'key').length, 1);
+        assert.equal(room.loose.filter((it) => it.key === 'locket' && it.holds?.key === 'key').length, 1);
       }
     }
   } finally {
     CONFIG.keyChance.calm = chance;
   }
+});
+
+// November 23: "the key should be in a locket, a locket that opens when you inspect it", and
+// "objects that you gain that are noted in the status should be underlined and this opens up
+// to their inventory page showing automatic inspect".
+test('the toad’s key is in its locket: the locket’s name in the log opens its page inspected, it opens, the key comes out and something small goes in', () => {
+  const chance = CONFIG.keyChance.calm;
+  try {
+    CONFIG.keyChance.calm = 1;
+    const { g, bump } = besideEncounter('toad');
+    const turn = g.turn;
+    bump();
+    chooseLabel(g, 'try to grab the key');
+    chooseLabel(g, 'back');
+    assert.equal(view(g).event, null);
+    // the log names it, underlined
+    const taken = view(g).log.at(-1);
+    assert.equal(taken.text, 'you take the locket');
+    assert.deepEqual(taken.link, { key: 'locket', name: 'locket', held: true });
+    // tapping it: its page, inspected; the first time it opens and you find the key
+    assert.deepEqual(act(g, { type: 'gained', key: 'locket' }), [{ type: 'event', id: 'item' }]);
+    assert.deepEqual(eventLines(g), ['locket', 'the locket is engraved with a half moon', 'you open the locket and find a golden key']);
+    assert.equal(view(g).event.now, 1, 'what inspect said is what this brought');
+    assert.deepEqual(eventLabels(g), ['take the golden key', 'inspect', 'throw', 'back']);
+    // afterwards, it says what it holds
+    chooseLabel(g, 'inspect');
+    assert.deepEqual(eventLines(g), ['locket', 'the locket is engraved with a half moon', 'the locket contains a golden key']);
+    // take the key: it is yours, named in the log, and the locket is empty
+    chooseLabel(g, 'take the golden key');
+    assert.ok(g.items.some((it) => it.key === 'key'));
+    assert.deepEqual(view(g).log.at(-1).link, { key: 'key', name: 'golden key', held: true });
+    assert.deepEqual(eventLines(g), ['locket', 'the locket is engraved with a half moon', 'the locket is empty but you feel a cool energy bound within it']);
+    assert.deepEqual(eventLabels(g), ['place item inside locket', 'inspect', 'throw', 'back']);
+    // place something: what fits, one row a kind, not the sword
+    g.items.push({ key: 'worms', inHand: false }, { key: 'worms', inHand: false });
+    chooseLabel(g, 'place item inside locket');
+    assert.equal(view(g).event.id, 'locketPlace');
+    assert.deepEqual(eventLines(g), ['place item inside locket']);
+    assert.deepEqual(eventLabels(g), [TEXT.thing.key, TEXT.thing.worms, 'back']);
+    chooseLabel(g, 'back');
+    assert.equal(view(g).event.id, 'item', 'back to the locket');
+    chooseLabel(g, 'place item inside locket');
+    chooseLabel(g, TEXT.thing.key);
+    // back on its page, which says what it holds; the key is no longer yours
+    assert.equal(view(g).event.id, 'item');
+    assert.deepEqual(eventLines(g), ['locket', 'the locket is engraved with a half moon', `the locket contains a ${TEXT.thing.key}`]);
+    assert.deepEqual(eventLabels(g), [`take the ${TEXT.thing.key}`, 'inspect', 'throw', 'back']);
+    assert.ok(!g.items.some((it) => it.key === 'key'));
+    assert.equal(g.items.filter((it) => it.key === 'worms').length, 2);
+    chooseLabel(g, 'back');
+    assert.equal(view(g).event, null, 'from the log, back is the map');
+    // a gained thing you no longer have is no way anywhere
+    assert.deepEqual(view(g).log.at(-1).link, { key: 'key', name: 'golden key', held: false });
+    assert.deepEqual(act(g, { type: 'gained', key: 'key' }), []);
+    assert.equal(view(g).event, null);
+    // nothing here took a turn
+    assert.equal(g.turn, turn);
+    // through the inventory the page opens as before, and inspect says what it holds
+    act(g, { type: 'menu', id: 'inv' });
+    chooseLabel(g, 'locket');
+    assert.deepEqual(eventLines(g), ['locket']);
+    assert.deepEqual(eventLabels(g), ['inspect', 'throw', 'back']);
+    chooseLabel(g, 'inspect');
+    assert.deepEqual(eventLabels(g)[0], `take the ${TEXT.thing.key}`);
+    chooseLabel(g, `take the ${TEXT.thing.key}`);
+    assert.ok(g.items.some((it) => it.key === 'key'));
+  } finally {
+    CONFIG.keyChance.calm = chance;
+  }
+});
+
+test('the toad killed with its locket leaves it on its corpse, key inside', () => {
+  const { g, target: toad, bump } = besideEncounter('toad');
+  toad.hp = playerDamage(g);
+  bump();
+  chooseLabel(g, 'attack the toad');
+  const room = g.level.rooms[g.room];
+  assert.equal(room.toad, null);
+  assert.deepEqual(room.corpses.at(-1).items, [{ key: 'locket', holds: { key: 'key' }, opened: false }]);
 });
 
 test('an offering wakes DEE, who answers exactly one question before teaching imbue', () => {
@@ -584,7 +664,7 @@ test('an offering wakes DEE, who answers exactly one question before teaching im
     const approach = ['touch the statue', 'inspect the statue', 'talk to it', 'place an item in its arms', 'back'];
     for (const choice of ['talk to it', 'back']) {
       bump();
-      assert.deepEqual(eventLines(g), ['you pause next to the statue', 'a wild man with outstretched arms', 'the eyes, though granite, blaze with passion and discontent']);
+      assert.deepEqual(eventLines(g), ['you pause next to the statue', 'a wild man with outstretched arms', 'the granite eyes blaze with passion and discontent']);
       assert.deepEqual(eventLabels(g), approach);
       assert.ok(view(g).event.options.every((o) => !o.said));
       // touching and inspecting say more, each sentence a paragraph, and keep the choices

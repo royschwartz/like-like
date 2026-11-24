@@ -406,9 +406,9 @@ test('go for the key: CONFIG.keyChance, calm and stirred, from the seeded chance
     openItsEvent(g, t);
     assert.deepEqual(labels(view(g)), ['listen more', 'attack!', 'back']);
     act(g, { type: 'back' });
-    // The inventory: the key's name and description are his to write.
+    // The inventory: the key's description is his to write.
     act(g, { type: 'menu', id: 'inv' });
-    assert.deepEqual(view(g).inv.items.map((it) => it.name), ['sword', '[golden key]']);
+    assert.deepEqual(view(g).inv.items.map((it) => it.name), ['sword', TEXT.thing.key]);
     act(g, { type: 'move', dir: 's' });
     const from = g.nextLogId;
     act(g, { type: 'context' });

@@ -478,7 +478,7 @@ export function createRenderer(root = document, { marks: withMarks = true, cellP
         const message = words(line.text);
         // Every line at the reading size; a long one wraps (decision 381).
         el.textContent = line.count > 1 ? TEXT.repeated(message, line.count) : message;
-        rec = { el, text: line.text, turn: line.turn, kind: null };
+        rec = { el, text: line.text, turn: line.turn, kind: null, link: linkGained(el, line.link) };
         logEls.set(line.id, rec);
         el.className = 'line';
         if (line.id >= freshFrom) arrived.push(el);
@@ -488,6 +488,8 @@ export function createRenderer(root = document, { marks: withMarks = true, cellP
         rec.el.classList.add(`k-${line.kind}`);
         rec.kind = line.kind;
       }
+      // a gained item's name is a way to its page while you have it
+      if (rec.link) rec.link.disabled = !line.link.held;
       const now = line.id >= freshFrom;
       rec.el.classList.toggle('now', now);
       rec.el.classList.toggle('old', !now);
@@ -922,6 +924,22 @@ function setText(el, text) {
 // tell it is one (it is still drawn in the slot's grey); the screen leaves them off.
 function words(text) {
   return text == null ? '' : String(text).replace(/[[\]]/g, '');
+}
+
+// A log line that says you gained an item: its name in the line becomes a button, underlined,
+// that opens the item's page (data-item, input.js). The button, or null if the name isn't in it.
+function linkGained(el, link) {
+  const text = el.textContent;
+  const name = link && words(link.name);
+  const at = name ? text.indexOf(name) : -1;
+  if (at < 0) return null;
+  const button = el.ownerDocument.createElement('button');
+  button.type = 'button';
+  button.className = 'gained';
+  button.dataset.item = link.key;
+  button.textContent = name;
+  el.replaceChildren(text.slice(0, at), button, text.slice(at + name.length));
+  return button;
 }
 
 // The least the actions row's words are set, as a share of their size, to fit two actions.

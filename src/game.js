@@ -184,6 +184,11 @@ function logView(g) {
       rows.push({ ...line });
     }
   }
+  // A gained item's name, underlined while you still have it (esoteric).
+  for (const row of rows) {
+    if (row.item && g.edition === 'esoteric') row.link = { key: row.item, name: TEXT.thing[row.item], held: hasItem(g, row.item) };
+    delete row.item;
+  }
   return rows;
 }
 
@@ -469,9 +474,10 @@ function wound(g, room, toad, dmg, ev) {
   toad.hp -= dmg;
   if (toad.hp <= 0) {
     room.toad = null;
-    // its key, on its corpse
+    // its key, on its corpse; in the esoteric edition, in its locket
     const hasKey = toad.key && !hasItem(g, 'key');
-    room.corpses.push({ x: toad.x, y: toad.y, items: hasKey ? [{ key: 'key' }] : [] });
+    const kept = g.edition === 'esoteric' ? locket() : { key: 'key' };
+    room.corpses.push({ x: toad.x, y: toad.y, items: hasKey ? [kept] : [] });
     say(g, TEXT.log.toadDies, 'good');
     ev.push({ type: 'kill', x: toad.x, y: toad.y });
   }
@@ -540,10 +546,7 @@ function pickUp(g, room) {
   const here = looseIn(room).filter((it) => it.x === g.x && it.y === g.y);
   if (!here.length) return;
   room.loose = room.loose.filter((it) => !here.includes(it));
-  for (const { x, y, ...it } of here) {
-    g.items.push({ ...it, inHand: false });
-    say(g, TEXT.log.pickUp(TEXT.thing[it.key]), 'plain');
-  }
+  for (const { x, y, ...it } of here) gain(g, it, TEXT.log.pickUp(TEXT.thing[it.key]));
 }
 
 function contextId(g) {
@@ -966,8 +969,7 @@ function canDig(g) {
 function dig(g, ev) {
   say(g, TEXT.log.dig, 'plain');
   if (quietTurns(g, CONFIG.digTurns, TEXT.log.digStopped, ev)) {
-    g.items.push({ key: 'worms', inHand: false });
-    say(g, TEXT.log.digFound, 'good');
+    gain(g, { key: 'worms' }, TEXT.log.digFound, 'good');
     ev.push({ type: 'dig', x: g.x, y: g.y });
   }
   recallDue(g, ev);
@@ -1081,8 +1083,7 @@ function menuTitle(g, menu) {
 
 function takeFromCorpse(g, i) {
   const [it] = corpseHere(g).items.splice(i, 1);
-  g.items.push({ key: it.key, inHand: false });
-  say(g, TEXT.log.take(TEXT.thing[it.key]), 'plain');
+  gain(g, it, TEXT.log.take(TEXT.thing[it.key]));
 }
 
 function lootPassages(g, e) {
@@ -1176,6 +1177,7 @@ function inspect(g) {
 // Inspecting an item: it has been, and an item holding a memory starts it on its way back.
 function inspected(g, it) {
   g.inspected[it.key] = true;
+  if (it.key === 'locket') it.opened = true;
   const m = MEMORY_OF[it.key];
   if (m && !g.memories.includes(m) && !g.recall) g.recall = { id: m, turn: g.turn + CONFIG.memoryDelay };
 }
@@ -1215,11 +1217,55 @@ function openInventory(g, ev, cursor = 0) {
 // and back to the inventory.
 function itemPassages(it, shown) {
   const state = itemState(it);
-  return [[prose(TEXT.thing[it.key])], ...(state ? [[prose(state)]] : []), ...(shown ? [[prose(TEXT.slot[it.key])]] : [])];
+  return [[prose(TEXT.thing[it.key])], ...(state ? [[prose(state)]] : []), ...(shown ? paragraphs(described(it)) : [])];
+}
+
+// What inspecting an item says, a paragraph a line. The locket (November 23): its engraving,
+// then the first time it opens and you find its key; afterwards what it holds, or that it is
+// empty.
+function described(it) {
+  if (it.key !== 'locket') return [TEXT.slot[it.key]];
+  const l = TEXT.locket;
+  if (!it.opened && it.holds?.key === 'key') return [l.engraved, l.opens];
+  return [l.engraved, it.holds ? l.contains(TEXT.thing[it.holds.key]) : l.empty];
 }
 
 function openItem(g, i, ev) {
   openEvent(g, { id: 'item', item: i, shown: false, passages: itemPassages(g.items[i], false) }, ev);
+}
+
+// Inspect on an item's page: what it is goes under its name, and it has been inspected.
+function inspectOnPage(g, e) {
+  const it = g.items[e.item];
+  e.shown = true;
+  e.passages = itemPassages(it, true);
+  e.now = e.passages.length - described(it).length;
+  inspected(g, it);
+}
+
+// The toad's locket, with its key in it.
+const locket = () => ({ key: 'locket', holds: { key: 'key' }, opened: false });
+
+// What fits in the locket: anything small, so not the sword, and not the locket itself.
+const fitsLocket = (it) => !HOLDABLE.has(it.key) && it.key !== 'locket';
+
+// You gain an item: it goes with what you carry, and the log says so. In the esoteric
+// edition the item's name in that line is underlined and opens its page (November 23:
+// "objects that you gain that are noted in the status should be underlined").
+function gain(g, it, text, kind = 'plain') {
+  const { inHand, x, y, ...rest } = it;
+  g.items.push({ ...rest, inHand: false });
+  say(g, text, kind).item = it.key;
+}
+
+// The underlined name of a gained item, tapped in the log: its page, inspected ("this opens
+// up to their inventory page showing automatic inspect"). Nothing if you no longer have it.
+function openGained(g, key, ev) {
+  const i = g.items.findIndex((it) => it.key === key);
+  if (i < 0) return false;
+  openItem(g, i, ev);
+  inspectOnPage(g, g.event);
+  return true;
 }
 
 // ---- observe -------------------------------------------------------------
@@ -1346,7 +1392,7 @@ function toadReadout(g, room) {
   const { idx } = terrainGrid(room.t);
   const who = t.hp < CONFIG.toad.hp ? r.modified(r.modifier.wounded, r.who.toad) : r.who.toad;
   const key = t.key && (g.observed[TOAD_KEY] || chebyshev(t.x, t.y, g.x, g.y) <= moreReach(g));
-  return readout('readout.toad', [who, t.asleep ? r.doing.asleep : r.doing.hostile, groundWord(room, idx(t.x, t.y)), key && TEXT.thing.key], key ? [TOAD_KEY] : []);
+  return readout('readout.toad', [who, t.asleep ? r.doing.asleep : r.doing.hostile, groundWord(room, idx(t.x, t.y)), key && TEXT.thing.locket], key ? [TOAD_KEY] : []);
 }
 const TOAD_KEY = 'unit.toad.chain'; // that the toad has its key: the id the original keeps it by
 
@@ -1612,6 +1658,15 @@ function eventOptions(g) {
   if (e.id === 'abilities') {
     for (const id of abilityIds(g)) list.push({ label: abilityLabel(id), kind: 'action', run: 'ability', arg: id });
   }
+  if (e.id === 'locketPlace') {
+    // what fits, one row per kind of thing, as the statue's offering lists them
+    const kinds = new Set();
+    g.items.forEach((it, i) => {
+      if (!fitsLocket(it) || kinds.has(it.key)) return;
+      kinds.add(it.key);
+      list.push({ label: TEXT.thing[it.key], kind: 'item', run: 'locketPut', arg: i });
+    });
+  }
   if (e.id === 'loot') {
     (corpseHere(g)?.items ?? []).forEach((it, i) => list.push({ label: TEXT.thing[it.key], kind: 'item', run: 'take', arg: i }));
   }
@@ -1620,6 +1675,11 @@ function eventOptions(g) {
   }
   if (e.id === 'item') {
     const it = g.items[e.item];
+    // the locket, once open and inspected here: take out what it holds, or put something in
+    if (it?.key === 'locket' && e.shown && it.opened) {
+      if (it.holds) list.push({ label: TEXT.locket.take(TEXT.thing[it.holds.key]), kind: 'action', run: 'locketTake' });
+      else list.push({ label: TEXT.locket.place, kind: 'action', run: 'locketPlace' });
+    }
     list.push({ label: TEXT.context.inspect, kind: 'action', run: 'inspectItem' });
     if (HOLDABLE.has(it?.key)) list.push({ label: it.inHand ? TEXT.item.unequip : TEXT.item.equip, kind: 'action', run: 'equip' });
     list.push({ label: TEXT.item.throw, kind: 'action', run: 'throw' });
@@ -1750,12 +1810,41 @@ function eventChoose(g, i, ev) {
       openItem(g, o.arg, ev);
       g.event.parentEvent = e;
       break;
-    case 'inspectItem': {
+    case 'inspectItem':
+      inspectOnPage(g, e);
+      break;
+    case 'locketTake': {
+      // what it holds goes with what you carry, and the locket is empty
       const it = g.items[e.item];
-      e.shown = true;
+      const held = it.holds;
+      it.holds = null;
+      gain(g, held, TEXT.log.take(TEXT.thing[held.key]));
       e.passages = itemPassages(it, true);
       e.now = e.passages.length - 1;
-      inspected(g, it);
+      break;
+    }
+    case 'locketPlace': {
+      // a page of what fits, and back to the locket
+      const it = g.items[e.item];
+      const passages = [[prose(TEXT.locket.place)]];
+      if (!g.items.some(fitsLocket)) passages.push([prose(TEXT.menu.nothing)]);
+      e.cursor = i;
+      openEvent(g, { id: 'locketPlace', locket: it, passages }, ev);
+      g.event.parentEvent = e;
+      break;
+    }
+    case 'locketPut': {
+      // in it goes, and back to the locket's page, which says what it holds now
+      const [{ inHand, ...put }] = g.items.splice(o.arg, 1);
+      e.locket.holds = put;
+      const page = e.parentEvent;
+      page.item = g.items.indexOf(e.locket);
+      page.passages = itemPassages(e.locket, true);
+      page.now = page.passages.length - 1;
+      page.cursor = 0;
+      if (page.parentEvent?.id === 'inventory') page.parentEvent.cursor = page.item;
+      g.event = page;
+      ev.push({ type: 'event', id: page.id });
       break;
     }
     case 'equip': {
@@ -1811,7 +1900,8 @@ function eventChoose(g, i, ev) {
       const p = toad.stirred ? CONFIG.keyChance.stirred : CONFIG.keyChance.calm;
       if (chance(g.rng, p)) {
         toad.key = false;
-        g.items.push({ key: 'key', inHand: false });
+        if (g.edition === 'esoteric') gain(g, locket(), TEXT.log.take(TEXT.thing.locket));
+        else g.items.push({ key: 'key', inHand: false });
         e.passages = [[prose(TEXT.toad.success)]];
         ev.push({ type: 'key' });
       } else {
@@ -1962,9 +2052,7 @@ function chooseSlot(g, i, ev) {
       changeSetting(g, slot.run, ev);
       break;
     case 'take': {
-      const [it] = corpseHere(g).items.splice(slot.arg, 1);
-      g.items.push({ key: it.key, inHand: false });
-      say(g, TEXT.log.take(TEXT.thing[it.key]), 'plain');
+      takeFromCorpse(g, slot.arg);
       const s = slots(g, g.menu);
       if (!choosable(s[g.menu.cursor])) g.menu.cursor = firstChoosable(s);
       break;
@@ -2160,6 +2248,9 @@ export function act(g, a) {
       break;
     case 'pick':
       if (g.inv && Number.isInteger(a.index) && a.index >= 0 && a.index < g.items.length) g.inv.cursor = a.index;
+      break;
+    case 'gained':
+      if (g.edition !== 'esoteric' || g.inv || !openGained(g, a.key, ev)) return [];
       break;
     case 'observe':
       if ((g.menu && !corpseMenuOpen(g)) || g.inv || !inRoom(a.x, g) || !inRoom(a.y, g)) return [];

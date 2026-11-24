@@ -43,6 +43,24 @@
 #log .line {
   font-size: var(--text-size);
 }
+/* A gained item's name in the log is underlined, as a submenu's title is, and opens its page
+   ("objects that you gain that are noted in the status should be underlined", November 23).
+   Once you no longer have it, it is plain words. */
+#log .gained {
+  all: unset;
+  text-decoration: underline;
+  text-decoration-thickness: .09em;
+  text-underline-offset: .22em;
+  text-decoration-skip-ink: none;
+  cursor: pointer;
+}
+#log .gained:disabled {
+  text-decoration: none;
+  cursor: default;
+}
+#log .gained:focus-visible {
+  outline: 1px solid currentColor;
+}
 
 #stats {
   grid-area: 3 / 1;
@@ -366,7 +384,7 @@
    psyche, the abilities, the memories, an item's page, and the corpse's take items, whose
    "corpse" is in the corpse's red. Events are not submenus and have none. */
 #event:is([data-id="inventory"], [data-id="psyche"], [data-id="abilities"], [data-id="memories"],
-  [data-id="item"], [data-id="loot"], [data-id="imbue"], [data-id="options"]) .passage:first-child {
+  [data-id="item"], [data-id="loot"], [data-id="imbue"], [data-id="options"], [data-id="locketPlace"]) .passage:first-child {
   text-decoration: underline;
   text-decoration-thickness: .09em;
   text-underline-offset: .22em;

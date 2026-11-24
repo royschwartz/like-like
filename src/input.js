@@ -68,7 +68,7 @@ export function bindInput(root, dispatch, timing = {}, size = CONFIG.roomSize) {
         target = point;
       }
     }
-    const el = target?.closest?.('.btn, .link, [data-cell], [data-pick]') ?? null;
+    const el = target?.closest?.('.btn, .link, [data-cell], [data-pick], [data-item]') ?? null;
     const cell = el && root.contains(el) ? cellOf(el, size) : null;
     if (cell) {
       e.preventDefault(); // no focus, no emulated mouse events, no selecting
@@ -83,8 +83,8 @@ export function bindInput(root, dispatch, timing = {}, size = CONFIG.roomSize) {
       return;
     }
     e.preventDefault(); // no focus, no emulated mouse events, no selecting on a double tap
-    if (action.type === 'pick') {
-      dispatch(action); // an inventory row: not a button, nothing to hold
+    if (action.type === 'pick' || action.type === 'gained') {
+      dispatch(action); // an inventory row, or an item's name in the log: nothing to hold
       return;
     }
     release(e.pointerId);
@@ -264,6 +264,7 @@ function elementAction(el) {
   if (d.action === 'wait') return { type: 'wait' };
   if (d.action === 'use') return { type: 'use' };
   if (d.pick != null && d.pick !== '') return { type: 'pick', index: Number(d.pick) };
+  if (d.item) return { type: 'gained', key: d.item };
   if (d.choose != null && d.choose !== '') return { type: 'choose', index: Number(d.choose) };
   if (d.menu) return { type: 'menu', id: d.menu };
   return null;

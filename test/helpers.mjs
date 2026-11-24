@@ -36,6 +36,9 @@ export function randomAction(r) {
     { type: 'look', x: -1, y: 3 },
     { type: 'travel', x: 3, y: 11 },
     { type: 'travel', x: 2.5, y: 3 },
+    { type: 'gained', key: 'locket' },
+    { type: 'gained', key: 'sword' },
+    { type: 'gained', key: 'nope' },
   ]);
 }
 
