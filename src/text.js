@@ -107,8 +107,9 @@ export const TEXT = {
   // "cloaked woman is awake"; awake is "a neutral term", and "we could also use hostile for
   // the toad": "toad, hostile, dirt" (decision 395). "let's call it the golden door" (394).
   // Claude's readings, his to change: "mother" once you have met her (his "the mother") and
-  // "golden door", with no article, as "toad" has none. What a thing carries, seen up close,
-  // is a last part: its name in TEXT.thing. line and modified only put the parts together.
+  // "golden door", with no article, as "toad" has none. Never what a thing carries: "you only
+  // see the locket on the toad when you walk into it, never through observation" (November 23).
+  // line and modified only put the parts together.
   readout: {
     line: (parts) => parts.join(', '),
     modified: (modifier, who) => `${modifier} ${who}`,
@@ -141,13 +142,13 @@ export const TEXT = {
   // what holding on the toad said; since November 22 it says its plain line (TEXT.readout),
   // and these two are not used, kept for him to place.
   // Its page (November 23): "the giant toad sleeps ruefully", its muscles, and the locket
-  // while it still has its key. "you cannot talk to it": no talk.
+  // while it still has it. "you cannot talk to it": no talk. "should be try to grab the locket".
   toadEsoteric: {
     asleep: 'a toad sleeping in the dirt',
     chain: 'around the toad’s neck is necklace holding a golden key',
     opening: ['the giant toad sleeps ruefully', 'its muscles are exposed'],
     locket: 'it wears a golden locket around its neck',
-    key: 'try to grab the key',
+    key: 'try to grab the locket',
     attack: 'attack the toad',
   },
   // HIS. Walking up to the statue, and touching and inspecting it (November 23): "in general

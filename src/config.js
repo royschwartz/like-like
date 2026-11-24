@@ -17,15 +17,16 @@ export const CONFIG = {
   // Chance a level's entrance is in grass; otherwise it is on dirt (plain floor).
   entranceInGrass: 0.5,
 
-  // You make out more about a unit this many steps from you, or nearer: the toad's key, and
-  // in the original its song (steps go eight ways, so a diagonal counts as one).
+  // In the archived original, you make out more about the toad this many steps from you, or
+  // nearer: its key and its song (steps go eight ways, so a diagonal counts as one).
   observeClose: 2,
 
-  // sensitivity is never shown (decision 17). With more of it than you begin with, you make
-  // out more about a thing from further off: sensitivityReach steps a point (provisional).
-  // Nothing changes it yet.
-  player: { hp: 3, str: 10, love: 10, will: 10, sensitivity: 10 },
-  sensitivityReach: 0.5,
+  // sensitivity and speed are never shown (decision 17). Nothing uses sensitivity now: it set
+  // how far off you made out the toad's key, which holding on the toad no longer says
+  // (November 23). Speed is "active" above 0, and only then can you grab the toad's locket
+  // ("it never works until your speed (hidden attribute) or whatever becomes active").
+  // Nothing changes either yet.
+  player: { hp: 3, str: 10, love: 10, will: 10, sensitivity: 10, speed: 0 },
 
   // Damage is the stat times this, rounded, never less than 1.
   swordDamagePerStr: 0.2, // sword in hand: 10 str -> 2
@@ -61,6 +62,7 @@ export const CONFIG = {
   noiseWakes: 0.5,
 
   // Going for the toad's key: the chance it works, while it sleeps soundly and once it has stirred.
+  // In the esoteric edition, only once your speed is active; until then it never works.
   keyChance: { calm: 2 / 3, stirred: 1 / 3 },
 
   // Digging for worms takes this many turns.

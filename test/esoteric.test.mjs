@@ -4,7 +4,7 @@ import { paintEsoteric } from '../esoteric/edition.js';
 import { newGame, act, view, playerDamage } from '../src/game.js';
 import { levelDistances } from '../src/gen.js';
 import { los } from '../src/fov.js';
-import { TEXT, isSlot as isSlotText } from '../src/text.js';
+import { TEXT } from '../src/text.js';
 import { CONFIG } from '../src/config.js';
 import { putToad } from './helpers.mjs';
 
@@ -406,7 +406,7 @@ function readoutGame() {
   return { g, room, said };
 }
 
-test('the toad says one plain line: who, doing what, on what; its locket is a last part, up close', () => {
+test('the toad says one plain line: who, doing what, on what; never its locket, near or far', () => {
   const { g, room, said } = readoutGame();
   const toad = putToad(g, 5, 3, true);
   room.t[3 * 7 + 5] = 'floor';
@@ -414,15 +414,16 @@ test('the toad says one plain line: who, doing what, on what; its locket is a la
   assert.equal(observe(), 'toad, sleeping, dirt');
   assert.equal(observe(), 'toad, sleeping, dirt');
   assert.deepEqual([view(g).log.at(-1).text, view(g).log.at(-1).count], ['toad, sleeping, dirt', 2], 'the same line again is counted');
-  g.x = 3; // within CONFIG.observeClose steps
-  const key = `toad, sleeping, dirt, ${TEXT.thing.locket}`;
-  assert.equal(observe(), key);
-  assert.equal(said(toad.x, toad.y).kind, isSlotText(TEXT.thing.locket) ? 'slot' : 'observe', 'a line with an empty slot in it is drawn as one');
-  g.x = 1; // once made out, it shows from anywhere
-  assert.equal(observe(), key);
-  toad.key = false;
-  assert.equal(observe(), 'toad, sleeping, dirt');
+  // "you only see the locket on the toad when you walk into it, never through observation"
+  for (const x of [4, 3, 1]) {
+    g.x = x;
+    assert.equal(observe(), 'toad, sleeping, dirt', `from ${5 - x} steps`);
+  }
+  g.sensitivity = CONFIG.player.sensitivity + 10;
+  assert.equal(observe(), 'toad, sleeping, dirt', 'whatever your sensitivity');
   assert.equal(said(toad.x, toad.y).kind, 'observe');
+  assert.equal(view(g).stats.sensitivity, undefined, 'sensitivity is never shown');
+  assert.equal(view(g).stats.speed, undefined, 'nor speed');
   assert.equal(view(g).event, null, 'observing never opens its page');
 });
 
@@ -446,23 +447,6 @@ test('the toad’s line changes as it does: wounded, hostile once it is up, and 
   room.t[toad.y * 7 + toad.x] = 'entrance'; // ground with no word of his: no ground part
   toad.asleep = true;
   assert.equal(observe(), 'toad, sleeping');
-});
-
-test('with more sensitivity you make out the toad’s locket from further off, and with less from nearer', () => {
-  const far = CONFIG.observeClose + 1;
-  for (const [sensitivity, sees] of [[CONFIG.player.sensitivity, false], [CONFIG.player.sensitivity + 2, true]]) {
-    const { g, room, said } = readoutGame();
-    const toad = putToad(g, 1 + far, 3, true);
-    room.t[3 * 7 + toad.x] = 'floor';
-    g.sensitivity = sensitivity;
-    assert.equal(said(toad.x, toad.y).text.endsWith(TEXT.thing.locket), sees, `sensitivity ${sensitivity}`);
-  }
-  const { g, room, said } = readoutGame();
-  const toad = putToad(g, 1 + CONFIG.observeClose, 3, true);
-  room.t[3 * 7 + toad.x] = 'floor';
-  g.sensitivity = CONFIG.player.sensitivity - 2;
-  assert.equal(said(toad.x, toad.y).text, 'toad, sleeping, dirt');
-  assert.equal(view(g).stats.sensitivity, undefined, 'sensitivity is never shown');
 });
 
 test('the ground, a corpse and an item on the floor each say one plain line; a gap is the ground beside it; walls keep their slot', () => {
@@ -524,16 +508,17 @@ test('walking into the sleeping toad opens its encounter and grabbing the key ca
     for (const succeeds of [true, false]) {
       CONFIG.keyChance.calm = succeeds ? 1 : 0;
       const { g, target: toad, bump } = besideEncounter('toad');
+      g.speed = 1; // "it never works until your speed (hidden attribute) or whatever becomes active"
       const turn = g.turn;
       bump();
       assert.deepEqual(eventLines(g), ['the giant toad sleeps ruefully', 'its muscles are exposed', 'it wears a golden locket around its neck']);
       // "you cannot talk to it"; no choice here is said aloud
-      assert.deepEqual(eventLabels(g), ['try to grab the key', 'attack the toad', 'back']);
+      assert.deepEqual(eventLabels(g), ['try to grab the locket', 'attack the toad', 'back']);
       assert.ok(view(g).event.options.every((o) => !o.said));
       chooseLabel(g, 'back');
       assert.equal(view(g).event, null);
       bump();
-      chooseLabel(g, 'try to grab the key');
+      chooseLabel(g, 'try to grab the locket');
       assert.equal(toad.asleep, succeeds);
       assert.equal(toad.key, !succeeds);
       // the key comes in the toad's locket (November 23)
@@ -572,9 +557,10 @@ test('the toad’s key is in its locket: the locket’s name in the log opens it
   try {
     CONFIG.keyChance.calm = 1;
     const { g, bump } = besideEncounter('toad');
+    g.speed = 1;
     const turn = g.turn;
     bump();
-    chooseLabel(g, 'try to grab the key');
+    chooseLabel(g, 'try to grab the locket');
     chooseLabel(g, 'back');
     assert.equal(view(g).event, null);
     // the log names it, underlined
@@ -628,6 +614,24 @@ test('the toad’s key is in its locket: the locket’s name in the log opens it
     assert.deepEqual(eventLabels(g)[0], `take the ${TEXT.thing.key}`);
     chooseLabel(g, `take the ${TEXT.thing.key}`);
     assert.ok(g.items.some((it) => it.key === 'key'));
+  } finally {
+    CONFIG.keyChance.calm = chance;
+  }
+});
+
+test('grabbing the locket never works until your hidden speed is active', () => {
+  const chance = CONFIG.keyChance.calm;
+  try {
+    CONFIG.keyChance.calm = 1; // even when it would always work
+    const { g, target: toad, bump } = besideEncounter('toad');
+    assert.equal(g.speed, CONFIG.player.speed);
+    assert.ok(!(g.speed > 0), 'it is not active to begin with');
+    bump();
+    chooseLabel(g, 'try to grab the locket');
+    assert.deepEqual(eventLines(g), ['failure!', 'the toad wakes up']);
+    assert.equal(toad.asleep, false);
+    assert.equal(toad.key, true, 'the toad keeps its locket');
+    assert.ok(!g.items.some((it) => it.key === 'locket'));
   } finally {
     CONFIG.keyChance.calm = chance;
   }

@@ -35,7 +35,8 @@ function makeState(seed, look, nextLogId, outlines = CONFIG.outlines.start, edit
     str: CONFIG.player.str,
     love: CONFIG.player.love,
     will: CONFIG.player.will,
-    sensitivity: CONFIG.player.sensitivity, // never shown (decision 17): how far off you make out more
+    sensitivity: CONFIG.player.sensitivity, // never shown (decision 17); nothing uses it now
+    speed: CONFIG.player.speed, // never shown; grabbing the locket works only once it is above 0
     items: [{ key: 'sword', inHand: true }],
     selfUntil: -1, //  you perceive your own numbers while turn < selfUntil
     sensedTurn: -1, // what pillars hide is drawn while turn === sensedTurn ...
@@ -1370,11 +1371,6 @@ function groundWord(room, i) {
   return null;
 }
 
-// How many steps off you make out more about a thing (eight ways): CONFIG.observeClose, and
-// further with more sensitivity than you begin with, nearer with less.
-const moreReach = (g) =>
-  Math.max(0, Math.floor(CONFIG.observeClose + (g.sensitivity - CONFIG.player.sensitivity) * CONFIG.sensitivityReach));
-
 // A readout: { id, text, found, slot }. found: ids of what it tells that you had to make out,
 // kept as had once it is said; from then on they show at any distance, while they hold.
 // slot: a part of it is an empty slot, his to write.
@@ -1384,17 +1380,15 @@ function readout(id, parts, found = []) {
 }
 
 // The toad: "wounded" once it has lost any hp; sleeping, or hostile, since awake it attacks
-// on sight ("toad, hostile, dirt", decision 395); its ground; and its key, within moreReach
-// steps or once you have made it out.
+// on sight ("toad, hostile, dirt", decision 395); its ground. Never its locket: "you only see
+// the locket on the toad when you walk into it, never through observation" (November 23).
 function toadReadout(g, room) {
   const t = room.toad;
   const r = TEXT.readout;
   const { idx } = terrainGrid(room.t);
   const who = t.hp < CONFIG.toad.hp ? r.modified(r.modifier.wounded, r.who.toad) : r.who.toad;
-  const key = t.key && (g.observed[TOAD_KEY] || chebyshev(t.x, t.y, g.x, g.y) <= moreReach(g));
-  return readout('readout.toad', [who, t.asleep ? r.doing.asleep : r.doing.hostile, groundWord(room, idx(t.x, t.y)), key && TEXT.thing.locket], key ? [TOAD_KEY] : []);
+  return readout('readout.toad', [who, t.asleep ? r.doing.asleep : r.doing.hostile, groundWord(room, idx(t.x, t.y))]);
 }
-const TOAD_KEY = 'unit.toad.chain'; // that the toad has its key: the id the original keeps it by
 
 // What holding on cell i says in the main game: { key, unit, list }, a list of one.
 function observableEsoteric(g, room, i, thing) {
@@ -1898,7 +1892,9 @@ function eventChoose(g, i, ev) {
     case 'key': {
       e.now = 0;
       const p = toad.stirred ? CONFIG.keyChance.stirred : CONFIG.keyChance.calm;
-      if (chance(g.rng, p)) {
+      // "it never works until your speed (hidden attribute) or whatever becomes active"
+      const quick = g.edition !== 'esoteric' || g.speed > 0;
+      if (quick && chance(g.rng, p)) {
         toad.key = false;
         if (g.edition === 'esoteric') gain(g, locket(), TEXT.log.take(TEXT.thing.locket));
         else g.items.push({ key: 'key', inHand: false });
